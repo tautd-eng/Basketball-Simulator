@@ -43,13 +43,18 @@ export function stepsOf(lg: any) {
   return { steps, cur };
 }
 
+/** Lets the step bar open a finished step for a look (Overview keeps which one). */
+export const stepPeek: { set?: (k: string | null) => void; cur?: string | null } = {};
 export function StepBar({ lg }: any) {
   const { steps, cur } = stepsOf(lg);
   if (!cur) return null;
   const i = steps.findIndex(s => s.k === cur);
+  const peek = stepPeek.cur;
   return (
     <ol className="stepbar" aria-label="Offseason steps">
-      {steps.map((s, k) => <li key={s.k} className={k === i ? 'on' : k < i ? 'past' : ''}><span className="n">{k + 1}</span>{s.t}</li>)}
+      {steps.map((s, k) => k < i && stepPeek.set
+        ? <li key={s.k} className={`past clickable ${peek === s.k ? 'peek' : ''}`}><button className="step-link" title="Look back at this step (already done)" onClick={() => stepPeek.set!(peek === s.k ? null : s.k)}><span className="n">{k + 1}</span>{s.t}</button></li>
+        : <li key={s.k} className={k === i ? (peek ? 'on dimmed' : 'on') : k < i ? 'past' : ''} onClick={k === i && peek && stepPeek.set ? () => stepPeek.set!(null) : undefined}><span className="n">{k + 1}</span>{s.t}</li>)}
       <li className={''}><span className="n">{steps.length + 1}</span>New season</li>
     </ol>
   );

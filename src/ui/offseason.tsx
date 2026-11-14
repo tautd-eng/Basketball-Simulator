@@ -215,7 +215,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
   );
 }
 
-function DraftSummary({ lg, d, openPlayer, openTeam, onNext }: any) {
+export function DraftSummary({ lg, d, openPlayer, openTeam, onNext }: any) {
   const S = d.year + 1;
   const rows = d.picks.map((x: any) => ({ ...x, key: x.pick, p: lg.players[x.pid] })).filter((r: any) => r.p);
   const byPot = [...rows].sort((a, b) => potOf(b.p, S) - potOf(a.p, S));

@@ -198,11 +198,11 @@ export function LotteryRoom({ lg, onChange, onDrawn }: any) {
 }
 
 /** The draw revealed from the last lottery slot up to No. 1. */
-export function LotteryReveal({ lg, close }: any) {
+export function LotteryReveal({ lg, close, done }: any) {
   const d = lg.draftDay, L = d.lotto;
   const res: string[] = L.result ?? [];
   const n = res.length;
-  const [shown, setShown] = useState(0); // how many slots revealed, from the bottom
+  const [shown, setShown] = useState(done ? n : 0); // how many slots revealed, from the bottom
   const [auto, setAuto] = useState(true);
   // pace (remembered): the drawn picks take longer, No. 1 the longest
   const [pace, setPace] = useState<number>(() => { try { return +(localStorage.getItem('lottoPace') ?? 1) || 1; } catch { return 1; } });

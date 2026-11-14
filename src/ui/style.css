@@ -1063,3 +1063,10 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .guide-tbl td, .guide-tbl th { white-space: normal !important; }
 .guide-tbl td:first-child { white-space: nowrap !important; }
 .tab-badge { display: inline-block; margin-left: 5px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 700; line-height: 18px; text-align: center; vertical-align: 1px; }
+/* offseason: finished steps can be opened again to look */
+.stepbar li.clickable { padding: 0; }
+.stepbar .step-link { background: none; border: 0; color: inherit; font: inherit; display: inline-flex; align-items: center; gap: 6px; padding: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.stepbar li.peek { outline: 2px solid var(--accent); border-radius: 999px; }
+.stepbar li.dimmed { opacity: 0.6; cursor: pointer; }
+.peek-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.readonly .host-only, .readonly button.primary { display: none !important; }

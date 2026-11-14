@@ -1,4 +1,6 @@
 // @ts-nocheck
+import { LotteryReveal } from './draftday';
+import { DraftSummary } from './offseason';
 import { Guide } from './guide';
 import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
 import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
@@ -15,7 +17,7 @@ import { StandingsHistory, TeamStatsExplorer, FaMoves } from './leaguehist';
 import { Logo, TLogo, PFace } from './art';
 import { RoleBadge } from './roles';
 import { SeasonPreview } from './seasonpreview';
-import { StepBar, RecapStep, RetireStep, DevStep, PreviewStep, HallOfFameView } from './offsteps';
+import { StepBar, RecapStep, RetireStep, DevStep, PreviewStep, HallOfFameView, stepPeek, stepsOf } from './offsteps';
 import { Progression } from './rankings';
 import { offStep } from '../league/offseason';
 import { Devices } from './devices';
@@ -854,6 +856,31 @@ function Fold({ children }: any) { return children ?? null; }
 function Overview({ lg, openTeam, openPlayer, openGame, watch, clutch, busy, playable, replay, sampler, onSaved, goFA, onTick }: any) {
   const last = lg.history[lg.history.length - 1];
   const step = lg.phase === 'draft' ? offStep(lg) : null;
+  // a finished offseason step opened again from the step bar, just to look (nothing can be changed there)
+  const [peek, setPeek] = useState<string | null>(null);
+  stepPeek.set = setPeek; stepPeek.cur = peek;
+  const { steps: allSteps, cur: curStep } = stepsOf(lg);
+  useEffect(() => { setPeek(null); }, [curStep]);
+  if (peek && curStep && allSteps.findIndex((x: any) => x.k === peek) < allSteps.findIndex((x: any) => x.k === curStep)) {
+    const dd = lg.draftDay;
+    const title = allSteps.find((x: any) => x.k === peek)?.t;
+    const body = peek === 'recap' ? <div className="grid-2">
+        <section className="col">{last && <SeasonCard lg={lg} s={last} openPlayer={openPlayer} />}<Standings lg={lg} openTeam={openTeam} /></section>
+        <section className="col">{lg.series.length ? <Bracket lg={lg} openTeam={openTeam} openGame={openGame} /> : null}</section></div>
+      : peek === 'retire' ? <Retirements lg={lg} openPlayer={openPlayer} />
+      : peek === 'dev' ? <Progression lg={lg} openPlayer={openPlayer} openTeam={openTeam} />
+      : peek === 'lottery' && dd?.lotto?.result ? <LotteryReveal lg={lg} done close={() => setPeek(null)} />
+      : (peek === 'draft' || peek === 'expansion') && dd?.picks?.length ? <div className="readonly"><DraftSummary lg={lg} d={dd} openPlayer={openPlayer} openTeam={openTeam} onNext={() => {}} /></div>
+      : peek === 'decisions' || peek === 'fa' ? <FaMoves lg={lg} openPlayer={openPlayer} openTeam={openTeam} />
+      : <p className="note">Nothing to show for this step.</p>;
+    return (
+      <div className="col">
+        <StepBar lg={lg} />
+        <div className="panel peek-head"><span>Looking back: <b>{title}</b> – already done, nothing here can be changed.</span><button className="primary small" onClick={() => setPeek(null)}>Back to the current step</button></div>
+        {body}
+      </div>
+    );
+  }
   if (step === 'recap') return (
     <div className="col">
       <StepBar lg={lg} />
