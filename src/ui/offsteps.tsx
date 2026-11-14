@@ -370,7 +370,7 @@ export function devReason(lg: any, p: any, S: number): string {
   add(w.destiny, 'pulled toward his real career');
   add(w.league ?? 0, 'league-wide recalibration');
   parts.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
-  let txt = parts.slice(0, 3).map(x => x.t).join('; ');
+  let txt = parts.map(x => x.t).join('; ');
   if (!txt) txt = w.dz && age <= 25 ? 'played about at his level – no penalty for a young player' : 'little changed';
   else if (w.dz && age <= 25 && Math.abs(w.perf) < 1) txt += '; played about at his level (no penalty at his age)';
   return txt.charAt(0).toUpperCase() + txt.slice(1) + '.';

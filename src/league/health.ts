@@ -18,7 +18,7 @@ import { zClamp } from '../ai/value';
 import { roleOf } from '../archetypes';
 import { posNum } from '../engine/game';
 
-export const DEV = { noise: 0.32, ar: 0.55, maxOvrStep: 8, soft: 2.7, maxSkillStep: 0.5, primeDrop: 2.5, maxUp: 6, rookieUp: 5 };
+export const DEV = { idio: 0.4, noise: 0.32, ar: 0.55, maxOvrStep: 8, soft: 2.7, maxSkillStep: 0.5, primeDrop: 2.5, maxUp: 6, rookieUp: 5 };
 /**
  * Leniency for young players: up to maxAge, a season slightly below expectations
  * (performance signal above -deadZone OVR) does not hurt, a flop (below `flop`)
@@ -309,10 +309,17 @@ export function develop(lg: League, rng: Rng) {
     const potBoost = age <= 24 ? 0.05 : age <= 27 ? 0.025 : 0;
     const nat = new Array(NK).fill(0);
     const eNew = new Array(NK).fill(0);
+    // the summer's luck: mostly one common "form" factor along the overall rating (a good or an off summer), with
+    // only a small part skill by skill – so his overall moves as much as before, but single skills no longer churn
+    // at random (a shooter does not lose 5 points of shooting while gaining 6 of blocks out of nothing)
+    const sdOf = (i: number) => H.aging[H.keys[i]].sd[ai] * DEV.noise * dev.vol;
+    const wO = H.keys.map((k, i) => (TENDENCY.has(i) ? 0 : H.ovr[k]));
+    const commonSd = Math.sqrt(H.keys.reduce((a, _, i) => a + (sdOf(i) * wO[i]) ** 2, 0) * (1 - DEV.idio ** 2));
+    const g = rng.normal() * commonSd;
     for (let i = 0; i < NK; i++) {
       const a = H.aging[H.keys[i]];
       const pot = (TENDENCY.has(i) ? 0.4 : 1) * potBoost * dev.pot * (i === K.tov || i === K.pf ? -1 : 1);
-      eNew[i] = DEV.ar * dev.e[i] + rng.normal() * a.sd[ai] * DEV.noise * dev.vol;
+      eNew[i] = DEV.ar * dev.e[i] + rng.normal() * sdOf(i) * DEV.idio + g * OVR_DIR[i];
       // trend moves with the aging curve; the noise component is replaced, not added on top
       nat[i] = a.mean[ai] + pot + (eNew[i] - dev.e[i]);
     }

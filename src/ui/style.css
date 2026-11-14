@@ -1078,3 +1078,41 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .rating.tend .bar span { opacity: .55; }
 .contract-line { margin: 4px 0; }
 .contract-line .chip { margin-left: 6px; }
+/* ---------------------------------------------------------------- PC: a side bar on the left (sections, like a manager game) */
+.side-brand, .side-foot { display: none; }
+.brand .name-sect { display: none; }
+@media (min-width: 1100px) {
+  .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-auto-rows: auto; align-items: start; }
+  .shell > * { grid-column: 2; }
+  .shell > nav.tabs {
+    grid-column: 1; grid-row: 1 / span 30; position: sticky; top: 0; height: 100vh; align-self: start;
+    display: flex; flex-direction: column; gap: 1px; overflow-y: auto; overflow-x: hidden;
+    padding: 0 0 10px; border-bottom: 0; border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .shell > main { min-height: calc(100vh - 140px); }
+  .side-brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 14px; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; line-height: 1.05; font-size: .95rem; color: var(--head-ink, var(--ink)); border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .side-brand .ball { width: 26px; height: 26px; }
+  .tabs .ti { display: block; flex: none; opacity: .85; }
+  .tabs button, .side-foot button {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 9px 16px; border: 0; border-left: 3px solid transparent; border-bottom: 0;
+    font-family: var(--font-body, inherit); font-size: .92rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); background: none;
+  }
+  .tabs button:hover, .side-foot button:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .tabs button.on { color: var(--ink); border-left-color: var(--team2, var(--accent)); border-bottom-color: transparent; background: color-mix(in srgb, var(--accent) 22%, transparent); font-weight: 600; }
+  .tabs button.on .ti { color: var(--team2, var(--accent)); opacity: 1; }
+  .tabs button.gstart { margin-top: 8px; position: relative; }
+  .tabs button.gstart::before { content: ''; position: absolute; left: 12px; right: 12px; top: -5px; border-top: 1px solid var(--line); }
+  .tabs .tab-badge { margin-left: auto; }
+  .side-foot { display: flex; flex-direction: column; gap: 1px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+  .side-foot button { font-size: .85rem; padding-block: 7px; }
+  .tabs .more-btn { display: none !important; }
+  .top { position: sticky; top: 0; }
+  .team-theme nav.tabs { background: var(--surface); }
+  .team-theme .side-brand { color: var(--head-ink); background: var(--head-bg); box-shadow: inset 0 -3px 0 var(--team2); border-bottom: 0; }
+  .side-brand { min-height: 69px; box-sizing: border-box; padding-block: 0; margin-bottom: 8px; }
+  .brand .ball, .brand .name-full { display: none; }
+  .brand .name-sect { display: inline; }
+}
+

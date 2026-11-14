@@ -333,7 +333,7 @@ function App() {
           <button className="back-top" onClick={goBack} disabled={depth === 0} aria-label="Back to the previous screen" title={depth ? 'Back to the previous screen (the browser\'s Back works too)' : 'Nothing to go back to yet'}>←</button>
           <span className="ball" aria-hidden="true"></span>
           <div>
-            <div className="name">NBA History Simulator</div>
+            <div className="name"><span className="name-full">NBA History Simulator</span><span className="name-sect">{tabsFor(lg).find(([k]) => k === tab)?.[1] ?? 'NBA History Simulator'}</span></div>
             <div className="meta">{seasonLabel(lg.season)} · {phaseLabel(lg)} · destiny {Math.round(lg.destiny * 100)}%</div>
           </div>
           <PlayingAs lg={lg} onChange={async () => { if (lg.userTid) setTeam(lg.userTid); bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />
@@ -342,9 +342,15 @@ function App() {
       </header>
       {octx && <OnlineBar lg={lg} openPanel={() => setShowOnline(true)} onLeave={() => { setSlot(newSlotId()); toMenu(); }} />}
       <nav className="tabs" aria-label="Sections">
+        <div className="side-brand"><span className="ball" aria-hidden="true"></span><span>NBA History<br />Simulator</span></div>
         {tabsFor(lg).map(([k, l, main]) => (
-          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
+          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
+        <div className="side-foot">
+          <button onClick={() => setShowSaves(true)}><TabIcon k="saves" /><span className="tl">Saves</span></button>
+          <button onClick={() => setShowOnline(true)}><TabIcon k="online" /><span className="tl">Online league</span></button>
+          <button onClick={toMenu}><TabIcon k="menu" /><span className="tl">Main menu</span></button>
+        </div>
         <button className={`more-btn ${more || tabsFor(lg).some(([k, , m]) => !m && k === tab) ? 'on' : ''}`} onClick={() => setMore(m => !m)} aria-label="More" aria-expanded={more}><TabIcon k="more" /><span className="tl">More</span></button>
       </nav>
       {more && <div className="more-sheet-bg" onClick={() => setMore(false)}>
@@ -393,9 +399,12 @@ function App() {
 
 /** Sections: [key, label, shown in the phone's bottom bar (the rest go under "More")] */
 const TABS: [string, string, boolean][] = [
-  ['apzvalga', 'Overview', true], ['komandos', 'Teams', true], ['reitingai', 'Rankings', true], ['mainai', 'Trades', true],
-  ['statistika', 'Stats', false], ['laisvieji', 'Free agents', false], ['algos', 'Salaries', false], ['draftai', 'Draft classes', false], ['istorija', 'History', false], ['rungtynes', 'Games', false], ['gidas', 'Guide', false],
+  ['apzvalga', 'Overview', true], ['komandos', 'Teams', true], ['reitingai', 'Rankings', true], ['statistika', 'Stats', false], ['rungtynes', 'Games', false],
+  ['mainai', 'Trades', true], ['laisvieji', 'Free agents', false], ['algos', 'Salaries', false], ['draftai', 'Draft classes', false],
+  ['istorija', 'History', false], ['gidas', 'Guide', false],
 ];
+/** where a new group starts in the PC side bar (club · league · market · archive) */
+const GROUP_START = new Set(['komandos', 'mainai', 'istorija']);
 
 /** The sections for this league: Team management only when the user runs a team. */
 const tabsFor = (lg: any): [string, string, boolean][] => lg?.userTid ? [TABS[0], ['valdymas', 'Team management', true], ...TABS.slice(1).map(([k, l, m]) => [k, l, k === 'mainai' ? false : m] as [string, string, boolean])] : TABS;
@@ -415,6 +424,9 @@ function TabIcon({ k }: { k: string }) {
     istorija: 'M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4',
     rungtynes: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
     gidas: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h11M8 8h6',
+    saves: 'M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7',
+    online: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+    menu: 'M4 6h16M4 12h16M4 18h16',
     more: 'M5 12h.01M12 12h.01M19 12h.01M4 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M11 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M18 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0',
   };
   return <svg className="ti" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={d[k]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
