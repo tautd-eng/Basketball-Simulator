@@ -120,7 +120,8 @@ export function Guide({ onBack }: any) {
 
       <Sec id="pot" title="Potential and scouting" open={all}>
         <p>A player's real potential is hidden. “Pot.” is what the scouts believe: the real potential plus their error. For a prospect the error is ~±5 OVR, and about one in twelve is badly misjudged – the Darko everybody loved, the Giannis nobody saw. As a player spends seasons in the league the scouts learn and the error shrinks. Overall stays hidden in the draft until a player is picked.</p>
-        <p><b>Destiny</b> (set when the league starts) is how strongly real careers pull: at 100% players develop almost as in reality; at 0% only the draft-day profile is known and history is rewritten.</p>
+        <p>In the draft, <b>Now</b> is the scouts' estimate of a prospect's overall today – it can be a few points off; the real one shows once he is drafted.</p>
+        <p><b>How closely to follow reality</b> (set when the league starts, eight levels from “Alternate history” to “Replay”) is how strongly real careers pull. With <b>Generated classes</b> there is no real career to follow, so the question does not come up.</p>
       </Sec>
 
       <Sec id="dev" title="How players develop" open={all}>
@@ -131,7 +132,10 @@ export function Guide({ onBack }: any) {
           <li><b>The young are protected:</b> up to 22 a bad season costs nothing; from 23 the bill comes in step by step. A good season is rewarded at once and more for the young (up to 1.5×).</li>
           <li><b>Veterans who no longer deliver pay in full;</b> a veteran who still plays well holds his level until about 30.</li>
           <li>Players named to All-League or All-Defensive teams (or MVP / DPOY) are never marked down for that season. Serious injuries can cost ratings.</li>
-          <li>The league is kept in the shape of its era; when it drifts too strong, mostly veterans past their peak carry the correction.</li>
+          <li><b>Minutes matter:</b> a season counts in full only in a real rotation role. A good stretch in small minutes earns nothing below ~15 minutes a game (in full from ~30); a poor one in small minutes costs little – being a reserve on a deep team is not punished.</li>
+          <li>The summer's luck is mostly one “form” factor (a good or an off summer), so single skills don't jump around at random.</li>
+          <li><b>No one moves more than 6 overall points in one summer</b>, up or down, whatever the causes add up to.</li>
+          <li>The league is kept roughly in the shape of its era, gently: it may grow stronger than the real one (up to about 50 more 80+ players) before anything pulls it back; a league that gets too weak is lifted at once.</li>
         </ul>
       </Sec>
 
@@ -182,6 +186,7 @@ export function Guide({ onBack }: any) {
           <li><b>Up to 110% of the cap</b> you can sign any free agent; <b>from 110% to the hard cap (150%)</b> only minimum deals and your own players (re-signing, matching offer sheets, extensions). Trades can take you to the hard cap.</li>
           <li>Rookie deals by pick (with team options from 1999–2000), player and team options, restricted free agents (qualifying offers, offer sheets you can match), maximum and minimum salaries by era.</li>
           <li>Releasing a player keeps half of his salary on your books until his contract ends (minimum deals cost nothing).</li>
+          <li><b>Extensions</b> are possible until the trade deadline. If he turns your offer down, you get one more try on deadline day; after a second no (or the deadline) he goes to free agency. Computer teams play by the same rules.</li>
           <li>All the details – and “Release players”, which shows the effect before you decide – are under <b>Salaries → How contracts work</b>.</li>
         </ul>
       </Sec>
@@ -192,14 +197,20 @@ export function Guide({ onBack }: any) {
           <li>The lottery uses the era's real rules (a coin flip before 1985, weighted lotteries after) – the odds are shown before the draw.</li>
           <li>On draft day you pick when on the clock; teams trade up; the board (◂ Draft board) shows every pick in team colours.</li>
           <li>Some drafted players stay overseas until their real NBA career began – you can bring yours over early.</li>
-          <li>New leagues can bring real classes in their own years, shuffled classes or a mix; after today's NBA, historical classes come round again.</li>
+          <li>New leagues bring <b>Generated classes</b> by default – made-up prospects with made-up names, each built on a real player's profile and career path – or real classes in their own years, shuffled classes or a mix; after today's NBA, historical classes come round again.</li>
+          <li><b>After the draft: Team & rookie options</b> – keep or decline team options, tender qualifying offers, sign your draft picks (or let them go: no money on your books) and see what your players decided on their player options. Payroll updates with every choice.</li>
+          <li>Positions are PG / SG / SF / PF / C: where a player really played most of his career (a second position if he played a fair share there). Filters use them; a player counts for both of his positions.</li>
         </ul>
       </Sec>
 
       <Sec id="fa" title="Free agency" open={all}>
         <ul>
-          <li>Before the market: player and team options, qualifying offers. Then three waves: stars first at full price, prices drop each wave, and at the end teams fill their rosters.</li>
-          <li><b>Your offers are not signed at once:</b> the player decides at the end of the wave, comparing all offers – money, years, his role, the team's chances and whether he likes the place (up to 10% discount; a player who doesn't want to stay asks his team up to twice as much).</li>
+          <li>Before the market: player and team options, qualifying offers, rookie contracts. Then three waves; at the end teams fill their rosters.</li>
+          <li><b>Your own free agents are on the market from the first wave</b>, like everyone's – you hold their Bird rights (you can pay them over the free-agent limit, up to the hard cap, and they like staying a little more). They are listed at the top of Free agents.</li>
+          <li><b>Max players always ask for the max.</b> Everyone else reads the market: what the teams with room can pay him decides what he expects – a thin market brings the price down (only so far each wave), several teams able to pay brings it up. His old team can keep him at his value and meets the best offer if it wants him.</li>
+          <li><b>Your offers are not signed at once:</b> the player decides at the end of the wave, comparing all offers – money, years, his role, the team's chances and whether he likes the place (up to 10% discount; a player who doesn't want to stay asks his team up to twice as much). Type the exact % of the cap you offer, or press Max.</li>
+          <li>The room bar shows your payroll, your open offers and what is left; put your offers in order of priority – if more say yes than the room allows, the higher ones sign first.</li>
+          <li>Once a player signs, “N offers” shows every offer he had on a scale and why he chose his team.</li>
           <li>Contract length is priced: young players want short deals or a premium, veterans prefer security.</li>
           <li>Offer sheets for your restricted free agents wait one wave for your answer (match or let him go); unanswered, your GM decides.</li>
           <li>Unsigned players can be signed during the season (they decide the next day).</li>
@@ -209,7 +220,9 @@ export function Guide({ onBack }: any) {
       <Sec id="trades" title="Trades" open={all}>
         <ul>
           <li>Build a trade or use the trade finder (also from a player's profile): it lists deals the other team accepts for what you offer, by market value.</li>
-          <li>Salaries must fit under the hard cap and rosters within 13–15. Trades close at the deadline and reopen after the playoffs (draft-day trades happen too).</li>
+          <li>Salaries must fit under the hard cap and rosters within 13–15. Trades close at the deadline and reopen after the playoffs (draft-day trades happen too); open offers expire at the deadline.</li>
+          <li>Computer teams make you offers too (Trades → offers for you); they stand about a week.</li>
+          <li><b>Trade requests:</b> now and then a star on a team that missed the playoffs two years running asks to be traded. He will not extend or re-sign there – unless the team turns things around.</li>
           <li><b>Commissioner mode</b> lets you execute any trade between any teams (rules still apply) and bring retired players back.</li>
         </ul>
       </Sec>
