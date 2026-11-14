@@ -215,6 +215,7 @@ function App() {
   useEffect(() => { if (resume.current !== false) return; try { if (player) sessionStorage.setItem('nba-player', player); else sessionStorage.removeItem('nba-player'); } catch { /* */ } }, [player]);
   const [screen, setScreen] = useState<'menu' | 'new' | 'load' | 'host' | 'prefs' | 'guide'>('menu');
   const [hostAfter, setHostAfter] = useState(false);
+  useEffect(() => { try { window.scrollTo(0, 0); } catch { /* */ } }, [screen]);
   // a new version of the online league arrived / the host applied others' moves
   useEffect(() => {
     bindApp({
@@ -272,7 +273,7 @@ function App() {
   function start(destiny: number, seed: number, userTid: string | null, settings: any, fantasy = false, startYear = 1980, classMode: any = 'real', futureMode: any = 'shuffle') {
     const l = newLeague(destiny, seed, settings, { fantasy, start: startYear, classMode, futureMode });
     l.userTid = userTid;
-    setLg(l); setTeam(userTid ?? 'LAL'); setTab('overview');
+    setLg(l); setTeam(userTid ?? 'LAL'); setTab('overview'); try { window.scrollTo(0, 0); } catch { /* */ }
     saveLeague(l).then(ok => setSaved(ok ? 'ok' : 'fail'));
     if (hostAfter) { setHostAfter(false); setShowOnline(true); }
   }
@@ -286,7 +287,7 @@ function App() {
     }
     setSlot(id);
     const l = await loadLeague(id);
-    if (l) { ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('overview'); setPlayer(null); setShowSaves(false); if (host) setShowOnline(true); }
+    if (l) { try { window.scrollTo(0, 0); } catch { /* */ } ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('overview'); setPlayer(null); setShowSaves(false); if (host) setShowOnline(true); }
   };
   switchRef.current = switchTo;
   const startNew = () => { setSlot(newSlotId()); setLg(null); setShowSaves(false); setScreen('new'); };
@@ -360,6 +361,12 @@ function App() {
       {more && <div className="more-sheet-bg" onClick={() => setMore(false)}>
         <div className="more-sheet" role="menu" onClick={e => e.stopPropagation()}>
           {tabsFor(lg).filter(([, , m]) => !m).map(([k, l]) => <button key={k} role="menuitem" className={tab === k ? 'on' : ''} onClick={() => { go(k); setMore(false); }}><TabIcon k={k} /><span>{l}</span></button>)}
+          <div className="more-sep" />
+          <button className="host-only" onClick={() => { setMore(false); setShowSettings(true); }}><TabIcon k="format" /><span>Season format</span></button>
+          {!octx && <button onClick={() => { setMore(false); setShowHumans(true); }}><TabIcon k="people" /><span>Players & teams</span></button>}
+          <button onClick={() => { setMore(false); setShowSaves(true); }}><TabIcon k="saves" /><span>Saves</span></button>
+          <button onClick={() => { setMore(false); setShowOnline(true); }}><TabIcon k="online" /><span>Online league</span></button>
+          <button onClick={() => { setMore(false); toMenu(); }}><TabIcon k="menu" /><span>Main menu</span></button>
           <p className="more-ver">Version {BUILD}</p>
         </div>
       </div>}

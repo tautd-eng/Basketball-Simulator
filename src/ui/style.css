@@ -1136,7 +1136,7 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .sim-more, .tl-short { display: none; }
 @media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
   /* one slim header row that stays on top: title on the left, the next step and a "Sim" menu on the right */
-  .top { position: sticky !important; top: 0; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; gap: 8px; padding-block: 6px !important; }
+  .top { position: sticky !important; top: 0; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; gap: 8px; padding-block: 6px !important; padding-top: max(6px, env(safe-area-inset-top, 0px)) !important; }
   .top .brand { flex: 1 1 auto; min-width: 0; }
   .top .brand .ball { display: none; }
   .top .playing-as select { max-width: 110px; }
@@ -1161,4 +1161,14 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 @media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
   .top .controls button.primary { font-size: .82rem; padding: 8px 9px; max-width: 132px; white-space: normal; line-height: 1.1; }
   .top .brand .name { font-size: 1rem; }
+}
+
+.more-sep { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 2px 0; }
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .foot-actions { display: none; }
+  .more-sheet { max-height: calc(100vh - 90px - env(safe-area-inset-top, 0px)); overflow-y: auto; }
+  /* screens and dialogs start below the phone's status bar */
+  .overlay.center { padding-top: env(safe-area-inset-top, 0px); }
+  .setup { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+  .guide-page { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
 }
