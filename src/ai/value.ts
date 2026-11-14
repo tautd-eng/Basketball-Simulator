@@ -95,7 +95,7 @@ export function contractYears(p: Player, season: number, rnd: () => number) {
 /** Hard payroll limit (share of the cap) every team must stay under. */
 export function hardCap(lg: League) {
   const h = lg.settings?.hardCap;
-  return h === null ? Infinity : (h ?? 1.35);
+  return h === null ? Infinity : (h ?? 1.5); // room above the 110% free-agent limit to keep your own players (Bird rights)
 }
 
 export function payroll(lg: League, tid: string) {

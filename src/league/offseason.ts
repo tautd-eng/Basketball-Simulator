@@ -567,7 +567,7 @@ export function readMarket(lg: League) {
     for (const t of teams) {
       if ((spots.get(t.tid) ?? 0) <= 0 || refuses(p, t.tid)) continue;
       let amt = room.get(t.tid)!;
-      if (p.bird === t.tid) amt = Math.max(amt, Math.min(hc, pre ? 1.6 : 1.45) - payroll(lg, t.tid));  // Bird rights
+      if (p.bird === t.tid) amt = Math.max(amt, Math.min(hc, pre ? 1.6 : 1.5) - payroll(lg, t.tid));  // Bird rights
       if (amt < value * 0.5 && hc === Infinity && N >= 1995 && !mle.has(t.tid)) amt = Math.max(amt, MLE);  // the exception
       if (amt >= floor * 1.5) can.push({ tid: t.tid, amt: Math.min(max, amt) });
     }
@@ -617,7 +617,7 @@ function capCheck(lg: League, tid: string, p: Player, sal: number, reserve = 0):
   }
   if (sal <= room + 1e-9) return { err: null };
   if (sal <= MIN_SAL * 1.0001) return { err: null };
-  const birdMax = Math.min(hc, N < 1985 ? 1.6 : 1.45);
+  const birdMax = Math.min(hc, N < 1985 ? 1.6 : 1.5);
   if (p.bird === tid && pay + sal <= birdMax) return { err: null };
   if (hc === Infinity && N >= 1995 && !(lg.fa?.mle ?? []).includes(tid) && sal <= MLE + 1e-9) return { err: null, mle: true };
   const parts = hc < Infinity
@@ -937,7 +937,7 @@ function bestBid(lg: League, p: Player, rng: Rng, skip?: string, clear = false):
 /** Does the team holding his rights match an offer sheet? */
 function aiMatches(lg: League, p: Player, tid: string, sal: number) {
   const t = lg.teams[tid];
-  const lim = Math.min(hardCap(lg), lg.season < 1985 ? 1.6 : 1.45);
+  const lim = Math.min(hardCap(lg), lg.season < 1985 ? 1.6 : 1.5);
   if (t.roster.length >= ROSTER_MAX || !worthKeeping(lg, p, sal, lg.season, t.strategy)) return false;
   if (payroll(lg, tid) + sal <= lim) return true;
   // his team builds around him: it makes room rather than lose him
@@ -1130,7 +1130,7 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     const underFloor = pay < FLOOR;
     if (room >= askT) sal = Math.min(room, max, askT * (1 + (underFloor ? 0.3 : 0.15) * rng.next()));
     // his own team holds his Bird rights: it may go over the cap to keep him (and a core player is worth making room for)
-    else if (p.bird === t.tid && pay + askT <= Math.min(hardCap(lg), pre ? 1.6 : 1.45)) sal = askT;
+    else if (p.bird === t.tid && pay + askT <= Math.min(hardCap(lg), pre ? 1.6 : 1.5)) sal = askT;
     // (for a core player it offers anyway and makes the room if he picks it)
     else if (p.bird === t.tid && keeps(lg, t.tid, p)) { sal = askT; needRoom = true; }
     else if (ask <= MIN_SAL * 2.5) sal = room >= ask ? Math.max(MIN_SAL, ask) : MIN_SAL;   // over the free-agent limit: the minimum only
@@ -1150,10 +1150,11 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     const vals = t.roster.map(pid => playerValue(lg.players[pid], N, t.strategy)).sort((a, b) => b - a);
     const twelfth = vals[Math.min(vals.length, 12) - 1] ?? 0;
     if (t.roster.length >= ROSTER_MIN && v <= twelfth && !(underFloor && t.roster.length < ROSTER_MAX)) continue;
-    if (t.strategy === 'rebuild' && ageIn(p, N) > 30 && sal > MIN_SAL * 2.5) continue;
+    // a rebuilding team does not pay veterans – unless it is one of its own it means to keep (Bird rights)
+    if (t.strategy === 'rebuild' && ageIn(p, N) > 30 && sal > MIN_SAL * 2.5 && !(p.bird === t.tid && keeps(lg, t.tid, p))) continue;
     // a tanking team does not pay veterans – it keeps the cap and the minutes for youth
     // (a star still in his prime is not a veteran to avoid – he is the kind of player a rebuild is for)
-    if (t.mode === 'tank' && ageIn(p, N) > 27 && sal > MIN_SAL * 2.5 && !(shownOvr(p.z, p.id) >= 85 && ageIn(p, N) <= 30)) continue;
+    if (t.mode === 'tank' && ageIn(p, N) > 27 && sal > MIN_SAL * 2.5 && !(shownOvr(p.z, p.id) >= 85 && ageIn(p, N) <= 30) && !(p.bird === t.tid && keeps(lg, t.tid, p))) continue;
     // the player picks the offer he likes best: money against his ask, plus the team's appeal to him
     const score = offerUtility(lg, p, t.tid, sal, ask, yrsOffer) + birdEdge(p, t.tid) + 0.06 * rng.normal();
     offers.push({ t, sal, score, mle, cut, needRoom });
@@ -1210,7 +1211,7 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
     const mine = offers.find(o => o.t.tid === p.bird);
     if (mine && offers[0] !== mine && (keeps(lg, mine.t.tid, p) || playerValue(p, N, mine.t.strategy) / Math.max(MIN_SAL, offers[0].sal) > 10)) {
       const top = Math.max(...offers.filter(o => o !== mine).map(o => o.sal));
-      if (top > mine.sal && payroll(lg, mine.t.tid) + top <= Math.min(hardCap(lg), pre ? 1.6 : 1.45)) {
+      if (top > mine.sal && payroll(lg, mine.t.tid) + top <= Math.min(hardCap(lg), pre ? 1.6 : 1.5)) {
         mine.score += offerUtility(lg, p, mine.t.tid, top, ask, yrsOffer) - offerUtility(lg, p, mine.t.tid, mine.sal, ask, yrsOffer);
         mine.sal = top;
         offers.sort((a, b) => b.score - a.score);
@@ -1218,7 +1219,7 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
     }
     // he picked his own team's offer: now it makes the room (or, if it cannot, he takes the next best)
     while (offers[0]?.needRoom) {
-      const x = offers[0], lim = Math.min(hardCap(lg), pre ? 1.6 : 1.45);
+      const x = offers[0], lim = Math.min(hardCap(lg), pre ? 1.6 : 1.5);
       if (clearRoom(lg, x.t, () => lim - payroll(lg, x.t.tid) - x.sal, worthTo(lg, p, x.t.tid), N, `to make room to re-sign ${p.name}`)) { x.needRoom = false; break; }
       offers.shift();
     }

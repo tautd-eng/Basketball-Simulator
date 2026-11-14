@@ -179,7 +179,7 @@ export function Guide({ onBack }: any) {
       <Sec id="money" title="Salaries and contracts" open={all}>
         <ul>
           <li>Salaries are shares of the cap (the same scale in every era); contracts are flat.</li>
-          <li><b>Up to 110% of the cap</b> you can sign any free agent; <b>from 110% to the hard cap (135%)</b> only minimum deals and your own players (re-signing, matching offer sheets, extensions). Trades can take you to the hard cap.</li>
+          <li><b>Up to 110% of the cap</b> you can sign any free agent; <b>from 110% to the hard cap (150%)</b> only minimum deals and your own players (re-signing, matching offer sheets, extensions). Trades can take you to the hard cap.</li>
           <li>Rookie deals by pick (with team options from 1999–2000), player and team options, restricted free agents (qualifying offers, offer sheets you can match), maximum and minimum salaries by era.</li>
           <li>Releasing a player keeps half of his salary on your books until his contract ends (minimum deals cost nothing).</li>
           <li>All the details – and “Release players”, which shows the effect before you decide – are under <b>Salaries → How contracts work</b>.</li>
