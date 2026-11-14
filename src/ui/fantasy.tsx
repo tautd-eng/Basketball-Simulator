@@ -8,7 +8,7 @@ import { ageIn } from '../players';
 import { fantasyTidAt, fantasyOnClock, fantasyPool, fantasyUserPick, fantasyAdvance, fantasyStep } from '../league/fantasy';
 import { AutoControls, useAutoPlay } from './draftday';
 import { posNum } from '../engine/game';
-import { PickBoard, OnClock } from './pickboard';
+import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { SortTable } from './sorttable';
 import { attrCols, SortBy } from './offseason';
 
@@ -33,6 +33,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
     .filter((p: any) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)), [f.picks.length, pos, q]);
   const [sortKey, setSortKey] = useState('ovr');
+  const [boards, toggleBoards] = useBoards();
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (p: any) => p.name, fmt: (v: any, p: any) => <button className="link" onClick={() => openPlayer(p.id)}>{v}</button> },
     { key: 'pos', label: 'Pos', title: 'Position', get: (p: any) => posNum(p.pos), fmt: (_: any, p: any) => <span className="dim">{p.pos}</span> },
@@ -46,11 +47,12 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
   const recent = f.picks.slice().reverse().slice(0, 30);
 
   return (
-    <div className="grid-2">
+    <div className={`draft-layout ${boards ? 'open' : ''}`}>
       <section className="panel">
         <div className="team-head">
           <h2>Fantasy draft</h2>
           {!on && <span className="dim">Draft complete</span>}
+          <BoardsToggle open={boards} toggle={toggleBoards} />
         </div>
         {on && <OnClock lg={lg} tid={on.tid} pick={on.pick} round={on.round} mine={myTurn} />}
         <p className="note">All players from the {(lg.start ?? 1980) - 1}–{String(lg.start ?? 1980).slice(2)} season go into one pool. {f.rounds} rounds in snake order (the last pick of a round picks first in the next){f.rr ? `, and from round ${f.rr} the order turns again (${f.rr}RR)` : ''}. Undrafted players become free agents.</p>
@@ -67,7 +69,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
         </div>
         <SortTable key={sortKey} cols={cols} rows={pool.map((p: any) => ({ ...p, key: p.id }))} initial={sortKey} initialAsc={!!cols.find((c: any) => c.key === sortKey)?.asc} limit={150} />
       </section>
-      <section className="col">
+      <section className="col draft-side">
         {lg.userTid && (
           <div className="panel">
             <h2>{lg.teams[lg.userTid].name}</h2>

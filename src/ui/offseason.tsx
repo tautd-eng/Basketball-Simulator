@@ -2,7 +2,7 @@
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
 import { fmtAttr, defCols } from './grades';
-import { PickBoard, OnClock } from './pickboard';
+import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
 import { Linkify, PL, TL, nav } from './nav';
 import { MyBoard, BoardToggle, boardOf } from './myboard';
@@ -77,6 +77,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
   const d = lg.draftDay && lg.draftDay.year === lg.season ? lg.draftDay : null;
   const [pos, setPos] = useState('all');
   const [sortKey, setSortKey] = useState('cons');
+  const [boards, toggleBoards] = useBoards();
   const proj = false;
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(600);
@@ -149,10 +150,11 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
         </div>
       </div>
     )}
-    <div className="grid-2">
+    <div className={`draft-layout ${boards ? 'open' : ''}`}>
       <section className="panel accent">
         <div className="team-head">
           <h2>{d.year} draft day</h2>
+          <BoardsToggle open={boards} toggle={toggleBoards} />
         </div>
         {on && <OnClock lg={lg} tid={on.tid} pick={on.pick} round={on.round} via={on.tid !== on.orig ? on.orig : null} mine={myTurn} />}
         {d.lottery && <p className="note"><Linkify text={d.lottery} /></p>}
@@ -176,7 +178,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
         <SortTable key={sortKey} cols={cols} rows={board.map((p: any) => ({ ...p, key: p.id }))} initial={sortKey} initialAsc={!!cols.find((c: any) => c.key === sortKey)?.asc} limit={80} />
         <p className="note">Overall and potential stay hidden until a player is drafted – judge him by his ratings, his role and the scouts' rank.</p>
       </section>
-      <section className="col">
+      <section className="col draft-side">
         <PickBoard lg={lg} at={d.idx} openPlayer={openPlayer}
           slots={d.order.map((o: any, i: number) => {
             const made = d.picks[i];

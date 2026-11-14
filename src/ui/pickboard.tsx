@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The draft board beside a draft room: every pick in order, in the team colours – who was taken,
 // who is on the clock, and who picks next. Used by the real draft and the fantasy draft.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { colorsOf, Logo } from './art';
 import { shownOvr } from '../data';
 import { onlineCtx } from '../online/sync';
@@ -84,4 +84,13 @@ export function OnClock({ lg, tid, pick, round, mine, via }: any) {
       <span className="otc-tag">{mine ? 'You are on the clock' : ownerName(lg, tid) ? `${ownerName(lg, tid)} is on the clock` : 'On the clock'}</span>
     </div>
   );
+}
+
+/** Draft rooms take the whole screen; the boards slide in from the right on demand (remembered in this browser). */
+export function useBoards(): [boolean, () => void] {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem('draftBoards') === '1'; } catch { return false; } });
+  return [open, () => setOpen(o => { try { localStorage.setItem('draftBoards', o ? '0' : '1'); } catch { /* ignore */ } return !o; })];
+}
+export function BoardsToggle({ open, toggle }: any) {
+  return <button className={`boards-toggle ${open ? 'on' : ''}`} onClick={toggle} aria-expanded={open}>{open ? 'Hide boards ▸' : '◂ Draft board'}</button>;
 }

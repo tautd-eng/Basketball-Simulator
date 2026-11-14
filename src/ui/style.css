@@ -1026,3 +1026,13 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .g-C { background: #f2c94c; color: #3b2d00; }
 .g-D { background: #f2994a; color: #3a1a00; }
 .g-F { background: #d64545; color: #fff; }
+/* draft rooms: full width, boards slide in from the right */
+.draft-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.draft-layout .draft-side { display: none; }
+.draft-layout.open { grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); }
+.draft-layout.open .draft-side { display: flex; position: sticky; top: 8px; animation: slide-in 0.22s ease-out; }
+@keyframes slide-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.boards-toggle { margin-left: auto; font-weight: 600; }
+.boards-toggle.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+@media (max-width: 900px) { .draft-layout.open { grid-template-columns: minmax(0, 1fr); } .draft-layout.open .draft-side { position: static; } }
+@media (prefers-reduced-motion: reduce) { .draft-layout.open .draft-side { animation: none; } }
