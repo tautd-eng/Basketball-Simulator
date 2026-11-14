@@ -199,11 +199,11 @@ function Extensions({ lg, openPlayer, onChange }: any) {
     <div className="col">
       <div className="panel">
         <h2>Extensions</h2>
-        <p className="note">During the regular season you can extend players whose contracts end this season. His price starts from his market value (what he would ask in free agency). Wanting to stay brings it down a little (a hometown discount is at most ~10%); not wanting to stay pushes it up – up to twice his market value, and past the max he simply leaves. Veterans give a little for a longer deal; a long deal for a young player is priced on his expected growth over the deal (his path toward his projected peak, averaged) – you pay for some of the upside and carry the risk that he never gets there. At his number he signs; a few percent below it is a gamble – and only a player who wants to stay takes less.</p>
-        {lg.phase !== 'regular' && <p className="hint">Extensions open in the regular season.</p>}
-        {done.length > 0 && <p className="note">Already extended: {done.map((p: any) => `${p.name} (${(p.ext.sal * 100).toFixed(1)}% through ${p.ext.exp})`).join(', ')}.</p>}
+        <p className="note">Until the trade deadline you can extend players whose contracts end this season. His price starts from his market value (what he would ask in free agency). Wanting to stay brings it down a little (a hometown discount is at most ~10%); not wanting to stay pushes it up – up to twice his market value, and past the max he simply leaves. Veterans give a little for a longer deal; a long deal for a young player is priced on his expected growth over the deal (his path toward his projected peak, averaged) – you pay for some of the upside and carry the risk that he never gets there. At his number he signs; a few percent below it is a gamble – and only a player who wants to stay takes less.</p>
+        {lg.phase !== 'regular' && <p className="hint">Extensions open in the regular season and close at the trade deadline.</p>}
+        {done.length > 0 && <p className="note">Already extended: {done.map((p: any, i: number) => <span key={p.id}>{i ? ', ' : ''}<button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> ({(p.ext.sal * 100).toFixed(1)}% through {p.ext.exp})</span>)}.</p>}
       </div>
-      {ext.map((p: any) => <div key={p.id} className="panel"><ExtensionBox lg={lg} p={p} onChange={ch} compact /></div>)}
+      {ext.map((p: any) => <div key={p.id} className="panel"><ExtensionBox lg={lg} p={p} onChange={ch} compact openPlayer={openPlayer} /></div>)}
       {lg.phase === 'regular' && !ext.length && <div className="panel"><p className="note">Nobody on your roster has a contract ending this season (or everyone is already extended).</p></div>}
     </div>
   );

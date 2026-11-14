@@ -163,7 +163,7 @@ function Priorities({ lg, p, onChange }: any) {
  * Extension talks with one of the user's players: how much he wants to stay, his market value and how the
  * price for each length is built from it, the offer adjusted with buttons, and the chance he signs.
  */
-export function ExtensionBox({ lg, p, onChange, compact }: any) {
+export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
   const mine = lg.userTid && p.tid === lg.userTid;
   const canExt = mine && extendable(lg, p);
   const N = lg.season + 1;
@@ -182,7 +182,7 @@ export function ExtensionBox({ lg, p, onChange, compact }: any) {
   const cooling = (p.extNo ?? -1) > lg.day;
   return (
     <div className="offer ext" role="group" aria-label={`Contract extension for ${p.name}`}>
-      <div><b>Extend {compact ? p.name : 'contract'}</b> <span className="dim">Contract ends this season. Market value (what he would ask in free agency): <b>{pc(est.ask)}</b> of the cap{dol ? ` (${$(est.ask)})` : ''} · max {pc(max)}.</span></div>
+      <div><b>Extend {compact ? (openPlayer ? <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> : p.name) : 'contract'}</b> <span className="dim">Contract ends this season. Market value (what he would ask in free agency): <b>{pc(est.ask)}</b> of the cap{dol ? ` (${$(est.ask)})` : ''} · max {pc(max)}.</span></div>
       <div className="ext-interest">
         <span className="rl">Wants to stay</span>
         <span className="bar"><span style={{ width: `${est.interest}%` }}></span></span>
