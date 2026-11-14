@@ -36,7 +36,7 @@ import { setEraCal } from '../engine/game';
 import { newLeague, standings, playoffFormat, realChampion, simDayWatching, watchableToday, playedToday, seasonGames, applySettings, startClutch, finishClutch, todayIndex, awaitingPlayoffs } from '../league/league';
 import { AwardsStep } from './awardsstep';
 import { TeamMgmt } from './mgmt';
-import { ensurePicks, deadlineDay, boardScore } from '../ai/trades';
+import { ensurePicks, deadlineDay, boardScore, pickUsed, pickTied, expectedSlot, describeRight } from '../ai/trades';
 import { planOf } from '../ai/plan';
 import { LiveGame } from './live';
 import { SortTable, f1 } from './sorttable';
@@ -1233,6 +1233,40 @@ function News({ lg }: any) {
 }
 
 // ---------------------------------------------------------------- team
+/** The draft picks a team holds (its own and others'), and its own picks that belong to someone else now. */
+function TeamPicks({ lg, tid }: any) {
+  const live = (lg.picks ?? []).filter((p: any) => !pickUsed(lg, p)).sort((a: any, b: any) => a.season - b.season || a.round - b.round || (a.orig === tid ? -1 : 1));
+  const held = live.filter((p: any) => p.owner === tid);
+  const gone = live.filter((p: any) => p.orig === tid && p.owner !== tid);
+  const rights = (lg.pickRights ?? []).filter((r: any) => r.a === tid || r.b === tid || r.holder === tid);
+  const slot = (p: any) => { try { const n = expectedSlot(lg, p); if (!n) return null; const r = Math.round(n); return p.season > lg.season + (lg.phase === 'draft' || lg.phase === 'freeagency' || lg.phase === 'offseason' ? 1 : 0) ? `~${r}` : r; } catch { return null; } };
+  const nm = (x: string) => <TL tid={x} abbr />;
+  return (
+    <div className="grid-2">
+      <section className="panel">
+        <h2>Picks they hold · {held.length}</h2>
+        {held.length ? <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>Draft</th><th>Round</th><th className="l">Original team</th><th title="Where the pick would land if the season ended today (by the original team's projected record)">Proj. slot</th><th className="l">Note</th></tr></thead>
+          <tbody>{held.map((p: any) => <tr key={`${p.season}-${p.round}-${p.orig}`}>
+            <td>{p.season}</td><td>{p.round === 1 ? '1st' : '2nd'}</td>
+            <td className="l">{p.orig === tid ? <span className="dim">own</span> : nm(p.orig)}</td>
+            <td>{slot(p) ?? '–'}</td>
+            <td className="l dim">{pickTied(lg, p) ? 'tied up in a swap right' : ''}</td>
+          </tr>)}</tbody>
+        </table></div> : <p className="note">No draft picks.</p>}
+      </section>
+      <section className="panel">
+        <h2>Own picks traded away · {gone.length}</h2>
+        {gone.length ? <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>Draft</th><th>Round</th><th className="l">Now owned by</th><th>Proj. slot</th></tr></thead>
+          <tbody>{gone.map((p: any) => <tr key={`${p.season}-${p.round}`}><td>{p.season}</td><td>{p.round === 1 ? '1st' : '2nd'}</td><td className="l">{nm(p.owner)}</td><td>{slot(p) ?? '–'}</td></tr>)}</tbody>
+        </table></div> : <p className="note">All of their own picks are still theirs.</p>}
+        {rights.length > 0 && <><h3>Swap rights</h3><ul className="news">{rights.map((r: any, i: number) => <li key={i}><span className="yr">{r.season}</span><span><Linkify text={describeRight(lg, r)} /> – held by {nm(r.holder)}</span></li>)}</ul></>}
+      </section>
+    </div>
+  );
+}
+
 function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
   const t = lg.teams[tid] ?? Object.values(lg.teams)[0];
   const teams = Object.values(lg.teams).filter((x: any) => x.active).sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -1241,7 +1275,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
   const strat = t.mode ? { allin: 'All-in', tank: 'Tanking', rising: 'Rising', capclear: 'Clearing salary', retool: 'Retooling' }[t.mode] : { contend: 'Contender', middle: 'Middle of the pack', rebuild: 'Rebuilding' }[t.strategy];
   const titles = lg.history.filter((s: any) => s.champion === t.tid).map((s: any) => s.season);
   const plan = !isHuman(lg, t.tid) ? planOf(lg, t.tid) : null;
-  const [view, setView] = useNavState<'stats' | 'attr' | 'hist' | 'rec'>('team.view', 'stats');
+  const [view, setView] = useNavState<'stats' | 'attr' | 'picks' | 'hist' | 'rec'>('team.view', 'stats');
   const inSeason = lg.phase === 'regular' || lg.phase === 'playoffs';
   const calNow = inSeason ? nextCal(lg, todayIndex(lg)) : 0;
   const RT = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
@@ -1284,11 +1318,12 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
         <div className="seg view-toggle-l" role="group" aria-label="View">
           <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Stats</button>
           <button className={view === 'attr' ? 'on' : ''} onClick={() => setView('attr')}>Attributes</button>
+          <button className={view === 'picks' ? 'on' : ''} onClick={() => setView('picks')}>Draft picks</button>
           <button className={view === 'hist' ? 'on' : ''} onClick={() => setView('hist')}>History</button>
           <button className={view === 'rec' ? 'on' : ''} onClick={() => setView('rec')}>Records</button>
         </div>
       </div>
-      {view === 'hist' ? <TeamHistory lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'rec' ? <TeamRecords lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'attr' ? <SortTable cols={attrCols} rows={roster.map((p: any) => ({ key: p.id, p }))} initial="ovr" rowClass={(r: any) => (r.p.injury > 0 ? 'inj-row' : '')} /> : (
+      {view === 'picks' ? <TeamPicks lg={lg} tid={t.tid} /> : view === 'hist' ? <TeamHistory lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'rec' ? <TeamRecords lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'attr' ? <SortTable cols={attrCols} rows={roster.map((p: any) => ({ key: p.id, p }))} initial="ovr" rowClass={(r: any) => (r.p.injury > 0 ? 'inj-row' : '')} /> : (
       <div className="tbl-wrap">
           <table className="tbl roster">
             <thead><tr>
