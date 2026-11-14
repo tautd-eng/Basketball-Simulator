@@ -1045,3 +1045,20 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .team-theme header.top .brand .meta { opacity: 0.85; }
 .team-theme header.top button.primary { background: var(--team2) !important; border-color: var(--team2) !important; color: var(--team2-ink); }
 .team-theme nav.tabs { background: var(--surface); }
+/* game guide */
+.guide-page { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+.guide-toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-sec > summary { cursor: pointer; list-style: none; }
+.guide-sec > summary h2 { display: inline; }
+.guide-sec > summary::before { content: '▸ '; color: var(--accent); }
+.guide-sec[open] > summary::before { content: '▾ '; }
+.guide-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; line-height: 1.55; max-width: 95ch; }
+.guide-body ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.guide-tbl td { vertical-align: top; padding: 5px 8px; }
+.guide-tbl td:first-child { white-space: nowrap; }
+.guide-tac { border-top: 1px solid var(--line); padding-top: 8px; }
+.guide-tac h3 { margin: 0; font-size: 1rem; }
+.guide-tac p { margin: 2px 0 6px; }
+.guide-tbl { width: 100%; table-layout: auto; }
+.guide-tbl td, .guide-tbl th { white-space: normal !important; }
+.guide-tbl td:first-child { white-space: nowrap !important; }

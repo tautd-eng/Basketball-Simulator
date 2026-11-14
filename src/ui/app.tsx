@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { Guide } from './guide';
 import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
 import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
 import { htStr, htCol, htDiff, htUnit, setHtUnit } from './units';
@@ -197,7 +198,7 @@ function App() {
 
   // the game opens on the main menu; leagues are opened from there (Load game / online)
   useEffect(() => { setReady(true); }, []);
-  const [screen, setScreen] = useState<'menu' | 'new' | 'load' | 'host' | 'prefs'>('menu');
+  const [screen, setScreen] = useState<'menu' | 'new' | 'load' | 'host' | 'prefs' | 'guide'>('menu');
   const [hostAfter, setHostAfter] = useState(false);
   // a new version of the online league arrived / the host applied others' moves
   useEffect(() => {
@@ -282,6 +283,7 @@ function App() {
       : screen === 'load' ? <LoadScreen onLoad={(id: string) => switchTo(id)} onBack={back} />
       : screen === 'host' ? <HostScreen onNew={() => { setHostAfter(true); setSlot(newSlotId()); setScreen('new'); }} onLoad={(id: string) => switchTo(id, true)} onBack={back} />
       : screen === 'prefs' ? <PrefsScreen onBack={back} />
+      : screen === 'guide' ? <div className="guide-page"><Guide onBack={back} /></div>
       : <MainMenu go={(k: string) => { if (k === 'join') setShowOnline(true); else { if (k === 'new') setSlot(newSlotId()); setScreen(k as any); } }} />;
     return <>{body}{onlinePanel}</>;
   }
@@ -349,6 +351,7 @@ function App() {
         {lg.phase !== 'fantasy' && tab === 'istorija' && <HistoryView lg={lg} openPlayer={openPlayer} openTeam={openTeam} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'statistika' && <StatsView lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
         {lg.phase !== 'fantasy' && tab === 'rungtynes' && <Games lg={lg} openPlayer={openPlayer} />}
+        {tab === 'gidas' && <Guide />}
       </main>
       <footer className="foot">
         <span>Data: Basketball-Reference (via sumitrodatta/bball-reference-datasets). The league is saved in this browser. <span className="dim">Version {BUILD}</span></span>
@@ -376,7 +379,7 @@ function App() {
 /** Sections: [key, label, shown in the phone's bottom bar (the rest go under "More")] */
 const TABS: [string, string, boolean][] = [
   ['apzvalga', 'Overview', true], ['komandos', 'Teams', true], ['reitingai', 'Rankings', true], ['mainai', 'Trades', true],
-  ['statistika', 'Stats', false], ['laisvieji', 'Free agents', false], ['algos', 'Salaries', false], ['draftai', 'Draft classes', false], ['istorija', 'History', false], ['rungtynes', 'Games', false],
+  ['statistika', 'Stats', false], ['laisvieji', 'Free agents', false], ['algos', 'Salaries', false], ['draftai', 'Draft classes', false], ['istorija', 'History', false], ['rungtynes', 'Games', false], ['gidas', 'Guide', false],
 ];
 
 /** The sections for this league: Team management only when the user runs a team. */
@@ -396,6 +399,7 @@ function TabIcon({ k }: { k: string }) {
     algos: 'M12 3v18M16 7c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3',
     istorija: 'M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4',
     rungtynes: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+    gidas: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h11M8 8h6',
     more: 'M5 12h.01M12 12h.01M19 12h.01M4 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M11 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M18 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0',
   };
   return <svg className="ti" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={d[k]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
@@ -525,6 +529,7 @@ function MainMenu({ go }: any) {
     ['load', 'Load game', 'Continue one of your saved leagues'],
     ['host', 'Host online game', 'Run a league with friends: each runs a team, you move it on'],
     ['join', 'Join online game', 'Enter a friend\'s league code, or open your online leagues'],
+    ['guide', 'Game guide', 'Ratings, development, tactics, team building, money, the draft'],
     ['prefs', 'Preferences', 'How the game shows things'],
   ];
   return (
