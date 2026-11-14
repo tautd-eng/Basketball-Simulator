@@ -773,10 +773,7 @@ function SeasonFields({ form, setForm, idp = '', noInj = false }: any) {
     <label className="field" htmlFor={idp + 'hardcap'}>
       <span>Hard cap</span>
       <select id={idp + 'hardcap'} value={form.hardCap ?? ''} onChange={e => set('hardCap', e.target.value)}>
-        <option value="">150% of the cap (default)</option>
-        <option value="1.15">115% of the cap</option>
-        <option value="1.25">125% of the cap</option>
-        <option value="1.35">135% of the cap</option>
+        <option value="">150% of the cap</option>
         <option value="none">None</option>
       </select>
       <small>No team may carry a higher payroll: signings, extensions and trades that would exceed it are not allowed. Teams near the limit look for ways to shed salary themselves (moving contracts to teams with room, attaching picks), and before the season the last resort is releasing a player (half of his salary stays on the books until his contract ends).</small>

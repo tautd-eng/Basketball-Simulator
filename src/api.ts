@@ -161,6 +161,8 @@ function migrate(lg: League) {
     if (hp?.b) continue;
     p.born = bioOf(base, hp, p.draft?.year ?? lg.season).born;
   }
+  // lower hard caps are gone (they left no room to keep your own players): such leagues move to 150%
+  if (lg.settings && typeof (lg.settings as any).hardCap === 'number' && (lg.settings as any).hardCap < 1.5) delete (lg.settings as any).hardCap;
   expireAiOffers(lg); // offers left open past the trade deadline by older versions
   checkRosters(lg); // older saves: duplicate names, players on two rosters
   // older saves: the opening contracts marked every player as on his first (rookie) deal
