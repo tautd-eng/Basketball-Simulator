@@ -104,6 +104,7 @@ function Rotation({ lg, openPlayer, onChange }: any) {
           </tr>;
         })}</tbody>
       </table></div>
+      <p className="hint">League rule (every team, whatever you set): your three best players play at least 24 minutes, and at most one of them comes off the bench.</p>
       <p className="note">“Plan” – the minutes the coach would give tonight with these settings (healthy players). In-game he still rests tired players, protects foul trouble and empties the bench in blowouts.</p>
       <SheetImport lg={lg} onChange={() => { setT(x => x + 1); onChange(); }} />
     </div>

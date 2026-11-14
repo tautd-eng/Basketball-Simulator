@@ -175,6 +175,25 @@ const short = (n: string) => {
  * and empties the bench in blowouts.
  */
 function planMinutes(side: Side, po = false) {
+  planMinutes0(side, po);
+  starRule(side, po);
+}
+
+/** League rule, whatever the plan (or the minutes typed in): a team's three best players play at least 24 minutes. */
+export const STAR_MIN = 24;
+export const topThree = (gps: GP[]) => [...gps].sort((a, b) => b.bpm - a.bpm).slice(0, 3);
+function starRule(side: Side, po: boolean) {
+  const top = topThree(side.gps);
+  const maxMin = po ? C.poMax : 44;
+  let need = 0;
+  for (const g of top) { const want = Math.min(STAR_MIN, maxMin); if (g.target < want) { need += want - g.target; g.target = want; } }
+  if (need <= 0) return;
+  const rest = side.gps.filter(g => !top.includes(g) && g.target > 0);
+  const tot = rest.reduce((a, g) => a + g.target, 0);
+  if (tot > 0) for (const g of rest) g.target = Math.max(0, g.target - need * g.target / tot);
+}
+
+function planMinutes0(side: Side, po = false) {
   // the user's own minutes: his plan, scaled to the 240 there are (those who are out lose theirs)
   if (side.minutes) {
     const want = side.gps.map(g => Math.max(0, side.minutes![g.p.id] ?? 0));
@@ -339,6 +358,17 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       const five = [...named, ...s.on.filter(g => !named.includes(g))].slice(0, 5);
       for (const g of s.gps) g.on = five.includes(g);
       s.on = five;
+    }
+    // league rule: at most one of the three best players comes off the bench
+    const top = topThree(s.gps);
+    for (const g of top) {
+      if (s.on.filter(x => top.includes(x)).length >= 2) break;
+      if (s.on.includes(g)) continue;
+      // he takes the place of the starter closest to his position who is not one of the three
+      const out = s.on.filter(x => !top.includes(x)).sort((a, b) => Math.abs(a.posNum - g.posNum) - Math.abs(b.posNum - g.posNum))[0];
+      if (!out) break;
+      out.on = false; g.on = true;
+      s.on = s.on.map(x => (x === out ? g : x));
     }
     for (const g of s.on) { g.starter = true; g.st.gs = 1; }
   }
