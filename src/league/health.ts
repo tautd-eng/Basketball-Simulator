@@ -45,6 +45,8 @@ export const AGE = {
   lgDown: [0.50, 0.50, 0.50, 0.50, 0.45, 0.40, 0.35, 0.35, 0.40, 0.70, 1.00, 1.20, 1.30, 1.30, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80],
   lgUp:   [1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.00, 0.80, 0.65, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50],
   young:  [0, 0, 0, 0, 0.5, 1, 2],
+  //         19    20    21    22    23    24
+  play:   [0.25, 0.25, 0.25, 0.20, 0.15, 0.10],   // extra growth (BPM) for a full season of minutes (2000+)
 };
 export const atAge = (t: number[], age: number) => t[Math.max(0, Math.min(t.length - 1, Math.round(age) - 19))];
 
@@ -307,6 +309,12 @@ export function develop(lg: League, rng: Rng) {
       const t = age <= 22 ? 0.5 * dev.pot + (s0 - expect) / 6 : 0;
       const grow = atAge(AGE.grow, age) + 0.3 * Math.max(0, Math.min(2.5, t));
       for (let i = 0; i < NK; i++) nat[i] += grow * OVR_DIR[i];
+    }
+    // playing time develops the young: minutes against NBA players count on top of growing up
+    if (age <= 24) {
+      const ln = seasonLine(p, Y);
+      const play = atAge(AGE.play, age) * Math.min(1, (ln?.min ?? 0) / 2000);
+      if (play > 0) for (let i = 0; i < NK; i++) nat[i] += play * OVR_DIR[i];
     }
     // the age curve by the player's own clock (some peak early, some late): no natural decline before 28,
     // then it starts gently (28–29) and gets steeper from 30 – the data's curve only sees survivors, so a
