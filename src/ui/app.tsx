@@ -346,7 +346,7 @@ function App() {
       <nav className="tabs" aria-label="Sections">
         <div className="side-brand"><span className="ball" aria-hidden="true"></span><span>Basketball<br />Simulator</span></div>
         {tabsFor(lg).map(([k, l, main]) => (
-          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'trades' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
+          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span><span className="tl-short">{SHORT[k] ?? l}</span>{k === 'trades' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
         <div className="side-foot">
           <button className="host-only" onClick={() => setShowSettings(true)}><TabIcon k="format" /><span className="tl">Season format</span></button>
@@ -420,6 +420,8 @@ const TABS: [string, string, boolean][] = [
   ['trades', 'Trades', true], ['free-agents', 'Free agents', false], ['salaries', 'Salaries', false], ['draft-classes', 'Draft classes', false],
   ['history', 'History', false], ['guide', 'Guide', false],
 ];
+/** shorter names for the phone's bottom bar */
+const SHORT: Record<string, string> = { management: 'My team', 'free-agents': 'FA', 'draft-classes': 'Drafts' };
 /** where a new group starts in the PC side bar (club · league · market · archive) */
 const GROUP_START = new Set(['teams', 'trades', 'history']);
 
@@ -475,7 +477,13 @@ function Controls({ lg, busy, run, stop, saved }: any) {
   );
   if (lg.phase === 'fantasy') return <div className="controls host-only"><span className="hint">Fantasy draft in progress – the season starts when it ends.</span></div>;
   if (lg.ended) return <div className="controls host-only"><span className="hint">Reached the {seasonLabel(LAST_SEASON)} season – the historical data ends here.</span></div>;
-  const b = (t: Target, l: string, primary = false) => <button className={primary ? 'primary' : ''} onClick={() => run(t, l)}>{l}</button>;
+  const opts: [Target, string][] = [];
+  const b = (t: Target, l: string, primary = false) => { if (!primary) opts.push([t, l]); return <button className={primary ? 'primary' : 'sim-alt'} onClick={() => run(t, l)}>{l}</button>; };
+  // on a phone only the main step shows as a button; the other ways to move on sit in one compact menu
+  const more = () => opts.length > 0 && <select className="sim-more" aria-label="More ways to move on" value="" onChange={e => { const o = opts.find(x => x[0] === e.target.value); if (o) run(o[0], o[1]); }}>
+    <option value="" disabled>Sim ▾</option>
+    {opts.map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+  </select>;
   return (
     <div className="controls host-only">
       {awaitingPlayoffs(lg) && b('day', 'Start the playoffs', true)}
@@ -496,6 +504,7 @@ function Controls({ lg, busy, run, stop, saved }: any) {
       {lg.phase === 'freeagency' && (lg.fa && lg.fa.stage === 0 ? b('day', 'Confirm decisions', true) : lg.fa && lg.fa.stage === 1 && !lg.fa.sumSeen ? b('day', 'Open the market', true) : lg.fa && lg.fa.stage <= 3 ? b('day', `Finish FA wave ${lg.fa.stage}`, true) : b('day', 'To the season preview', true))}
       {b('nextSeason', 'Full year')}
       {b('years5', '5 years')}
+      {more()}
       {saved === 'fail' && <span className="hint warn">This browser doesn't allow saving the league.</span>}
     </div>
   );

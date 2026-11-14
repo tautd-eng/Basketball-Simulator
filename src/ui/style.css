@@ -1132,3 +1132,33 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .fz-bar span { display: block; height: 100%; background: var(--accent); }
 .fz-bar span.over { background: var(--neg); }
 .fz-list { display: flex; flex-wrap: wrap; gap: 6px; }
+/* the compact sim menu and short tab names: phones only */
+.sim-more, .tl-short { display: none; }
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  /* one slim header row that stays on top: title on the left, the next step and a "Sim" menu on the right */
+  .top { position: sticky !important; top: 0; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; gap: 8px; padding-block: 6px !important; }
+  .top .brand { flex: 1 1 auto; min-width: 0; }
+  .top .brand .ball { display: none; }
+  .top .playing-as select { max-width: 110px; }
+  .top .brand > div { min-width: 0; }
+  .top .brand .name, .top .brand .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand .name-full { display: none; }
+  .brand .name-sect { display: inline; }
+  .top .controls { flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; }
+  .top .controls .sim-alt { display: none; }
+  .top .controls button { flex: none; padding: 8px 10px; }
+  .sim-more { display: block; border: 1px solid var(--line); background: var(--sunk); color: inherit; border-radius: 8px; padding: 8px 6px; font: inherit; font-weight: 600; max-width: 76px; }
+  .team-theme .top .sim-more { background: color-mix(in srgb, var(--head-bg) 70%, #000); color: var(--head-ink); border-color: color-mix(in srgb, var(--head-ink) 30%, transparent); }
+  .top .busy { white-space: nowrap; font-size: .8rem; }
+  .back-top { width: 32px; height: 32px; flex: none; }
+  .tabs .tl { display: none; }
+  .tabs .tl-short { display: inline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .more-sheet .tl-short { display: none; }
+  /* player card: a tighter head */
+  .p-head h2 { font-size: 1.5rem; line-height: 1.1; }
+  .p-head { gap: 10px; }
+}
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .top .controls button.primary { font-size: .82rem; padding: 8px 9px; max-width: 132px; white-space: normal; line-height: 1.1; }
+  .top .brand .name { font-size: 1rem; }
+}
