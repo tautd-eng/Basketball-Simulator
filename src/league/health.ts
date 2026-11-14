@@ -418,7 +418,7 @@ export function develop(lg: League, rng: Rng) {
 }
 
 // ------------------------------------------------------------------ league profile
-export interface Profile { mean: number[]; bpmMean: number; bpmSd: number; top10: number; rotOvr: number; n80: number }
+export interface Profile { mean: number[]; bpmMean: number; bpmSd: number; top10: number; rotOvr: number; n80: number; n90?: number }
 const W = [36, 34, 32, 30, 28, 24, 20, 16, 12, 8];
 
 function profileOf(teams: number[][][]): Profile {
@@ -426,10 +426,10 @@ function profileOf(teams: number[][][]): Profile {
   const mean = new Array(NK).fill(0);
   let sw = 0;
   const bp: [number, number][] = [];
-  const all: number[] = [];
+  const all: number[] = [], shown: number[] = [];
   for (const roster of teams) {
     const sorted = roster.map(z => ({ z, b: bpmOf(z) })).sort((a, b) => b.b - a.b);
-    for (const x of sorted) all.push(x.b);
+    for (const x of sorted) { all.push(x.b); shown.push(shownOvr(x.z)); }
     sorted.slice(0, 10).forEach((x, i) => {
       const w = W[i];
       for (let k = 0; k < NK; k++) mean[k] += w * x.z[k];
@@ -442,7 +442,7 @@ function profileOf(teams: number[][][]): Profile {
   const bsd = Math.sqrt(bp.reduce((a, [b, w]) => a + w * (b - bm) ** 2, 0) / sw);
   all.sort((a, b) => b - a);
   const top10 = all.slice(0, 10).reduce((a, b) => a + ovrOf0(b), 0) / Math.min(10, all.length);
-  return { mean, bpmMean: bm, bpmSd: bsd, top10, rotOvr: ovrOf0(bm), n80: all.filter(b => ovrOf0(b) >= 80).length };
+  return { mean, bpmMean: bm, bpmSd: bsd, top10, rotOvr: ovrOf0(bm), n80: shown.filter(o => o >= 80).length, n90: shown.filter(o => o >= 90).length }; // counts on the displayed OVR scale
 }
 const ovrOf0 = (b: number) => Math.max(25, Math.min(99, 48 + 5.5 * b));
 
@@ -493,14 +493,15 @@ export function youngFloor(lg: League, S = lg.season) {
 
 /** League calibration: how hard it pulls toward the real league (share per summer), and how many more 80+ players
  *  than the real league of that season it tolerates before pulling the top down. */
-export const CAL = { str: 0.4, room: 50 };
+export const CAL = { str: 0.4, room: 50, top: 1.5 };
 export function normalizeLeague(lg: League, S = lg.season, maxStep = Infinity) {
   const real = realProfile(S);
   const before = simProfile(lg);
   const str = CAL.str * (1 - lg.destiny);
   // room to grow: the league may become stronger than the real one – up to CAL.room more 80+ players – before
   // anything pulls it back down; a league that drifts too weak is still lifted at once
-  const excess = before.n80 - real.n80 - CAL.room;
+  // ...and the very top is watched on its own: superstars may be up to half again as many as in the real league
+  const excess = Math.max(before.n80 - real.n80 - CAL.room, before.n90 != null && real.n90 != null ? (before.n90 - Math.max(6, real.n90) * CAL.top) * 5 : 0);
   const mayCut = excess > 0;
   const players = Object.values(lg.players).filter(p => !p.retired);
   const z0 = new Map(players.map(p => [p.id, p.z.slice()]));
