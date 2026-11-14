@@ -34,8 +34,8 @@ const DEPTH_W = [1, 1, 1, 1, 0.95, 0.85, 0.75, 0.6, 0.45, 0.32, 0.2, 0.12, 0.08,
 export function ensurePicks(lg: League) {
   if (!lg.picks) lg.picks = [];
   const first = lg.phase === 'regular' || lg.phase === 'playoffs' || lg.phase === 'draft' || lg.phase === 'freeagency' ? lg.season : lg.season + 1;
-  // drafts go on past the real data (future classes), so there are always three years of picks
-  for (let y = first; y <= first + 2; y++) {
+  // drafts go on past the real data (future classes), so there are always five years of picks
+  for (let y = first; y <= first + 4; y++) {
     for (const t of Object.values(lg.teams)) {
       if (!t.active) continue;
       for (const round of [1, 2]) {
@@ -52,6 +52,7 @@ export function ensurePicks(lg: League) {
  * The Stepien rule (1980, after Cleveland owner Ted Stepien traded away first-rounder after first-rounder):
  * a team may not be left without a first-round pick in two consecutive future drafts.
  */
+export const MIN_FIRSTS = 2;
 function stepien(lg: League, a: string, b: string, aGets: TradeAsset[], bGets: TradeAsset[]): string | null {
   const d = lg.draftDay;
   // the draft under way (or just held) is not a future draft
@@ -63,6 +64,9 @@ function stepien(lg: League, a: string, b: string, aGets: TradeAsset[], bGets: T
     const key = (pk: { season: number; round: number; orig: string }) => `${pk.season}-${pk.round}-${pk.orig}`;
     const out = new Set(gives.filter(x => x.pick).map(x => key(x.pick!)));
     const owns = (y: number) => firsts.some(pk => pk.season === y && pk.owner === tid && !out.has(key(pk))) || gets.some(x => x.pick?.round === 1 && x.pick.season === y);
+    // and a team keeps at least two first-round picks among the future drafts on the books
+    const kept = firsts.filter(pk => pk.owner === tid && !out.has(key(pk))).length + gets.filter(x => x.pick?.round === 1 && x.pick.season >= firstFuture).length;
+    if (kept < MIN_FIRSTS) return `${lg.teams[tid].name} would be left with ${kept} first-round pick${kept === 1 ? '' : 's'} – a team must keep at least ${MIN_FIRSTS} of its future firsts.`;
     for (let i = 0; i + 1 < years.length; i++) {
       if (!owns(years[i]) && !owns(years[i + 1])) return `${lg.teams[tid].name} would have no first-round pick in both ${years[i]} and ${years[i + 1]} (Stepien rule: never two consecutive future drafts without a first).`;
     }

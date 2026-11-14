@@ -171,6 +171,7 @@ export function Guide({ onBack }: any) {
           <li><b>Money:</b> other teams' free agents only fit while you are under 110% of the cap; keep room for your own stars' next deals. Minimum veterans are cheap depth. Avoid long deals for players past 30.</li>
           <li><b>Draft:</b> the lottery pays off – a top-5 pick averages a peak near 84 and about half become 85+, but scouting can be wrong. Build your own board.</li>
           <li><b>Trades:</b> teams value players by their own plans – contenders pay for veterans who help now, rebuilding teams for youth and picks. The trade finder lists deals the other side accepts.</li>
+          <li><b>Draft picks:</b> every team has its picks for the next five drafts. A team must keep at least two of its future first-round picks, and may never be without a first in two drafts in a row (the Stepien rule). Teams → Draft picks shows who owns what.</li>
           <li><b>Chemistry of roles:</b> two ball-dominant scorers share the ball; a Rim Protector lets guards gamble; a Stretch Big pulls the other big out of the paint.</li>
         </ul>
       </Sec>
