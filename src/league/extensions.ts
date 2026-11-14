@@ -3,7 +3,7 @@
 // depends on the money and on how things are going for him (role, winning,
 // age, ambition), see prefs.extensionNeed.
 import { Rng } from '../rng';
-import { pastDeadline } from '../ai/trades';
+import { pastDeadline, deadlineDay } from '../ai/trades';
 import { refuses } from './requests';
 import { League, Player } from '../types';
 import { tagOf, ageIn, addTx } from '../players';
@@ -27,6 +27,13 @@ export function nextPayroll(lg: League, tid: string) {
   return v;
 }
 
+/** Extension talks after a refusal: 'open', 'wait' (one more try on deadline day) or 'closed' (he goes to free agency). */
+export function talksLeft(lg: League, p: Player): 'open' | 'wait' | 'closed' {
+  const t = (p as any).extTry;
+  if (!t || t.s !== lg.season) return 'open';
+  if (t.n >= 2) return 'closed';
+  return lg.day >= deadlineDay(lg) ? 'open' : 'wait';
+}
 export function extendable(lg: League, p: Player) {
   // until the trade deadline – after it, an expiring player goes to free agency
   return lg.phase === 'regular' && !!p.tid && p.contract.exp === lg.season && !p.ext && !pastDeadline(lg);
@@ -45,7 +52,9 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
   sal = Math.max(MIN_SAL, sal);
   const hc = hardCap(lg);
   if (nextPayroll(lg, tid) + sal > hc + 1e-9) return { ok: false, msg: `You would exceed the hard cap next season (${Math.round(hc * 100)}% of the cap): ${Math.round(nextPayroll(lg, tid) * 100)}% is already committed.` };
-  if ((p as any).extNoS === lg.season) return { ok: false, msg: `${p.name} turned down your offer and will not talk about an extension again – he goes to free agency.` };
+  const tl = talksLeft(lg, p);
+  if (tl === 'closed') return { ok: false, msg: `${p.name} turned down your offers and will not talk about an extension again – he goes to free agency.` };
+  if (tl === 'wait') return { ok: false, msg: `${p.name} turned down your offer – he will listen once more on deadline day (day ${deadlineDay(lg) + 1}).` };
   const { need, why, chance } = extensionChance(lg, p, tid, sal, years);
   if (chance <= 0) return { ok: false, msg: extensionChance(lg, p, tid, sal, years).out ? `${p.name} wants out – no contract would keep him; he is going to free agency.` : `${p.name} says no: he wants at least ${(need * 100).toFixed(1)}% of the cap for ${years} yrs${why.length ? ` (${why.join(', ')})` : ''}.` };
   if (chance < 1) {
@@ -54,8 +63,10 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
     const yes = rng.chance(chance);
     save(lg, rng);
     if (!yes) {
-      (p as any).extNoS = lg.season; // no more talks this season: after the deadline he is a free agent
-      return { ok: false, msg: `${p.name} turned it down (${Math.round(chance * 100)}% chance) – he wanted ${(need * 100).toFixed(1)}% of the cap. He won't talk about an extension again this season and goes to free agency.` };
+      // a first no before the deadline: one last chance on deadline day; a second no (or a no on deadline day) ends it
+      const last = lg.day >= deadlineDay(lg) || (p as any).extTry?.s === lg.season;
+      (p as any).extTry = { s: lg.season, n: last ? 2 : 1 };
+      return { ok: false, msg: `${p.name} turned it down (${Math.round(chance * 100)}% chance) – he wanted ${(need * 100).toFixed(1)}% of the cap. ${last ? 'Talks are over: he goes to free agency.' : `You get one more try on deadline day (day ${deadlineDay(lg) + 1}).`}` };
     }
   }
   p.ext = { sal, exp: lg.season + years };

@@ -14,7 +14,8 @@ import { RATING_LABELS, ratingOf, shownOvr as ovrOf, shownFromRaw, histShown, sh
 import { ageIn } from '../players';
 import { SortTable, f1, f0, pctf, div } from './sorttable';
 import { traits, TRAIT_LABELS, reasons, extensionNeed, extensionChance, preferredYears } from '../league/prefs';
-import { extendable, userExtend } from '../league/extensions';
+import { extendable, userExtend, talksLeft } from '../league/extensions';
+import { deadlineDay } from '../ai/trades';
 import { maxSalary } from '../ai/value';
 import { seasonInfo } from '../data';
 import { describeLog, recallStash } from '../league/offseason';
@@ -180,7 +181,7 @@ export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
   const dol = showDollars(), $ = (x: number) => dollarsOf(x, lg.season + 1, true);
   const pc = (x: number) => `${(x * 100).toFixed(1)}%`;
   const bump = (dx: number) => setSal(Math.max(0.012, Math.min(max, Math.round((offer + dx) * 10000) / 10000)));
-  const cooling = (p as any).extNoS === lg.season;
+  const talks = talksLeft(lg, p), cooling = talks !== 'open';
   return (
     <div className="offer ext" role="group" aria-label={`Contract extension for ${p.name}`}>
       <div><b>Extend {compact ? (openPlayer ? <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> : p.name) : 'contract'}</b> <span className="dim">Contract ends this season. Market value (what he would ask in free agency): <b>{pc(est.ask)}</b> of the cap{dol ? ` (${$(est.ask)})` : ''} · max {pc(max)}.</span></div>
@@ -211,9 +212,9 @@ export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
         <button className="small ghost" onClick={() => setSal(null)}>His number</button>
       </div>
       <div className={`ext-chance ${cooling ? 'neg' : ch.chance >= 1 ? 'pos' : ch.chance > 0.4 ? 'mid' : 'neg'}`}>
-        {cooling ? <>He turned down your offer – no more extension talks this season; he goes to free agency.</>
+        {cooling ? (talks === 'wait' ? <>He turned down your offer – he will listen once more on deadline day (day {deadlineDay(lg) + 1}).</> : <>He turned down your offers – no more extension talks this season; he goes to free agency.</>)
           : ch.chance >= 1 ? <>He signs – this is his number{offer > ch.need + 1e-4 ? ` (you are paying ${((offer - ch.need) * 100).toFixed(2)}% more than you need to)` : ''}.</>
-          : ch.chance > 0 ? <>A gamble: <b>{Math.round(ch.chance * 100)}%</b> he takes {((1 - offer / ch.need) * 100).toFixed(1)}% less than his number – the more he wants to stay, the more room there is. If he says no, talks are over for the season – he goes to free agency.</>
+          : ch.chance > 0 ? <>A gamble: <b>{Math.round(ch.chance * 100)}%</b> he takes {((1 - offer / ch.need) * 100).toFixed(1)}% less than his number – the more he wants to stay, the more room there is. If he says no before the deadline, you get one last try on deadline day; a second no and he goes to free agency.</>
           : est.out ? <>He wants out: what he would ask to stay is more than a max contract – he is going to free agency.</>
           : <>He will not take this – {est.interest < 40 ? 'he is not sold on staying, so no discount at all.' : 'too far under his number.'}</>}
       </div>
