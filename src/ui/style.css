@@ -1040,4 +1040,8 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .rules .rule h3 { margin: 0 0 4px; font-size: 1rem; }
 .rules .rule p { margin: 0; line-height: 1.5; max-width: 80ch; }
 /* team colours: a thin stripe in the second colour under the header */
-.team-theme header.top { box-shadow: inset 0 -3px 0 var(--team2); }
+.team-theme header.top { background: var(--head-bg); border-bottom-color: var(--team2); box-shadow: inset 0 -3px 0 var(--team2); }
+.team-theme header.top .brand .name, .team-theme header.top .brand .meta, .team-theme header.top .playing-as, .team-theme header.top .playing-as span { color: var(--head-ink); }
+.team-theme header.top .brand .meta { opacity: 0.85; }
+.team-theme header.top button.primary { background: var(--team2) !important; border-color: var(--team2) !important; color: var(--team2-ink); }
+.team-theme nav.tabs { background: var(--surface); }
