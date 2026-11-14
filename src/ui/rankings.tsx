@@ -13,7 +13,7 @@ import { teamStrength, payroll } from '../ai/value';
 import { isFreeAgent } from '../ai/trades';
 import { SortTable, f1 } from './sorttable';
 import { posNum } from '../engine/game';
-import { potOf, moneyOf } from './offseason';
+import { potOf, moneyOf, potCol } from './offseason';
 
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 const OFF = [0, 1, 2, 3, 4, 5, 6];   // shooting, creation, ball security, offensive boards
@@ -76,7 +76,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
     htCol((r: any) => r.p.ht),
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, S) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
-    { key: 'pot', label: 'Pot.', title: 'Potential – the level he can reach', get: (r: any) => potOf(r.p, S) },
+    potCol((r: any) => r.p, S),
     { key: 'off', label: 'Off', title: 'Offensive attribute rating (0–100, like OVR)', get: (r: any) => offRating(r.p) },
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
     ...RATING_LABELS.slice(0, 12).map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name, get: (r: any) => R(r.p, i), fmt: fmtAttr })),
@@ -247,7 +247,7 @@ export function Progression({ lg, openPlayer, openTeam }: any) {
     { key: 'before', label: 'Before', title: `OVR in ${S - 1}`, get: (r: any) => r.before, fmt: (v: any, r: any) => (r.rookie ? <span className="dim">–</span> : v) },
     { key: 'after', label: 'Now', title: `OVR in ${S}`, get: (r: any) => r.after, fmt: (v: any) => <Ovr v={v} /> },
     { key: 'd', label: 'Change', get: (r: any) => r.d, fmt: (v: any, r: any) => (r.rookie ? <span className="tag">Rookie</span> : <b className={dCls(v)}>{sgn(v)}</b>) },
-    { key: 'pot', label: 'Pot.', title: 'Current potential estimate', get: (r: any) => potOf(r.p, S) },
+    potCol((r: any) => r.p, S),
     { key: 'attr', label: 'Biggest attribute changes', left: true, get: (r: any) => (r.attr[0] ? Math.abs(r.attr[0].d) : 0), fmt: (_: any, r: any) => <span className="attr-d">{r.attr.slice(0, 4).map((x: any) => <span key={x.i} className={dCls(x.d)} title={x.L.name}>{x.L.short} {sgn(x.d)}</span>)}</span> },
     { key: 'gp', label: 'GP', title: 'Games last season', get: (r: any) => r.l?.gp ?? null, fmt: (v: any) => v ?? '–' },
     { key: 'min', label: 'Min', title: 'Minutes per game last season', get: (r: any) => (r.l?.gp ? r.l.min / r.l.gp : null), fmt: f1 },

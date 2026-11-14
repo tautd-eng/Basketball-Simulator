@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
+import { hash01 } from '../rng';
 import { fmtAttr, defCols } from './grades';
 import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
@@ -27,7 +28,26 @@ import { ExpansionRoom, LotteryRoom, LotteryReveal, AutoControls, useAutoPlay } 
 import { posNum } from '../engine/game';
 
 export const moneyOf = (frac: number, s: number) => money(frac, s);
-export const potOf = (p: any, s: number) => shownFromBpm(peakBpm(p, s));
+/** The real potential – hidden; nothing on screen shows it. */
+const truePot = (p: any, s: number) => shownFromBpm(peakBpm(p, s));
+/**
+ * Potential as the scouts see it: the real one plus their error. The error is the player's own (the same every time
+ * you look), large for a prospect – now and then wildly off, a Giannis nobody saw or a Darko everybody did – and it
+ * shrinks as he plays in the league and they learn who he is.
+ */
+export const potOf = (p: any, s: number) => {
+  const h = (k: string) => hash01(p.id.split('~')[0] + k);
+  let n = (h('a') + h('b') + h('c') + h('d') - 2) * 1.73;
+  if (h('e') < 0.08) n += (h('f') < 0.5 ? -1 : 1) * 1.8;   // the big misses
+  const yrs = p.prospect ? 0 : Math.max(0, s - (p.entered ?? s));
+  const sd = 5.5 * Math.max(0.25, 1 - 0.22 * yrs);
+  return Math.max(40, Math.min(99, Math.round(truePot(p, s) + n * sd)));
+};
+const POT_STEPS: [number, string][] = [[90, 'A+'], [86, 'A'], [83, 'A-'], [80, 'B+'], [77, 'B'], [74, 'B-'], [71, 'C+'], [68, 'C'], [65, 'C-'], [62, 'D+'], [59, 'D'], [0, 'D-']];
+export const potLetter = (v: number) => POT_STEPS.find(([t]) => v >= t)![1];
+/** A potential column: the scouts' estimate as a letter grade (the number on hover). */
+export const potCol = (pOf: (r: any) => any, S: number) => ({ key: 'pot', label: 'Pot.', title: "Potential as the scouts see it – they can be wrong, especially about prospects; the real potential stays hidden", get: (r: any) => potOf(pOf(r), S),
+  fmt: (v: number) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; } });
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 /** Height and every rating, for lists where you choose players without opening their cards.
  *  `proj`: the ratings he projects to at his peak (the league's average development, skill by skill) instead of today's. */
@@ -124,7 +144,8 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
     { key: 'name', label: 'Player', left: true, get: (p: any) => p.name, fmt: (v: any, p: any) => <button className="link" onClick={() => openPlayer(p.id)}>{v}</button> },
     { key: 'pos', label: 'Pos', get: (p: any) => posNum(p.pos), fmt: (_: any, p: any) => <span className="dim">{p.pos}</span> },
     { key: 'age', label: 'Age', asc: true, get: (p: any) => ageIn(p, d.year + 1) },
-    { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts (overall and potential stay hidden until he is picked)', asc: true, get: (p: any) => p.draft?.realPick ?? 99 },
+    { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts (his overall stays hidden until he is picked)', asc: true, get: (p: any) => p.draft?.realPick ?? 99 },
+    potCol((p: any) => p, d.year + 1),
     ...(lg.userTid ? [{ key: 'my', label: 'My board', title: 'Your own board – + adds him, the number is his place on it', asc: true, get: (p: any) => { const i = boardOf(lg, d.year).indexOf(p.id); return i < 0 ? 999 : i; }, fmt: (_: any, p: any) => <BoardToggle lg={lg} year={d.year} pid={p.id} onChange={() => act(() => {})} /> }] : []),
     ...attrCols((p: any) => p, d.year + 1, proj),
     { key: 'act', label: '', get: () => 0, fmt: (_: any, p: any) => myTurn ? <button className={`small ${p.id === suggestion ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'draftPick', pid: p.id }))}>Pick</button> : null },
@@ -176,7 +197,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
           <span className="hint">{d.pool.length} players left on the board</span>
         </div>
         <SortTable key={sortKey} cols={cols} rows={board.map((p: any) => ({ ...p, key: p.id }))} initial={sortKey} initialAsc={!!cols.find((c: any) => c.key === sortKey)?.asc} limit={80} />
-        <p className="note">Overall and potential stay hidden until a player is drafted – judge him by his ratings, his role and the scouts' rank.</p>
+        <p className="note">His overall stays hidden until he is drafted, and his real potential never shows: “Pot.” is what the scouts believe – usually close, sometimes far off.</p>
       </section>
       <section className="col draft-side">
         <PickBoard lg={lg} at={d.idx} openPlayer={openPlayer}
@@ -208,7 +229,7 @@ function DraftSummary({ lg, d, openPlayer, openTeam, onNext }: any) {
     { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, S) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
-    { key: 'pot', label: 'Pot.', get: (r: any) => potOf(r.p, S) },
+    potCol((r: any) => r.p, S),
     { key: 'where', label: '', left: true, get: (r: any) => ((r.p as any).stash ? 1 : 0), fmt: (v: any, r: any) => v ? <span className="dim">stays overseas (until {(r.p as any).stash})</span> : '' },
   ];
   const line = (r: any) => r ? <><button className="link" onClick={() => openPlayer(r.pid)}>{r.p.name}</button> <span className="dim">({lg.teams[r.tid].abbr}, No. {r.pick})</span></> : '–';

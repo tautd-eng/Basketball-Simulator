@@ -45,7 +45,7 @@ import { StatsView } from './stats';
 import { Reporter } from './reporter';
 import { fantasyAdvance } from '../league/fantasy';
 import { Trades } from './trades';
-import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode } from './offseason';
+import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode, potCol } from './offseason';
 import { recallStash } from '../league/offseason';
 import { Rankings, offRating, defRating } from './rankings';
 import { fatigueAt, nextCal, fatigueExcess, fatigueLabel } from '../league/fatigue';
@@ -1191,7 +1191,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
     htCol((r: any) => r.p.ht),
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, lg.season) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} small /> },
-    { key: 'pot', label: 'Pot.', title: 'Potential', get: (r: any) => potOf(r.p, lg.season) },
+    potCol((r: any) => r.p, lg.season),
     { key: 'off', label: 'Off', title: 'Offensive attribute rating (0–100, like OVR)', get: (r: any) => offRating(r.p) },
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
     ...RATING_LABELS.map((L: any, i: number) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (tendency, not quality)' : ''), get: (r: any) => RT(r.p, i), cls: L.tendency ? 'dim' : '', ...(L.tendency ? {} : { fmt: fmtAttr }) })),
@@ -1372,6 +1372,7 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
     ...(you ? [{ key: 'my', label: 'My board', title: 'Your own board – + adds him, the number is his place on it', asc: true, get: (r: any) => { const i = boardOf(lg, c.year).indexOf(r.p.id); return i < 0 ? 999 : i; }, fmt: (_: any, r: any) => <BoardToggle lg={lg} year={c.year} pid={r.p.id} onChange={changed} /> }] : []),
     { key: 'pos', label: 'Pos', left: true, get: (r: any) => r.p.pos },
     { key: 'age', label: 'Age', get: (r: any) => Math.floor(c.year + 1 - r.p.born) },
+    potCol((r: any) => r.p, c.year + 1),
     ...attrCols((r: any) => r.p, c.year + 1, proj),
   ];
   return (
