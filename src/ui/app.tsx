@@ -333,7 +333,7 @@ function App() {
           <button className="back-top" onClick={goBack} disabled={depth === 0} aria-label="Back to the previous screen" title={depth ? 'Back to the previous screen (the browser\'s Back works too)' : 'Nothing to go back to yet'}>←</button>
           <span className="ball" aria-hidden="true"></span>
           <div>
-            <div className="name"><span className="name-full">NBA History Simulator</span><span className="name-sect">{tabsFor(lg).find(([k]) => k === tab)?.[1] ?? 'NBA History Simulator'}</span></div>
+            <div className="name"><span className="name-full">Basketball Simulator</span><span className="name-sect">{tabsFor(lg).find(([k]) => k === tab)?.[1] ?? 'Basketball Simulator'}</span></div>
             <div className="meta">{seasonLabel(lg.season)} · {phaseLabel(lg)} · destiny {Math.round(lg.destiny * 100)}%</div>
           </div>
           <PlayingAs lg={lg} onChange={async () => { if (lg.userTid) setTeam(lg.userTid); bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />
@@ -342,7 +342,7 @@ function App() {
       </header>
       {octx && <OnlineBar lg={lg} openPanel={() => setShowOnline(true)} onLeave={() => { setSlot(newSlotId()); toMenu(); }} />}
       <nav className="tabs" aria-label="Sections">
-        <div className="side-brand"><span className="ball" aria-hidden="true"></span><span>NBA History<br />Simulator</span></div>
+        <div className="side-brand"><span className="ball" aria-hidden="true"></span><span>Basketball<br />Simulator</span></div>
         {tabsFor(lg).map(([k, l, main]) => (
           <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
@@ -567,7 +567,7 @@ function MainMenu({ go }: any) {
     <div className="setup menu-screen">
       <div className="setup-card menu-card">
         <span className="ball big-ball" aria-hidden="true"></span>
-        <h1>NBA History Simulator</h1>
+        <h1>Basketball Simulator</h1>
         <nav className="main-menu" aria-label="Main menu">
           {items.map(([k, t, d]) => <button key={k} className={k === 'new' ? 'primary' : ''} onClick={() => go(k)}><b>{t}</b><span>{d}</span></button>)}
         </nav>
@@ -804,7 +804,7 @@ function Setup({ onStart, onBack, host }: any) {
     <div className="setup">
       <div className="setup-card">
         <p className="eyebrow">{label} season · {teams.length} teams · real rosters</p>
-        <h1>NBA History Simulator</h1>
+        <h1>Basketball Simulator</h1>
         <button className="ghost small menu-back" onClick={onBack}>← Main menu</button>
         {host && <p className="hint">You are setting up a league to host online: once it starts, sign in and create the online league – your friends join with its code.</p>}
         <p className="lede">The league starts with the real players of {label}. Pick the season and your team – everything else is optional.</p>

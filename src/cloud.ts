@@ -53,7 +53,8 @@ async function storeAsNew(lg: League, id = newSlotId()) {
 
 // ---------------------------------------------------------------- GitHub Gist
 const TOKEN_KEY = 'nba-gist-token', GIST_KEY = 'nba-gist-id', AUTO_KEY = 'nba-gist-auto';
-const DESC = 'NBA History Simulator – saved leagues';
+const DESC = 'Basketball Simulator – saved leagues';
+const OLD_DESC = 'NBA History Simulator – saved leagues'; // earlier name: saves made then are still found
 const ls = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string | null) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private mode */ } } };
 export const cloudToken = () => ls.get(TOKEN_KEY);
 export const setCloudToken = (t: string | null) => { ls.set(TOKEN_KEY, t?.trim() || null); ls.set(GIST_KEY, null); };
@@ -75,12 +76,12 @@ async function gistId(create: boolean): Promise<string | null> {
   if (known) return known;
   for (let page = 1; page <= 5; page++) {
     const list = await gh(`/gists?per_page=100&page=${page}`);
-    const g = list.find((x: any) => x.description === DESC);
+    const g = list.find((x: any) => x.description === DESC || x.description === OLD_DESC);
     if (g) { ls.set(GIST_KEY, g.id); return g.id; }
     if (list.length < 100) break;
   }
   if (!create) return null;
-  const g = await gh('/gists', { method: 'POST', body: JSON.stringify({ description: DESC, public: false, files: { 'README.md': { content: 'Saved leagues of NBA History Simulator (compressed). Managed by the game – do not edit.' } } }) });
+  const g = await gh('/gists', { method: 'POST', body: JSON.stringify({ description: DESC, public: false, files: { 'README.md': { content: 'Saved leagues of Basketball Simulator (compressed). Managed by the game – do not edit.' } } }) });
   ls.set(GIST_KEY, g.id);
   return g.id;
 }

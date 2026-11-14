@@ -193,7 +193,7 @@ export function renderStands(k: number, o: { primary: string; secondary: string;
     // LED ad boards along the floor
     const ly = V(AYF - 13), lh = Math.round(4.2 * k);
     g.fillStyle = '#05070c'; g.fillRect(0, ly, W, lh);
-    const panels = [[o.primary, o.label], ['#0d1b3d', 'NBA HISTORY'], [o.secondary, o.label], ['#101010', 'SIMULATOR']];
+    const panels = [[o.primary, o.label], ['#0d1b3d', 'BASKETBALL'], [o.secondary, o.label], ['#101010', 'SIMULATOR']];
     let pi = 0;
     for (let vx = x0; vx < x1; vx += 46, pi++) {
       const [col, txt] = panels[pi % panels.length];

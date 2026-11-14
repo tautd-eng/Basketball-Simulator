@@ -5,7 +5,7 @@ if (!r.success) { console.error(r.logs); process.exit(1); }
 const js = await r.outputs[0].text();
 const css = readFileSync('src/ui/style.css', 'utf8');
 const hist = readFileSync('data/history.json', 'utf8').replace(/</g, '\\u003c');
-const html = `<title>NBA History Simulator</title>
+const html = `<title>Basketball Simulator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@ const head = `<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NBA History">
+<meta name="apple-mobile-web-app-title" content="Basketball Sim">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -47,7 +47,7 @@ if ('serviceWorker' in navigator) {
 </body></html>`;
 writeFileSync('dist/pwa/index.html', head + html + reg);
 writeFileSync('dist/pwa/manifest.webmanifest', JSON.stringify({
-  name: 'NBA History Simulator', short_name: 'NBA History', start_url: './', scope: './', display: 'standalone', orientation: 'any',
+  name: 'Basketball Simulator', short_name: 'Basketball Sim', start_url: './', scope: './', display: 'standalone', orientation: 'any',
   background_color: '#0d1320', theme_color: '#0d1320', description: 'Rewrite NBA history from any season since 1979–80.',
   icons: [
     { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
