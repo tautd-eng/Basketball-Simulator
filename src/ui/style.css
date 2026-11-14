@@ -1039,3 +1039,5 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .rules .rule { border-top: 1px solid var(--line); padding-top: 10px; }
 .rules .rule h3 { margin: 0 0 4px; font-size: 1rem; }
 .rules .rule p { margin: 0; line-height: 1.5; max-width: 80ch; }
+/* team colours: a thin stripe in the second colour under the header */
+.team-theme header.top { box-shadow: inset 0 -3px 0 var(--team2); }

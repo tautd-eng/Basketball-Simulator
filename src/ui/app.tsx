@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { applyTeamTheme } from './teamtheme';
 import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
 import { htStr, htCol, htDiff, htUnit, setHtUnit } from './units';
 import { PlayoffPreviews, SeriesDialog } from './preview';
@@ -208,6 +209,13 @@ function App() {
   }, []);
   useEffect(() => { document.body.classList.toggle('online-player', octx?.role === 'player' || lg?.online?.role === 'player'); }, [octx?.role, lg]);
 
+  // the menus in the colours of the team you run
+  useEffect(() => {
+    const on = () => applyTeamTheme(lg?.userTid, lg?.userTid ? lg.teams[lg.userTid]?.abbr : undefined);
+    on();
+    const mq = matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
+  }, [lg, lg?.userTid, rev]);
   const bump = () => setRev(r => r + 1);
 
   async function run(target: Target, label: string) {
