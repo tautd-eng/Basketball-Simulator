@@ -535,13 +535,58 @@ function archiveFa(lg: League, S: number) {
 
 const seasonLabelOf = (s: number) => `${s - 1}–${String(s).slice(2)}`;
 
+/**
+ * The market sets the price. Before each wave every free agent who is not a max player looks at who could pay him:
+ * the teams with room (and roster spots) – after the better free agents ahead of him have taken their share – and his
+ * own team (Bird rights). He asks about what the second-best bidder could pay (one team alone has the leverage, so
+ * a little less), never more than his value; with several teams able to pay it, a little more. Max players ask for
+ * the max regardless.
+ */
+export function readMarket(lg: League) {
+  const fa = lg.fa;
+  if (!fa || fa.stage < 1 || fa.stage > 3) return;
+  const N = lg.season, stage = fa.stage, hc = hardCap(lg), lim = ceiling(lg, N), pre = N < 1985;
+  const teams = activeTeams(lg);
+  const room = new Map(teams.map(t => [t.tid, lim - payroll(lg, t.tid)]));
+  const spots = new Map(teams.map(t => [t.tid, ROSTER_MAX - t.roster.length]));
+  const mle = new Set(fa.mle ?? []);
+  fa.mkt = {}; fa.mktN = {};
+  const pool = Object.values(lg.players).filter(p => isFreeAgent(lg, p) && !maxPlayer(p, N)).sort((a, b) => askingSalary(b, N) - askingSalary(a, N)).slice(0, 160);
+  for (const p of pool) {
+    const value = askingSalary(p, N) * STAGE_MULT[stage], max = maxSalary(p, N), floor = vetMin(p, N);
+    if (value <= floor * 1.05) continue; // minimum players: nothing to read
+    const can: { tid: string; amt: number }[] = [];
+    for (const t of teams) {
+      if ((spots.get(t.tid) ?? 0) <= 0 || refuses(p, t.tid)) continue;
+      let amt = room.get(t.tid)!;
+      if (p.bird === t.tid) amt = Math.max(amt, Math.min(hc, pre ? 1.6 : 1.45) - payroll(lg, t.tid));  // Bird rights
+      if (amt < value * 0.5 && hc === Infinity && N >= 1995 && !mle.has(t.tid)) amt = Math.max(amt, MLE);  // the exception
+      if (amt >= floor * 1.5) can.push({ tid: t.tid, amt: Math.min(max, amt) });
+    }
+    can.sort((a, b) => b.amt - a.amt);
+    const atValue = can.filter(c => c.amt >= value).length;
+    const second = can.length >= 2 ? can[1].amt : can.length ? can[0].amt * 0.85 : floor;
+    let price = Math.min(value * (atValue >= 3 ? 1.08 : 1), second);
+    price = Math.max(floor, Math.min(max, price));
+    fa.mkt[p.id] = Math.round(price * 10000) / 10000; fa.mktN[p.id] = atValue;
+    // he will most likely sign where the most room is: that room is spoken for when the next player looks
+    if (can.length) { const t = can[0].tid; room.set(t, room.get(t)! - price); spots.set(t, spots.get(t)! - 1); }
+  }
+}
+/** What he expects this wave: the market's read (non-max players), else his value lowered by the wave. */
+export function marketAsk(lg: League, p: Player, stage: number) {
+  const N = lg.season;
+  if (maxPlayer(p, N)) return maxSalary(p, N);
+  return (stage <= 3 && lg.phase === 'freeagency' ? lg.fa?.mkt?.[p.id] : undefined) ?? askingSalary(p, N) * STAGE_MULT[stage];
+}
+
 /** The salary a free agent wants from a team right now. */
 /** What he asks from this team; with `years`, for a deal of that length (see lengthPrice). */
 export function faDemand(lg: League, p: Player, tid: string, years?: number) {
   const N = lg.season;
   const stage = lg.phase === 'freeagency' ? Math.max(1, Math.min(3, lg.fa?.stage ?? 3)) : 4;
   if (maxPlayer(p, N)) return maxSalary(p, N); // a max player asks for the max, whatever the team or the wave
-  const ask = askingSalary(p, N) * STAGE_MULT[stage];
+  const ask = marketAsk(lg, p, stage);
   const mult = years ? lengthPrice(p, N, years, Math.min(maxSalary(p, N), askingSalary(p, N))).mult : 1;
   return Math.max(MIN_SAL, Math.min(maxSalary(p, N), ask * (1 - discount(lg, p, tid)) * mult));
 }
@@ -927,7 +972,7 @@ export function faStage(lg: League) {
   if (!fa || fa.stage > 3) return;
   const rng = rngOf(lg);
   const st = fa.stage;
-  if (st === 0) { applyDecisions(lg); fa.stage = 1; save(lg, rng); return; }
+  if (st === 0) { applyDecisions(lg); fa.stage = 1; readMarket(lg); save(lg, rng); return; }
   if (st === 1) {
     // the league is being run on (a full year, five years): the GM decides on people's own free agents they made no offer to
     if ((lg as any)._auto) fa.pending = Object.values(lg.players).filter(p => p.bird && isHuman(lg, p.bird) && isFreeAgent(lg, p) && !offersOn(lg, p.id).some(o => o.tid === p.bird)).map(p => p.id);
@@ -952,6 +997,7 @@ export function faStage(lg: League) {
   aiTradeRound(lg, rng, STAGE_TRADE[st] * 0.7);
   for (const rec of (lg.trades ?? []).slice(before)) fa.log.push({ st, kind: 'trade', desc: rec.desc });
   fa.stage = st + 1;
+  if (fa.stage <= 3) readMarket(lg);
   save(lg, rng);
 }
 
@@ -1110,7 +1156,7 @@ export function faOffersFor(lg: League, p: Player) {
   const fa = lg.fa;
   if (!fa || lg.phase !== 'freeagency' || !isFreeAgent(lg, p)) return [];
   const N = lg.season, stage = Math.min(3, Math.max(1, fa.stage));
-  const ask = askingSalary(p, N) * STAGE_MULT[stage];
+  const ask = marketAsk(lg, p, stage);
   const yrs = contractYears(p, N, () => 0.5);
   return teamOffers(lg, p, stage, { next: () => 0.5, normal: () => 0 }, ask, yrs)
     .map(o => ({ tid: o.t.tid, sal: o.sal, yrs, score: o.score, mle: o.mle, needRoom: o.needRoom, ask }))
@@ -1125,7 +1171,7 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
   const signed: string[] = [];
   const pool = Object.values(lg.players).filter(p => isFreeAgent(lg, p)).sort((a, b) => playerValue(b, N) - playerValue(a, N));
   for (const p of pool) {
-    const ask = askingSalary(p, N) * STAGE_MULT[stage];
+    const ask = marketAsk(lg, p, stage);
     const max = maxSalary(p, N);
     const yrsOffer = contractYears(p, N, () => rng.next());
     const offers = teamOffers(lg, p, stage, rng, ask, yrsOffer);

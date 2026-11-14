@@ -14,7 +14,7 @@ import { money, usd, showDollars, dollarsOf } from './money';
 import { useMemo, useState } from 'react';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf, seasonInfo, attrOf, perD, K } from '../data';
 import { ageIn } from '../players';
-import { peakBpm, payroll, askingSalary, MIN_SAL, maxSalary, hardCap } from '../ai/value';
+import { peakBpm, payroll, askingSalary, MIN_SAL, maxSalary, hardCap, maxPlayer as maxPlayerOf } from '../ai/value';
 import { discount, reasons, preferredYears, lengthPrice, offerUtility } from '../league/prefs';
 import { isFreeAgent } from '../ai/trades';
 import {
@@ -638,7 +638,8 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
   };
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button>{r.p.bird && r.p.bird === lg.userTid ? <span className="chip tiny">yours</span> : null}{offersOn(lg, r.p.id).some((o: any) => o.tid === lg.userTid) ? <span className="chip tiny on-clock" title="You made him an offer">offer made</span> : null}{r.p.rfa ? <span className="chip tiny rfa" title={`Restricted free agent: the ${lg.teams[r.p.rfa]?.name} can match an offer`}>RFA {lg.teams[r.p.rfa]?.abbr}</span> : null}</> },
-    { key: 'need', label: 'Asks', title: 'What he asks from your team (for the length he would pick himself)', get: (r: any) => r.need, fmt: (v: any) => moneyOf(v, N) },
+    { key: 'need', label: 'Asks', title: 'What he asks from your team (for the length he would pick himself) – set by the market: what the teams with room could pay him', get: (r: any) => r.need,
+      fmt: (v: any, r: any) => { const n = lg.fa?.mktN?.[r.p.id]; const m = lg.fa?.mkt?.[r.p.id]; return <span title={m !== undefined ? `Market read: ${n} team${n === 1 ? '' : 's'} could pay his full value; he expects about ${moneyOf(m, N)}` : maxPlayerOf(r.p, N) ? 'A max player: he asks for the max' : ''}>{moneyOf(v, N)}{m !== undefined && m < askingSalary(r.p, N) * 0.97 ? <span className="dim small-t"> ↓mkt</span> : null}</span>; } },
     ...(u ? [{ key: 'disc', label: 'For you', title: 'Discount he gives your team (+) or premium he wants (−) compared to his market price', get: (r: any) => discount(lg, r.p, u.tid), fmt: (v: any, r: any) => <span className={v > 0.02 ? 'pos' : v < -0.02 ? 'neg' : 'dim'} title={reasons(lg, r.p, u.tid).map(x => x.t).join('; ') || 'he doesn\'t mind either way'}>{v > 0 ? '+' : ''}{Math.round(v * 100)}%</span> }] : []),
     ...(market.size ? [{ key: 'int', label: 'Interest', title: 'Teams interested in him – click to see who (what they offer stays secret until he signs)', left: true, get: (r: any) => interest(r.p)?.length ?? -1,
       fmt: (_: any, r: any) => { const t = interest(r.p); if (!t) return <span className="dim">–</span>; if (!t.length) return <span className="dim">none</span>;

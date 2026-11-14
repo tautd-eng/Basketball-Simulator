@@ -181,6 +181,8 @@ export interface Lottery {
 /** Free agency: stage 1..3 open, 4 = finished (ready to start the season). */
 export interface FreeAgency {
   stage: number; pending: string[]; mle: string[];
+  /** market read for this wave: what each (non-max) free agent expects, and how many teams could pay it */
+  mkt?: Record<string, number>; mktN?: Record<string, number>;
   log: { st: number; kind: 'sign' | 'resign' | 'trade' | 'release' | 'leave' | 'option' | 'qo' | 'match' | 'sheet'; pid?: string; tid?: string; sal?: number; exp?: number; desc?: string; user?: boolean; from?: string }[];
   /** stage 0: the user's contract decisions (team options, qualifying offers) with the GM's recommendation */
   decisions?: { pid: string; kind: 'team' | 'qo' | 'rookie'; rec: boolean; choice?: boolean; sal: number; tid?: string }[];
