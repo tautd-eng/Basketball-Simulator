@@ -33,7 +33,7 @@ export const RATING_LABELS: { k: number; short: string; name: string; inv?: bool
   { k: K.def, short: 'Def', name: 'Defense' },
   { k: K.pf, short: 'Fls', name: 'Foul discipline (how rarely he fouls)', inv: true },
   { k: K.usg, short: 'Usg', name: 'Usage', tendency: true },
-  { k: K.tpr, short: '3PA%', name: 'Three-point tendency', tendency: true },
+  { k: K.tpr, short: '3PA', name: 'Three-point volume (how many threes he takes)', tendency: true },
 ];
 
 export type RealSeason = [number, string, number, number, number, number, number, number[]];
@@ -192,6 +192,10 @@ export function attrZ(z: number[], k: number): number {
     const vol = Math.max(0, Math.min(2, z[K.tpr] + 0.5 * z[K.usg]));
     const gate = Math.max(0, Math.min(1, (z[K.tp] + 0.5) / 1.5));
     return 0.75 * z[K.tp] + 0.25 * z[K.ft] + 0.4 * vol * gate;
+  }
+  if (k === K.tpr) {
+    // volume, not just the share of his shots: a high-usage shooter who takes most of his shots from three tops it
+    return (z[K.tpr] + 0.6 * z[K.usg]) / 1.25;
   }
   if (k === K.tov) {
     // ball handling: keeping the ball safe counts for most when he has it a lot (a creator), so security is
