@@ -1,6 +1,10 @@
 // @ts-nocheck
 // Positions as PG / SG / SF / PF / C: where a player naturally plays (and the other spot his listed position covers).
 import { K } from '../data';
+import REAL from './realpos.json';
+
+/** Where he really played most of his career (Basketball-Reference positions, by minutes), e.g. "SF/PF". */
+const realOf = (p: any): string | undefined => (REAL as any)[String(p.id).split('~')[0]];
 
 export const SLOTS = ['PG', 'SG', 'SF', 'PF', 'C'];
 /** Natural slot (1 … 5) from his listed position. */
@@ -11,6 +15,8 @@ export function slotsOf(pos: string): number[] {
 }
 /** Where he naturally plays: within his listed position, by size and game – a small playmaker is the point guard, a big rebounder the power forward. */
 export function natural(p: any) {
+  const r = realOf(p);
+  if (r) return SLOTS.indexOf(r.split('/')[0]) + 1;
   const opts = slotsOf(p.pos);
   if (opts.length === 1) return opts[0];
   const [lo, hi] = opts, z = p.z, ht = p.ht;
@@ -28,6 +34,8 @@ export function natural(p: any) {
 /** His positions for display: the natural one first, then the other one his listed position covers (e.g. "PG/SG"). */
 export function posLabel(p: any): string {
   if (!p?.pos) return '';
+  const r = realOf(p);
+  if (r) return r;
   const o = slotsOf(p.pos), n = natural(p);
   const other = o.find(x => x !== n);
   return other ? `${SLOTS[n - 1]}/${SLOTS[other - 1]}` : SLOTS[n - 1];
