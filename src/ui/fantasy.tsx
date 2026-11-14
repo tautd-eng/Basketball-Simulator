@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Fantasy draft room.
 import { useMemo, useState } from 'react';
-import { posLabel, natural } from './positions';
+import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { canRun } from '../league/humans';
 import { run } from '../league/commands';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf } from '../data';
@@ -15,7 +15,7 @@ import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { SortTable } from './sorttable';
 import { attrCols, SortBy } from './offseason';
 
-const POS = [['all', 'All'], ['g', 'Guards'], ['f', 'Forwards'], ['c', 'Centers']] as const;
+const POS = POS_FILTER;
 
 export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any) {
   const [pos, setPos] = useState('all');
@@ -32,7 +32,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
   const f = lg.fantasy;
   const myTurn = on && on.tid === lg.userTid;
   const pool = useMemo(() => fantasyPool(lg)
-    .filter((p: any) => pos === 'all' || (pos === 'g' ? posNum(p.pos) <= 2.5 : pos === 'c' ? posNum(p.pos) >= 4.5 : posNum(p.pos) > 2.5 && posNum(p.pos) < 4.5))
+    .filter((p: any) => posOk(p, pos))
     .filter((p: any) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)), [f.picks.length, pos, q]);
   const [sortKey, setSortKey] = useState('ovr');

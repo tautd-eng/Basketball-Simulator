@@ -2,7 +2,7 @@
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
 import { hash01 } from '../rng';
-import { posLabel, natural } from './positions';
+import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { fmtAttr, defCols, grouped } from './grades';
 import { PickBoard, OnClock, useBoards, BoardsToggle, PickTicker } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
@@ -85,8 +85,7 @@ export function AttrMode({ proj, setProj }: any) {
     <button className={proj ? 'on' : ''} onClick={() => setProj(true)} title="What each rating projects to at his peak (around 27) if he develops like an average player – real players beat or miss it">Projected at peak</button>
   </div>;
 }
-const POS = [['all', 'All'], ['g', 'Guards'], ['f', 'Forwards'], ['c', 'Centers']] as const;
-const posOk = (p: any, pos: string) => pos === 'all' || (pos === 'g' ? posNum(p.pos) <= 2.5 : pos === 'c' ? posNum(p.pos) >= 4.5 : posNum(p.pos) > 2.5 && posNum(p.pos) < 4.5);
+const POS = POS_FILTER;
 function Ovr({ v }: any) {
   const tier = v >= 90 ? 'star' : v >= 80 ? 'good' : v >= 70 ? 'mid' : 'low';
   return <span className={`ovr ${tier} sm`}>{v}</span>;

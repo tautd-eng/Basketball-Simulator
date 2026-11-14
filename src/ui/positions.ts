@@ -40,3 +40,7 @@ export function posLabel(p: any): string {
   const other = o.find(x => x !== n);
   return other ? `${SLOTS[n - 1]}/${SLOTS[other - 1]}` : SLOTS[n - 1];
 }
+
+/** Position filter buttons: All, then each position (a player counts for both of his positions). */
+export const POS_FILTER: [string, string][] = [['all', 'All'], ...SLOTS.map(x => [x, x] as [string, string])];
+export const posOk = (p: any, f: string) => f === 'all' || posLabel(p).split('/').includes(f);

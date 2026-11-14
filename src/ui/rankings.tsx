@@ -2,7 +2,7 @@
 // League-wide rankings: every player in the league sortable by any rating,
 // and power rankings of the teams (roster strength plus how they actually play).
 import { fmtAttr, defCols, grouped } from './grades';
-import { posLabel, natural } from './positions';
+import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { htStr, htCol, htDiff } from './units';
 import { TLogo, PFace } from './art';
 import { useNavState } from './nav';
@@ -31,8 +31,7 @@ function Ovr({ v }: any) {
   const tier = v >= 90 ? 'star' : v >= 80 ? 'good' : v >= 70 ? 'mid' : 'low';
   return <span className={`ovr ${tier} sm`}>{v}</span>;
 }
-const POS = [['all', 'All'], ['g', 'Guards'], ['f', 'Forwards'], ['c', 'Centers']] as const;
-const posOk = (p: any, pos: string) => pos === 'all' || (pos === 'g' ? posNum(p.pos) <= 2.5 : pos === 'c' ? posNum(p.pos) >= 4.5 : posNum(p.pos) > 2.5 && posNum(p.pos) < 4.5);
+const POS = POS_FILTER;
 
 export function Rankings({ lg, openPlayer, openTeam }: any) {
   const [view, setView] = useNavState<'players' | 'power' | 'prog'>('rankings.view', 'players');
