@@ -88,9 +88,30 @@ export function OnClock({ lg, tid, pick, round, mine, via }: any) {
 
 /** Draft rooms take the whole screen; the boards slide in from the right on demand (remembered in this browser). */
 export function useBoards(): [boolean, () => void] {
-  const [open, setOpen] = useState(() => { try { return localStorage.getItem('draftBoards') === '1'; } catch { return false; } });
+  // open by default on a wide screen (there is room beside the list), closed on a phone; the choice is remembered
+  const [open, setOpen] = useState(() => { try { const v = localStorage.getItem('draftBoards'); return v ? v === '1' : window.innerWidth >= 1400; } catch { return false; } });
   return [open, () => setOpen(o => { try { localStorage.setItem('draftBoards', o ? '0' : '1'); } catch { /* ignore */ } return !o; })];
 }
 export function BoardsToggle({ open, toggle }: any) {
   return <button className={`boards-toggle ${open ? 'on' : ''}`} onClick={toggle} aria-expanded={open}>{open ? 'Hide boards ▸' : '◂ Draft board'}</button>;
+}
+
+/** With the boards closed: a strip with the last picks and who picks next, always in view. */
+export function PickTicker({ lg, slots, at, openPlayer, open }: any) {
+  const lo = Math.max(0, (at < 0 ? slots.length : at) - 3);
+  const show = slots.slice(lo, lo + 7);
+  return (
+    <div className="pick-ticker" role="list" aria-label="Last picks and next picks">
+      {show.map((s: BoardSlot) => {
+        const idx = slots.indexOf(s), p = s.pid ? lg.players[s.pid] : null, st = teamPill(lg, s.tid), who = ownerName(lg, s.tid);
+        return (
+          <div key={s.n} role="listitem" className={`pt-item ${p ? 'done' : idx === at ? 'clock' : 'next'} ${who ? 'human' : ''}`} style={{ borderTopColor: st.background }}>
+            <span className="pt-top"><span className="pb-n">{s.n}</span><span className="pb-team" style={{ background: st.background, color: st.color }}>{lg.teams[s.tid]?.abbr}</span>{who ? <span className="pb-user">{who}</span> : null}</span>
+            <span className="pt-what">{p ? <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> : idx === at ? <b className="pb-otc">On the clock</b> : <span className="dim">next</span>}</span>
+          </div>
+        );
+      })}
+      <button className="ghost small pt-all" onClick={open}>Full board ▸</button>
+    </div>
+  );
 }

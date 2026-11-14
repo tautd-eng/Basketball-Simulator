@@ -3,7 +3,7 @@
 // (three stages) and the free-agent list where the user makes offers.
 import { hash01 } from '../rng';
 import { fmtAttr, defCols, grouped } from './grades';
-import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
+import { PickBoard, OnClock, useBoards, BoardsToggle, PickTicker } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
 import { Linkify, PL, TL, nav } from './nav';
 import { MyBoard, BoardToggle, boardOf } from './myboard';
@@ -150,6 +150,12 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
     ...attrCols((p: any) => p, d.year + 1, proj),
     { key: 'act', label: '', get: () => 0, fmt: (_: any, p: any) => myTurn ? <button className={`small ${p.id === suggestion ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'draftPick', pid: p.id }))}>Pick</button> : null },
   ];
+  const slots = d.order.map((o: any, i: number) => {
+    const made = d.picks[i];
+    if (made) return { n: made.pick, round: o.round, tid: made.tid, via: made.via, pid: made.pid };
+    const owner = lg.picks?.find((p: any) => p.season === d.year && p.round === o.round && p.orig === o.orig)?.owner ?? o.orig;
+    return { n: i + 1, round: o.round, tid: owner, via: owner !== o.orig ? o.orig : undefined };
+  });
   const recent = [...d.picks].reverse();
   const trades = d.trades ?? [];
   const fresh = trades.slice(seen);
@@ -178,6 +184,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
           <BoardsToggle open={boards} toggle={toggleBoards} />
         </div>
         {on && <OnClock lg={lg} tid={on.tid} pick={on.pick} round={on.round} via={on.tid !== on.orig ? on.orig : null} mine={myTurn} />}
+        {!boards && <PickTicker lg={lg} slots={slots} at={d.idx} openPlayer={openPlayer} open={toggleBoards} />}
         {d.lottery && <p className="note"><Linkify text={d.lottery} /></p>}
         <div className="def-row">
           {myTurn ? <>
@@ -201,12 +208,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
       </section>
       <section className="col draft-side">
         <PickBoard lg={lg} at={d.idx} openPlayer={openPlayer}
-          slots={d.order.map((o: any, i: number) => {
-            const made = d.picks[i];
-            if (made) return { n: made.pick, round: o.round, tid: made.tid, via: made.via, pid: made.pid };
-            const owner = lg.picks?.find((p: any) => p.season === d.year && p.round === o.round && p.orig === o.orig)?.owner ?? o.orig;
-            return { n: i + 1, round: o.round, tid: owner, via: owner !== o.orig ? o.orig : undefined };
-          })}
+          slots={slots}
           note={trades.length ? <ul className="news pb-trades">{trades.map((t: any, i: number) => <li key={i} className="trade-li"><span className="yr">⇄</span><span><Linkify text={t.text} /></span></li>)}</ul> : null} />
         {lg.userTid && <MyBoard lg={lg} year={d.year} pool={d.pool} openPlayer={openPlayer} onChange={() => act(() => {})} />}
       </section>

@@ -4,7 +4,7 @@ import { hash01, Rng } from './rng';
 
 export function birthYear(b: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(b || '');
-  if (!m) return 1960;
+  if (!m) return NaN;
   return +m[1] + (+m[2] - 1) / 12 + (+m[3] - 1) / 365;
 }
 /** Age during a season (season = year it ends; age on Feb 1 like Basketball-Reference). */
@@ -79,6 +79,25 @@ export function firstRealSeason(pid: string): number | undefined {
   return hp.s[0][0];
 }
 
+/**
+ * Birth date, height and position from the data – and a plausible stand-in when the data has none (mostly
+ * second-round picks who never played in the NBA): about 21–22 in his draft year, a wing-ish height and the
+ * position that goes with it, the same every time for the same player.
+ */
+export function bioOf(pid: string, hp: any, season: number) {
+  const h = (k: string) => hash01(pid + k);
+  let born = hp?.b ? birthYear(hp.b) : NaN;
+  if (!Number.isFinite(born)) {
+    const ref = hp?.d?.[0] ?? (hp?.s?.length ? hp.s[0][0] - 1 : season);
+    born = ref - 19.6 - 3.2 * h('age') + h('day') * 0.9;
+  }
+  // no bio at all in the data comes as a 6-6 forward: make him a real one
+  const noBio = !hp?.b && (hp?.h ?? 78) === 78 && (hp?.p ?? 'F') === 'F';
+  const ht = !noBio ? hp.h : Math.round(74 + 10 * (h('ht') + h('ht2')) / 2);
+  const pos = !noBio ? hp.p : (ht <= 76 ? 'G' : ht <= 79 ? (h('pos') < 0.5 ? 'G-F' : 'F') : ht <= 81 ? 'F' : ht <= 82 ? 'F-C' : 'C');
+  return { born, ht, pos };
+}
+
 export function newPlayer(pid: string, z: number[], tid: string | null, season: number): Player {
   const p = makePlayer(pid, z, tid, season);
   snapRatings(p, season);
@@ -89,9 +108,7 @@ function makePlayer(pid: string, z: number[], tid: string | null, season: number
   return {
     id: pid,
     name: hp?.n ?? pid,
-    born: birthYear(hp?.b ?? ''),
-    ht: hp?.h ?? 78,
-    pos: hp?.p ?? 'F',
+    ...bioOf(pid, hp, season),
     z: z.slice(),
     tid,
     contract: { sal: 0.02, exp: season },

@@ -1117,3 +1117,11 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
   .brand .name-sect { display: inline; }
 }
 
+/* draft: the last picks and the next ones, in a strip when the boards are closed */
+.pick-ticker { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 6px; align-items: stretch; }
+.pt-item { flex: 0 0 auto; min-width: 128px; max-width: 170px; display: flex; flex-direction: column; gap: 3px; background: var(--sunk); border: 1px solid var(--line); border-top: 3px solid; border-radius: 8px; padding: 5px 8px; font-size: .82rem; }
+.pt-item.clock { outline: 2px solid var(--accent); }
+.pt-item.next { opacity: .8; }
+.pt-top { display: flex; align-items: center; gap: 6px; }
+.pt-what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-all { align-self: center; flex: none; }

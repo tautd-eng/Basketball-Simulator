@@ -1,6 +1,8 @@
 // Thin control layer between the UI and the league: advancing time in chunks
 // (so the page stays responsive) and saving to the browser.
 import { League } from './types';
+import { bioOf } from './players';
+import { H } from './data';
 import { simDay, awaitingPlayoffs, currentRound, checkRosters } from './league/league';
 import { initDraft, draftAdvance, enterFreeAgency, faStage, startSeason, offStep, offRetire, offDevelop } from './league/offseason';
 import { fantasyAdvance } from './league/fantasy';
@@ -147,6 +149,13 @@ function migrate(lg: League) {
   for (const p of Object.values(lg.players) as any[]) {
     if (!p.awards?.length) continue;
     p.awards = p.awards.map((a: string) => { const m = /^(\d{4}) (.*)$/.exec(a); if (!m) return a; if (AWARD_EN[m[2]]) return `${m[1]} ${AWARD_EN[m[2]]}`; return /[ąčęėįšųūž]/i.test(m[2]) ? `${m[1]} ${awardLabel(m[2])}` : a; });
+  }
+  // older saves: players the data has no birth date for were born in 1960 (a 52-year-old rookie) – estimate one
+  for (const p of Object.values(lg.players) as any[]) {
+    if (p.born !== 1960) continue;
+    const base = p.id.split('~')[0], hp = (H.players as any)[base];
+    if (hp?.b) continue;
+    p.born = bioOf(base, hp, p.draft?.year ?? lg.season).born;
   }
   checkRosters(lg); // older saves: duplicate names, players on two rosters
   // older saves: the opening contracts marked every player as on his first (rookie) deal
