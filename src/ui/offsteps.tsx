@@ -366,7 +366,7 @@ export function devReason(lg: any, p: any, S: number): string {
   add(w.perf, w.perf > 0 ? 'a strong season – he played above his rating' : w.flop ? 'a poor season' : 'played below his rating');
   add(w.trend, w.trend > 0 ? (age <= 24 ? `natural growth at ${age}` : `still improving at ${age}`) : age >= 30 ? `age decline at ${age}` : `development stalled at ${age}`);
   add(w.luck, w.luck > 0 ? 'a productive summer of work' : 'an off summer');
-  add(w.cap, w.cap > 0 ? 'young-player protection limited the drop' : 'one summer can only move him so far');
+  add(w.cap, w.cap > 0 ? (age <= 25 ? 'young-player protection limited the drop' : 'one summer can only cost so much (max 6)') : 'one summer can only move him so far (max 6)');
   add(w.destiny, 'pulled toward his real career');
   add(w.league ?? 0, 'league-wide recalibration');
   parts.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));

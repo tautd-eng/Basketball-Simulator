@@ -246,10 +246,11 @@ export interface League {
   capGrace?: number;
   dead?: { tid: string; sal: number; exp: number; pid: string }[]; // salaries of released players still on the books
   start?: number;                     // first season of this league
-  classMode?: 'real' | 'shuffle' | 'mixed';
+  classMode?: 'real' | 'shuffle' | 'mixed' | 'fictional';
+  fakeNames?: Record<string, string>;  // generated prospects: id → made-up name
   classMap?: Record<string, string[]>; // draft year → prospects (shuffled or mixed classes)
   classSrc?: Record<string, number>;   // shuffled: draft year → real class year
-  future?: { order: number[]; cls: Record<string, string[]>; mode?: 'shuffle' | 'chrono' | 'mixed'; used?: number[]; usedP?: string[] }; // after the data ends: historical classes coming round again
+  future?: { order: number[]; cls: Record<string, string[]>; mode?: 'shuffle' | 'chrono' | 'mixed' | 'fictional'; used?: number[]; usedP?: string[] }; // after the data ends: historical classes coming round again
   injCal?: number;                     // last calendar day checked for injuries away from games
   endCal?: number;                     // calendar day the last season ended
   records?: import('./league/records').Records; // single-game record book

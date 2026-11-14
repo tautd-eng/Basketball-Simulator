@@ -4,12 +4,14 @@
 import { H, LAST_SEASON, bpmOf } from '../data';
 import { Rng } from '../rng';
 import { League } from '../types';
+import { fakeName } from './names';
 
-export type ClassMode = 'real' | 'shuffle' | 'mixed';
+export type ClassMode = 'real' | 'shuffle' | 'mixed' | 'fictional';
 export const CLASS_MODES: [ClassMode, string, string][] = [
   ['real', 'Real classes in their own years', 'Every year brings that year\'s real draft class.'],
   ['shuffle', 'Real classes, random years', 'Classes stay intact (e.g. the whole 1984 class together), but you never know which year each one arrives.'],
   ['mixed', 'Mixed classes', 'All rookies are pooled and dealt out by year so every class gets a similar share of stars, starters and role players.'],
+  ['fictional', 'Generated classes', 'Made-up prospects with made-up names: each one is built on a real player\'s profile and career path (mixed like above), so nobody knows who will become a star.'],
 ];
 
 const draftYears = (start: number) => {
@@ -42,7 +44,7 @@ export function buildClasses(lg: League, mode: ClassMode, rng: Rng) {
   if (mode === 'shuffle') {
     const perm = rng.shuffle([...years]);
     years.forEach((y, i) => { map[y] = [...H.classes[String(perm[i])]]; src[y] = perm[i]; });
-  } else {
+  } else { // mixed (and generated)
     const size: Record<number, number> = {};
     const pool: { pid: string; v: number }[] = [];
     for (const y of years) {
@@ -65,8 +67,24 @@ export function buildClasses(lg: League, mode: ClassMode, rng: Rng) {
       map[best].push(pid); got[best]++;
     });
   }
+  if (mode === 'fictional') {
+    // the same mix, but every prospect is a made-up player built on the real one (his own id, his own name)
+    for (const y of Object.keys(map)) map[y] = map[y].map(pid => fictionalize(lg, `${pid}~g${y}`));
+  }
   lg.classMap = map;
   lg.classSrc = mode === 'shuffle' ? src : undefined;
+}
+
+/** A generated prospect: a copy of a real player's record under a made-up name (kept in the league for reloads). */
+function fictionalize(lg: League, id: string) {
+  const names = (lg.fakeNames ??= {});
+  if (!names[id]) {
+    const taken = new Set(Object.values(names));
+    for (const p of Object.values(lg.players)) taken.add(p.name);
+    names[id] = fakeName(id, taken);
+  }
+  registerClone(id, names[id]);
+  return id;
 }
 
 export function classFor(lg: League, Y: number): string[] {
@@ -81,24 +99,27 @@ export function classFor(lg: League, Y: number): string[] {
 // (ids "pid~year") who develop like the originals did in the same year of their careers.
 export const cloneBase = (pid: string) => pid.split('~')[0];
 /** Copies share the original's historical record (career, draft, looks). */
-export function registerClone(id: string) {
+export function registerClone(id: string, name?: string) {
   const b = cloneBase(id);
-  if (b !== id && H.players[b] && !H.players[id]) (H.players as any)[id] = H.players[b];
+  if (b !== id && H.players[b] && (!H.players[id] || (name && H.players[id].n !== name))) (H.players as any)[id] = name ? { ...H.players[b], n: name, hof: false } : H.players[b];
 }
 export function registerClones(lg: League) {
-  for (const id of Object.keys(lg.players)) registerClone(id);
-  for (const ids of Object.values(lg.future?.cls ?? {})) ids.forEach(registerClone);
+  const nm = lg.fakeNames ?? {};
+  for (const id of Object.keys(lg.players)) registerClone(id, nm[id]);
+  for (const ids of Object.values(lg.future?.cls ?? {})) ids.forEach(id => registerClone(id, nm[id]));
+  for (const ids of Object.values(lg.classMap ?? {})) ids.forEach(id => { if (nm[id]) registerClone(id, nm[id]); });
 }
 let lastCls = 0;
 export function lastClassYear() {
   if (!lastCls) lastCls = Math.max(...Object.keys(H.classes).filter(y => H.classes[y]?.length).map(Number));
   return lastCls;
 }
-export type FutureMode = 'shuffle' | 'chrono' | 'mixed';
+export type FutureMode = 'shuffle' | 'chrono' | 'mixed' | 'fictional';
 export const FUTURE_MODES: [FutureMode, string, string][] = [
   ['shuffle', 'Whole classes, random order', 'Every year a whole historical class comes round again – you never know which one.'],
   ['chrono', 'Whole classes, oldest first', 'The classes come round in draft order: 1980, 1981, 1982 … and start over at the end.'],
   ['mixed', 'Mixed classes', 'All historical rookies are pooled and dealt out so every year gets a similar share of stars, starters and role players.'],
+  ['fictional', 'Generated classes', 'Made-up prospects with made-up names, each built on a real player\'s profile and career path (mixed like above) – nobody knows who will become a star.'],
 ];
 /**
  * Next year's prospects once the real drafts have run out. A historical class (or, mixed, a player from it)
@@ -114,10 +135,11 @@ function futureClass(lg: League, Y: number): string[] {
   for (const p of Object.values(lg.players)) if (!p.retired) (p.id.includes('~') ? copies : orig).add(cloneBase(p.id));
   const years = Object.keys(H.classes).map(Number).filter(y => H.classes[String(y)]?.length >= 20).sort((a, b) => a - b);
   // whole classes: every original and every earlier copy gone; mixed: the originals of his class gone, and his own last copy
-  const alive = mode === 'mixed' ? orig : new Set([...orig, ...copies]);
+  const mixLike = mode === 'mixed' || mode === 'fictional';
+  const alive = mixLike ? orig : new Set([...orig, ...copies]);
   const free = years.filter(y => !H.classes[String(y)].some(pid => alive.has(pid)));
   let ids: string[];
-  if (mode === 'mixed') {
+  if (mixLike) {
     const used = new Set(f.usedP ?? []);
     let pool = free.flatMap(y => H.classes[String(y)]).filter(pid => !used.has(pid) && !copies.has(pid));
     const size = Math.round(years.reduce((a, y) => a + H.classes[String(y)].length, 0) / years.length);
@@ -130,6 +152,7 @@ function futureClass(lg: League, Y: number): string[] {
     pick.forEach(pid => used.add(pid));
     f.usedP = [...used];
     ids = pick.map(pid => `${pid}~${Y}`);
+    if (mode === 'fictional') ids.forEach(id => fictionalize(lg, id));
   } else {
     const usedY = new Set(f.used ?? []);
     let cand = free.filter(y => !usedY.has(y));
@@ -141,7 +164,7 @@ function futureClass(lg: League, Y: number): string[] {
     ids = H.classes[String(src)].map(pid => `${pid}~${Y}`);
     (lg.classSrc ??= {})[String(Y)] = src;
   }
-  ids.forEach(registerClone);
+  ids.forEach(id => registerClone(id, lg.fakeNames?.[id]));
   f.cls[String(Y)] = ids;
   return ids;
 }

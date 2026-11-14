@@ -1283,15 +1283,32 @@ export function offRetire(lg: League) {
   save(lg, rng);
 }
 /** Step 3: development – every player gets better or worse over the summer (and the league is recalibrated). */
+/** The most a player's overall can move in one summer (development, age, luck and recalibration together). */
+export const MAX_SUMMER = 6;
 export function offDevelop(lg: League) {
   offRetire(lg);
   const o = offState(lg);
   if (o.devDone) return;
   const rng = rngOf(lg);
   const Y = lg.season;
+  const z0 = new Map(Object.values(lg.players).filter(p => !p.retired).map(p => [p.id, p.z.slice()]));
   develop(lg, rng);
   normalizeLeague(lg, Y + 1, 1);
   youngFloor(lg, Y + 1);
+  // nobody moves more than MAX_SUMMER overall points in one summer, up or down, whatever the causes add up to
+  const capped = new Map<string, number>();
+  for (const p of Object.values(lg.players)) {
+    const a = z0.get(p.id);
+    if (!a || p.retired) continue;
+    const o0 = shownOvr(a, p.id), o1 = shownOvr(p.z, p.id);
+    if (Math.abs(o1 - o0) <= MAX_SUMMER) continue;
+    const b = p.z.slice();
+    let lo = 0, hi = 1;
+    for (let it = 0; it < 14; it++) { const t = (lo + hi) / 2; if (Math.abs(shownOvr(a.map((v, i) => v + t * (b[i] - v)), p.id) - o0) <= MAX_SUMMER) lo = t; else hi = t; }
+    for (let i = 0; i < NK; i++) p.z[i] = a[i] + lo * (b[i] - a[i]);
+    capped.set(p.id, shownOvr(p.z, p.id) - o1);
+    snapRatings(p, Y + 1);
+  }
   checkRosters(lg);
   // the league-wide recalibration is a cause of its own
   for (const p of Object.values(lg.players)) {
@@ -1300,7 +1317,8 @@ export function offDevelop(lg: League) {
     const h = p.ovrHist.find(x => x[0] === Y + 1), pre = p.ovrHist.find(x => x[0] === Y);
     if (!h || !pre) continue;
     const total = histShown(h) - histShown(pre);
-    w.league = total - w.total; w.total = total;
+    const c = capped.get(p.id) ?? 0;
+    w.league = total - w.total - c; w.cap = (w.cap ?? 0) + c; w.total = total;
   }
   o.devDone = true;
   if (o.step === 'recap' || o.step === 'retire') o.step = 'dev';

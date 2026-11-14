@@ -491,19 +491,28 @@ export function youngFloor(lg: League, S = lg.season) {
   }
 }
 
+/** League calibration: how hard it pulls toward the real league (share per summer), and how many more 80+ players
+ *  than the real league of that season it tolerates before pulling the top down. */
+export const CAL = { str: 0.4, room: 50 };
 export function normalizeLeague(lg: League, S = lg.season, maxStep = Infinity) {
   const real = realProfile(S);
   const before = simProfile(lg);
-  const str = 0.8 * (1 - lg.destiny);
+  const str = CAL.str * (1 - lg.destiny);
+  // room to grow: the league may become stronger than the real one – up to CAL.room more 80+ players – before
+  // anything pulls it back down; a league that drifts too weak is still lifted at once
+  const excess = before.n80 - real.n80 - CAL.room;
+  const mayCut = excess > 0;
   const players = Object.values(lg.players).filter(p => !p.retired);
   const z0 = new Map(players.map(p => [p.id, p.z.slice()]));
   let shiftSize = 0;
   const wRel = new Map<string, number>();   // each player's share of the correction (by age)
   if (str > 0) {
-    const shift = before.mean.map((m, k) => {
+    let shift = before.mean.map((m, k) => {
       const diff = real.mean[k] - m;
       return Math.abs(diff) > 0.03 ? str * diff : 0;
     });
+    // pulling down only once the room is used up – and then gently at first
+    if (bpmOf(shift) - bpmOf(new Array(NK).fill(0)) < 0) { const g = mayCut ? Math.min(1, excess / 25) : 0; shift = shift.map(x => x * g); }
     shiftSize = Math.sqrt(shift.reduce((a, x) => a + x * x, 0));
     // who carries the correction: when the league has drifted too strong, mostly the veterans past their peak
     // (careers still peak around 27); when it has drifted too weak, mostly the young and players in their prime
@@ -523,7 +532,7 @@ export function normalizeLeague(lg: League, S = lg.season, maxStep = Infinity) {
   let spread = 1;
   const mid = simProfile(lg);
   const r = real.bpmSd / Math.max(0.1, mid.bpmSd);
-  if (str > 0 && (r < 0.94 || r > 1.1)) {
+  if (str > 0 && (r < 0.94 && mayCut || r > 1.1)) {
     spread = 1 + str * (r - 1);
     for (const p of players) for (let k = 0; k < NK; k++) p.z[k] = mid.mean[k] + (p.z[k] - mid.mean[k]) * spread;
   }

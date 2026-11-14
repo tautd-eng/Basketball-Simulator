@@ -818,13 +818,13 @@ function Setup({ onStart, onBack, host }: any) {
   // every league gets its own hidden random seed
   const [seed] = useState(() => Math.floor(Math.random() * 1e9));
   const [user, setUser] = useState('');
-  const [start, setStart] = useState(1980);
-  const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed'>('real');
-  const [fmode, setFmode] = useState<'shuffle' | 'chrono' | 'mixed'>('shuffle');
+  const [start, setStart] = useState(LAST_SEASON + 1); // today's league first
+  const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed' | 'fictional'>('real');
+  const [fmode, setFmode] = useState<'shuffle' | 'chrono' | 'mixed' | 'fictional'>('shuffle');
   const si = seasonInfo(start);
   const teams = Object.entries(si.teams).sort((a, b) => a[1].name.localeCompare(b[1].name));
   const years: number[] = [];
-  for (let y = 1980; y <= LAST_SEASON + 1; y++) years.push(y);
+  for (let y = LAST_SEASON + 1; y >= 1980; y--) years.push(y); // newest first
   const future = start > LAST_SEASON;
   const label = `${start - 1}–${String(start).slice(2)}`;
   const pickYear = (y: number) => { setStart(y); if (user && !seasonInfo(y).teams[user]) setUser(''); };
