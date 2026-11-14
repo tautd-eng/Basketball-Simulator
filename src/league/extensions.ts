@@ -3,6 +3,7 @@
 // depends on the money and on how things are going for him (role, winning,
 // age, ambition), see prefs.extensionNeed.
 import { Rng } from '../rng';
+import { refuses } from './requests';
 import { League, Player } from '../types';
 import { tagOf, ageIn, addTx } from '../players';
 import { playerValue, maxSalary, MIN_SAL, contractYears, hardCap } from '../ai/value';
@@ -35,6 +36,7 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
   const tid = lg.userTid;
   if (!p || !tid || p.tid !== tid) return { ok: false, msg: 'This player is not on your team.' };
   if (!extendable(lg, p)) return { ok: false, msg: 'Extensions are possible during the regular season for players whose contract ends this season.' };
+  if (refuses(p, tid)) return { ok: false, msg: `${p.name} has asked for a trade – he won't talk about an extension.` };
   const N = lg.season + 1;
   const max = maxSalary(p, N);
   if (sal > max + 1e-9) return { ok: false, msg: `The most you can offer is a max contract: ${(max * 100).toFixed(1)}% of the cap.` };
@@ -67,7 +69,7 @@ export function aiExtensions(lg: League, rng: Rng) {
     if (!t.active || isHuman(lg, t.tid)) continue;
     const ranked = t.roster.map(pid => lg.players[pid]).sort((a, b) => playerValue(b, N, t.strategy) - playerValue(a, N, t.strategy));
     for (const p of ranked) {
-      if (!extendable(lg, p) || !rng.chance(0.12)) continue;
+      if (!extendable(lg, p) || refuses(p, t.tid) || !rng.chance(0.12)) continue;
       const rank = ranked.indexOf(p);
       if (rank >= 7) continue;
       if (t.strategy === 'rebuild' && ageIn(p, N) >= 30) continue;

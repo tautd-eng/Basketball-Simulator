@@ -2,6 +2,7 @@
 // The end of the regular season: awards revealed one place at a time (3rd, 2nd, then the winner) or all at
 // once, with every candidate's season numbers, then the All-League teams – and only then the playoffs.
 import { useState } from 'react';
+import { posLabel, natural } from './positions';
 import { TL } from './nav';
 import { shownOvr as ovrOf } from '../data';
 import { ageIn } from '../players';
@@ -55,7 +56,7 @@ function AwardCard({ lg, a, k, t, rev, setRev, openPlayer }: any) {
               <span className="aw-place">{x.place === 1 ? '🏆' : x.place}</span>
               {on ? <span className="aw-who">
                 <PFace lg={lg} p={p} />
-                <span><button className="link aw-name" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos} · age {ageIn(p, lg.season)} · OVR {ovrOf(p.z, p.id)} · {p.tid ? <TL tid={p.tid} abbr /> : 'FA'}</span><br /><Line lg={lg} p={p} k={k} /></span>
+                <span><button className="link aw-name" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)} · age {ageIn(p, lg.season)} · OVR {ovrOf(p.z, p.id)} · {p.tid ? <TL tid={p.tid} abbr /> : 'FA'}</span><br /><Line lg={lg} p={p} k={k} /></span>
               </span> : <span className="dim aw-who">?</span>}
             </li>
           );
@@ -73,7 +74,7 @@ function TeamTable({ lg, title, pids, openPlayer, def }: any) {
         <thead><tr><th className="l">Player</th><th>Pos</th><th>Team</th><th>PTS</th><th>REB</th><th>AST</th>{def ? <><th>STL</th><th>BLK</th></> : <th>FG%</th>}<th>GP</th></tr></thead>
         <tbody>{pids.map((pid: string) => { const p = lg.players[pid]; if (!p) return null; const l = p.cur; return (
           <tr key={pid} className={p.tid === lg.userTid ? 'mine' : ''}>
-            <td className="l"><button className="link" onClick={() => openPlayer(pid)}>{p.name}</button></td><td className="dim">{p.pos}</td><td>{p.tid ? <TL tid={p.tid} abbr /> : '–'}</td>
+            <td className="l"><button className="link" onClick={() => openPlayer(pid)}>{p.name}</button></td><td className="dim">{posLabel(p)}</td><td>{p.tid ? <TL tid={p.tid} abbr /> : '–'}</td>
             <td>{pg(l, 'pts').toFixed(1)}</td><td>{pg(l, 'reb').toFixed(1)}</td><td>{pg(l, 'ast').toFixed(1)}</td>
             {def ? <><td>{pg(l, 'stl').toFixed(1)}</td><td>{pg(l, 'blk').toFixed(1)}</td></> : <td>{pct(l.fgm, l.fga)}</td>}<td>{l.gp}</td>
           </tr>); })}</tbody>

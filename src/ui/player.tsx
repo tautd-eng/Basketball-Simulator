@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Player card: ratings, progression year by year, and sortable career statistics.
 import { htStr, htCol, htDiff } from './units';
+import { posLabel, natural } from './positions';
 import { Linkify } from './nav';
 import { run } from '../league/commands';
 import { showDollars, dollarsOf, money } from './money';
@@ -306,9 +307,10 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
           {p.prospect ? <span className="ovr low" title="Overall stays hidden until he is drafted – judge him by his ratings">?</span> : <Ovr v={ovrOf(p.z, p.id)} />}
           <div>
             <h2>{p.name}</h2>
-            <p className="dim">{p.pos} · {htStr(p.ht)} · age {ageIn(p, lg.season)} · {p.tid ? <button className="link" onClick={() => openTeam(p.tid)}>{status}</button> : status}</p>
+            <p className="dim">{posLabel(p)} · {htStr(p.ht)} · age {ageIn(p, lg.season)} · {p.tid ? <button className="link" onClick={() => openTeam(p.tid)}>{status}</button> : status}</p>
             {p.tid && (lg.phase === 'regular' || lg.phase === 'playoffs') && <p className="dim">Status: {p.injury > 0 ? `injured – ${p.inj ? injName(p.inj.k) : 'injury'}, out ~${p.injury} more games` : fatigueLabel(fatigueAt(lg, p, nextCal(lg, todayIndex(lg)))).toLowerCase()}</p>}
             {p.tid && !p.retired && !p.prospect && p.contract && <ContractLine lg={lg} p={p} />}
+            {(p as any).treq && (p as any).treq.tid === p.tid && <p><span className="chip neg-chip" title="He will not extend or re-sign with this team">Has asked for a trade</span></p>}
             {p.draft?.tid && <p className="dim">Draft {p.draft.year}: No. {p.draft.pick} ({lg.teams[p.draft.tid]?.abbr ?? p.draft.tid})</p>}
             {(p as any).stash && <p className="dim">Playing overseas – expected to come over for {(p as any).stash - 1}–{String((p as any).stash).slice(2)}.{(p as any).rights === lg.userTid && <> <button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setRecallMsg(r.msg); onChange?.(); bump(x => x + 1); }}>Bring him over now</button></>}</p>}
             {recallMsg && <p className="hint">{recallMsg}</p>}

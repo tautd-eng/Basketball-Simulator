@@ -3,6 +3,7 @@
 // (protection lists, then the new teams picking) and the lottery (odds, then
 // the draw revealed slot by slot).
 import { Linkify, PL, TL, nav } from './nav';
+import { posLabel, natural } from './positions';
 import { run } from '../league/commands';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm } from '../data';
@@ -74,7 +75,7 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button> },
     { key: 'from', label: 'Team', left: true, get: (r: any) => lg.teams[r.from].abbr, fmt: (v: any, r: any) => <button className="link" onClick={() => openTeam(r.from)}>{v}</button> },
-    { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, Y + 1) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
     { key: 'sal', label: 'Salary', title: 'Salary as a share of the cap', get: (r: any) => r.p.contract.sal, fmt: (v: any, r: any) => `${Math.round(v * 100)}% through ${r.p.contract.exp}` },
@@ -108,7 +109,7 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
                   return <tr key={p.id} className={prot ? 'mine' : ''}>
                     <td className="l"><input type="checkbox" aria-label={`Protect ${p.name}`} checked={prot} disabled={!prot && protectedN >= PROTECT_N} onChange={() => act(() => expToggleProtect(lg, p.id))} /></td>
                     <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button></td>
-                    <td className="dim">{p.pos}</td><td>{ageIn(p, Y + 1)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td>
+                    <td className="dim">{posLabel(p)}</td><td>{ageIn(p, Y + 1)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td>
                     <td className="l dim">{Math.round(p.contract.sal * 100)}% through {p.contract.exp}</td>
                   </tr>;
                 })}</tbody>
@@ -137,7 +138,7 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
             <h2><span className="swatch" style={{ background: colorsOf(nt, lg.teams[nt]?.abbr)[0] }}></span>{lg.teams[nt].name}</h2>
             {lg.teams[nt].roster.length ? (
               <ul className="news">{e.picks.filter((x: any) => x.nt === nt).slice().reverse().map((x: any) => (
-                <li key={x.pid} className="pop-in"><span className="yr">{x.n}</span><span><button className="link" onClick={() => openPlayer(x.pid)}>{lg.players[x.pid].name}</button> <span className="dim">from {lg.teams[x.from].abbr} · {lg.players[x.pid].pos} · OVR {ovrOf(lg.players[x.pid].z, lg.players[x.pid].id)}</span></span></li>
+                <li key={x.pid} className="pop-in"><span className="yr">{x.n}</span><span><button className="link" onClick={() => openPlayer(x.pid)}>{lg.players[x.pid].name}</button> <span className="dim">from {lg.teams[x.from].abbr} · {posLabel(lg.players[x.pid])} · OVR {ovrOf(lg.players[x.pid].z, lg.players[x.pid].id)}</span></span></li>
               ))}</ul>
             ) : <p className="note">Roster is empty – waiting for the expansion draft.</p>}
           </div>

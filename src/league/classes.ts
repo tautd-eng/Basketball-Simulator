@@ -8,10 +8,10 @@ import { fakeName } from './names';
 
 export type ClassMode = 'real' | 'shuffle' | 'mixed' | 'fictional';
 export const CLASS_MODES: [ClassMode, string, string][] = [
+  ['fictional', 'Generated classes', 'Made-up prospects with made-up names: each one is built on a real player\'s profile and career path (dealt out like Mixed classes), so nobody knows who will become a star.'],
   ['real', 'Real classes in their own years', 'Every year brings that year\'s real draft class.'],
   ['shuffle', 'Real classes, random years', 'Classes stay intact (e.g. the whole 1984 class together), but you never know which year each one arrives.'],
   ['mixed', 'Mixed classes', 'All rookies are pooled and dealt out by year so every class gets a similar share of stars, starters and role players.'],
-  ['fictional', 'Generated classes', 'Made-up prospects with made-up names: each one is built on a real player\'s profile and career path (mixed like above), so nobody knows who will become a star.'],
 ];
 
 const draftYears = (start: number) => {
@@ -116,10 +116,10 @@ export function lastClassYear() {
 }
 export type FutureMode = 'shuffle' | 'chrono' | 'mixed' | 'fictional';
 export const FUTURE_MODES: [FutureMode, string, string][] = [
+  ['fictional', 'Generated classes', 'Made-up prospects with made-up names, each built on a real player\'s profile and career path (dealt out like Mixed classes) – nobody knows who will become a star.'],
   ['shuffle', 'Whole classes, random order', 'Every year a whole historical class comes round again – you never know which one.'],
   ['chrono', 'Whole classes, oldest first', 'The classes come round in draft order: 1980, 1981, 1982 … and start over at the end.'],
   ['mixed', 'Mixed classes', 'All historical rookies are pooled and dealt out so every year gets a similar share of stars, starters and role players.'],
-  ['fictional', 'Generated classes', 'Made-up prospects with made-up names, each built on a real player\'s profile and career path (mixed like above) – nobody knows who will become a star.'],
 ];
 /**
  * Next year's prospects once the real drafts have run out. A historical class (or, mixed, a player from it)

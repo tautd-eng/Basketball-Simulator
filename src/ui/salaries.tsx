@@ -1,5 +1,6 @@
 // Salary cap breakdown: a team's contracts season by season (as shares of each season's cap), and the league at a glance.
 import { useState } from 'react';
+import { posLabel, natural } from './positions';
 import { shownOvr as ovrOf } from '../data';
 import { payroll, hardCap, deadPay, MIN_SAL, DEAD_SHARE, MAX_SAL } from '../ai/value';
 import { run } from '../league/commands';
@@ -73,7 +74,7 @@ function TeamSalary({ lg, tid, openPlayer, openTeam }: any) {
         <tbody>
           {ps.map((p: any) => <tr key={p.id} className={tid === lg.userTid ? '' : ''}>
             <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{p.contract.rookie ? <span className="chip tiny" title="Rookie contract – a restricted free agent when it ends">R</span> : null}</td>
-            <td className="dim">{p.pos}</td><td>{ageIn(p, S)}</td><td>{ovrOf(p.z, p.id)}</td>
+            <td className="dim">{posLabel(p)}</td><td>{ageIn(p, S)}</td><td>{ovrOf(p.z, p.id)}</td>
             {YRS.map(s => {
               const o = opt(p, s);
               return <td key={s} className={on(p, s) ? `sal ${o ? 'opt-' + o : p.contract.rookie ? 'rk' : ''}` : 'dim'} title={o ? `${o === 'team' ? 'Team' : 'Player'} option` : undefined}>

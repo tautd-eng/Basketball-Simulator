@@ -2,6 +2,7 @@
 // League-wide rankings: every player in the league sortable by any rating,
 // and power rankings of the teams (roster strength plus how they actually play).
 import { fmtAttr, defCols, grouped } from './grades';
+import { posLabel, natural } from './positions';
 import { htStr, htCol, htDiff } from './units';
 import { TLogo, PFace } from './art';
 import { useNavState } from './nav';
@@ -72,7 +73,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
     { key: 'rank', label: '#', get: (r: any) => -ovrOf(r.p.z, r.p.id), fmt: () => '' },
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><PFace lg={lg} p={r.p} /><button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button></> },
     { key: 'team', label: 'Team', left: true, get: (r: any) => (r.p.tid ? lg.teams[r.p.tid].abbr : 'FA'), title: 'FA – free agent', fmt: (v: any, r: any) => r.p.tid ? <button className="link" onClick={() => openTeam(r.p.tid)}>{v}</button> : <span className="dim">FA</span> },
-    { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     htCol((r: any) => r.p.ht),
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, S) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },

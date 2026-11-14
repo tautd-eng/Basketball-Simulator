@@ -2,6 +2,7 @@
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
 import { hash01 } from '../rng';
+import { posLabel, natural } from './positions';
 import { fmtAttr, defCols, grouped } from './grades';
 import { PickBoard, OnClock, useBoards, BoardsToggle, PickTicker } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
@@ -142,7 +143,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
   const suggestion = myTurn ? draftSuggest(lg, lg.userTid) : null;
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (p: any) => p.name, fmt: (v: any, p: any) => <button className="link" onClick={() => openPlayer(p.id)}>{v}</button> },
-    { key: 'pos', label: 'Pos', get: (p: any) => posNum(p.pos), fmt: (_: any, p: any) => <span className="dim">{p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (p: any) => natural(p), fmt: (_: any, p: any) => <span className="dim">{posLabel(p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (p: any) => ageIn(p, d.year + 1) },
     { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts (his overall stays hidden until he is picked)', asc: true, get: (p: any) => p.draft?.realPick ?? 99 },
     potCol((p: any) => p, d.year + 1),
@@ -228,7 +229,7 @@ export function DraftSummary({ lg, d, openPlayer, openTeam, onNext }: any) {
     { key: 'pick', label: 'No.', asc: true, get: (r: any) => r.pick },
     { key: 'team', label: 'Team', left: true, get: (r: any) => lg.teams[r.tid].abbr, fmt: (v: any, r: any) => <><button className="link" onClick={() => openTeam(r.tid)}>{v}</button>{r.via ? <span className="dim"> (via {lg.teams[r.via].abbr})</span> : null}</> },
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <button className="link" onClick={() => openPlayer(r.pid)}>{v}</button> },
-    { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, S) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
     potCol((r: any) => r.p, S),
@@ -310,7 +311,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
   const availCols = [
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (_: any, r: any) => <>{nm(r.p)}{r.p.rfa ? <span className="chip tiny rfa" title={`Restricted: the ${lg.teams[r.p.rfa]?.name} can match`}>RFA</span> : null}</> },
     { key: 'ask', label: 'Asks', get: (r: any) => (u ? faDemand(lg, r.p, u.tid, preferredYears(r.p, N)) : askingSalary(r.p, N)), fmt: (v: any) => moneyOf(v, N) },
-    { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, N) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
     { key: 'pot', label: 'Pot.', get: (r: any) => potOf(r.p, N) },
@@ -372,7 +373,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
                 const yes = d.choice ?? null;
                 if (d.kind === 'team' && p.tid !== lg.userTid && (d.tid ?? lg.userTid) === lg.userTid) return <tr key={d.pid}><td className="l">{p.name}</td><td colSpan={6} className="l dim">Traded – the option went with him; {p.tid ? lg.teams[p.tid].name : 'his new team'} decide{p.tid ? '' : 's'}.</td></tr>;
                 return <tr key={d.pid}>
-                  <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos}</span></td>
+                  <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}</span></td>
                   <td>{ageIn(p, N)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td>
                   <td className="l">{d.kind === 'team' ? 'Team option' : 'Qualifying offer'}</td>
                   <td>{moneyOf(d.sal, N)}</td>
@@ -407,7 +408,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
               <tbody>{pending.map((p: any) => {
                 const need = faDemand(lg, p, u.tid, preferredYears(p, N));
                 return <tr key={p.id}>
-                  <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos}</span></td>
+                  <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}</span></td>
                   <td>{ageIn(p, N)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td>{potOf(p, N)}</td>
                   <td>{moneyOf(need, N)}</td>
                   <td className="l"><button className={`small ${neg === p.id ? '' : 'primary'}`} onClick={() => setNeg(neg === p.id ? null : p.id)}>{neg === p.id ? 'Close' : 'Negotiate'}</button> <button className="small" onClick={() => act(() => run(lg, { t: 'faRenounce', pid: p.id }))}>Let go</button></td>
@@ -494,7 +495,7 @@ function OptionsSummary({ lg, openPlayer, onOpen }: any) {
         <section className="col">
           <div className="panel">
             <h2>Best players on the market</h2>
-            <ul className="news">{market.map((p: any) => <li key={p.id}><span className="yr">{ovrOf(p.z, p.id)}</span><span><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos} · age {ageIn(p, N)} · last with {lg.teams[prevTeam(p)]?.abbr ?? '–'}{p.rfa ? ` · restricted (${lg.teams[p.rfa]?.abbr} can match)` : ''}{fa.pending.includes(p.id) ? (p.bird && p.bird !== lg.userTid ? ` · ${lg.teams[p.bird]?.abbr} negotiate first` : ' · your player – you negotiate first') : ''}</span></span></li>)}</ul>
+            <ul className="news">{market.map((p: any) => <li key={p.id}><span className="yr">{ovrOf(p.z, p.id)}</span><span><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · last with {lg.teams[prevTeam(p)]?.abbr ?? '–'}{p.rfa ? ` · restricted (${lg.teams[p.rfa]?.abbr} can match)` : ''}{fa.pending.includes(p.id) ? (p.bird && p.bird !== lg.userTid ? ` · ${lg.teams[p.bird]?.abbr} negotiate first` : ' · your player – you negotiate first') : ''}</span></span></li>)}</ul>
           </div>
         </section>
       </div>
@@ -573,7 +574,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
     ...(market.size ? [{ key: 'int', label: 'Interest', title: 'Teams interested in him – click to see who (what they offer stays secret until he signs)', left: true, get: (r: any) => interest(r.p)?.length ?? -1,
       fmt: (_: any, r: any) => { const t = interest(r.p); if (!t) return <span className="dim">–</span>; if (!t.length) return <span className="dim">none</span>;
         return <button className="link-btn" onClick={() => setOffersOf(r.p.id)}><b>{t.length}</b> <span className="chip tiny">interested</span></button>; } }] : []),
-    { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
+    { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, N) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
     { key: 'pot', label: 'Pot.', get: (r: any) => potOf(r.p, N) },
@@ -616,7 +617,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
           <div className="tbl-wrap"><table className="tbl">
             <thead><tr><th className="l">Player</th><th>OVR</th><th className="l">Contract</th><th></th></tr></thead>
             <tbody>{mine.map((p: any) => <tr key={p.id}>
-              <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos}</span></td>
+              <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}</span></td>
               <td><Ovr v={ovrOf(p.z, p.id)} /></td>
               <td className="l dim">{moneyOf(p.contract.sal, N)} through {p.contract.exp}</td>
               <td>{canSign && (rel === p.id
@@ -660,7 +661,7 @@ export function FAOfferBox({ lg, p, onDone, onCancel }: any) {
   const others = [...new Set([...faOffersFor(lg, p).map((o: any) => o.tid), ...offersOn(lg, p.id).map((o: any) => o.tid)])].filter(t => t !== tid);
   return (
     <div className="offer ext" role="group" aria-label={`Offer to ${p.name}`}>
-      <div><b>{p.name}</b> <span className="dim">{p.pos} · age {ageIn(p, N)} · OVR {ovrOf(p.z, p.id)} · max contract {pc(max)}{usd(max, N)} · your payroll {Math.round(pay * 100)}% of the cap</span></div>
+      <div><b>{p.name}</b> <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · OVR {ovrOf(p.z, p.id)} · max contract {pc(max)}{usd(max, N)} · your payroll {Math.round(pay * 100)}% of the cap</span></div>
       <p className="note">{why.length ? `About your team: ${why.map((x: any) => x.t).join('; ')}.` : 'He cares about the terms, not the team.'}{p.rfa && p.rfa !== tid ? ` Restricted free agent – the ${lg.teams[p.rfa].name} can match your offer.` : ''} He would pick {pref} year{pref > 1 ? 's' : ''} himself.{L.why ? ` For ${years} years: ${L.why}.` : ''}</p>
       <table className="tbl compact ext-years">
         <thead><tr><th className="l">Years</th>{[1, 2, 3, 4, 5].map(y => <th key={y}><button className={`small ${y === years ? 'primary' : ''}`} onClick={() => { setYears(y); setSal(null); }}>{y}</button></th>)}</tr></thead>

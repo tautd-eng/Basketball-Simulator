@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Franchise history (season by season), franchise and league record books.
 import { TL } from './nav';
+import { posLabel, natural } from './positions';
 import { useNavState } from './nav';
 import { useMemo, useState } from 'react';
 import { GAME_CATS, TEAM_CATS, finishLabel, ensureRecords, gmsc } from '../league/records';
@@ -286,7 +287,7 @@ export function SeasonRoster({ lg, season, tid, openPlayer }: any) {
       <tbody>{rows.map((r: any) => (
         <tr key={r.p.id}>
           <td className="l"><button className="link" onClick={() => openPlayer(r.p.id)}>{r.p.name}</button>{r.p.awards?.includes(`${season} Champion`) ? ' 🏆' : ''}</td>
-          <td>{r.p.pos}</td><td>{r.age ?? '–'}</td><td>{r.ovr ?? '–'}</td>
+          <td>{posLabel(r.p)}</td><td>{r.age ?? '–'}</td><td>{r.ovr ?? '–'}</td>
           <td>{r.rs?.gp ?? 0}</td><td>{pg(r.rs, 'min')}</td><td><b>{pg(r.rs, 'pts')}</b></td><td>{pg(r.rs, 'reb')}</td><td>{pg(r.rs, 'ast')}</td><td>{pg(r.rs, 'stl')}</td><td>{pg(r.rs, 'blk')}</td>
           <td>{r.po?.gp ?? '–'}</td><td>{pg(r.po, 'pts')}</td>
         </tr>

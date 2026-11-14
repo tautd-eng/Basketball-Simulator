@@ -11,6 +11,7 @@ import { newPlayer, prospectZ, realTarget, lastRealSeason, ageIn, firstRealSeaso
 import { activeTeams, makeTeam, rngOf, standings, updateStrategies, updateModes, playoffFormat, seasonGames, checkRosters } from './league';
 import { makeSchedule } from './schedule';
 import { develop, normalizeLeague, youngFloor } from './health';
+import { refuses, reviewTradeRequests } from './requests';
 import { classFor, shiftFor, cloneBase } from './classes';
 import { resetFatigue } from './fatigue';
 import { carryInjuries } from './injuries';
@@ -567,6 +568,7 @@ export function faOffer(lg: League, pid: string, sal: number, years?: number): {
   if (lg.fa && lg.fa.stage > 3 && lg.phase === 'freeagency') return { ok: false, msg: 'Free agency is over – the season starts next.' };
   // another person's free agent in his exclusive window
   if (lg.fa?.stage === 1 && lg.fa.pending.includes(pid) && p.bird && p.bird !== tid) return { ok: false, msg: `${p.name} is negotiating with the ${lg.teams[p.bird]?.name} first.` };
+  if (refuses(p, tid)) return { ok: false, msg: `${p.name} asked you for a trade – he wants a fresh start somewhere else.` };
   if (lg.fa?.sheets?.some(x => x.pid === pid)) return { ok: false, msg: `${p.name} already signed an offer sheet – waiting to see if it gets matched.` };
   if (sal > maxSalary(p, lg.season) + 1e-9) return { ok: false, msg: `The most you can offer is a max contract: ${(maxSalary(p, lg.season) * 100).toFixed(1)}% of the cap.` };
   sal = Math.max(MIN_SAL, sal);
@@ -1017,6 +1019,7 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
   const max = maxSalary(p, N);
   const offers: { t: Team; sal: number; score: number; mle: boolean; cut: Player | null; needRoom: boolean }[] = [];
   for (const t of teams) {
+    if (refuses(p, t.tid)) continue; // he asked them for a trade
     const cut = t.roster.length >= ROSTER_MAX ? cheapCut(lg, t, p) : null;
     if (t.roster.length >= ROSTER_MAX && !cut) continue;
     const pay = payroll(lg, t.tid);
@@ -1276,6 +1279,7 @@ export function offRetire(lg: League) {
   const rng = rngOf(lg);
   const notes = lg.history[lg.history.length - 1].notes;
   flushFaLog(lg); // in-season signings and releases of the season that just ended
+  reviewTradeRequests(lg);
   carryInjuries(lg, lg.endCal ?? 0);
   o.ret = retirements(lg, rng, notes);
   o.retDone = true;
@@ -1476,7 +1480,10 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
     if (isHuman(lg, t.tid)) {
       for (const p of t.roster.map(pid => lg.players[pid]).filter(p => p.contract.exp <= Y)) {
         t.roster = t.roster.filter(pid => pid !== p.id);
-        p.tid = null; p.bird = t.tid;
+        p.tid = null;
+        // he asked out: he will not re-sign here
+        if (refuses(p, t.tid)) { log.push({ st: 0, kind: 'leave', pid: p.id, tid: t.tid, desc: 'he asked for a trade and will not re-sign' }); continue; }
+        p.bird = t.tid;
         // restricted: the user decides on a qualifying offer; otherwise an exclusive re-signing window
         if (rfaEligible(p, N, lg)) decisions.push({ pid: p.id, kind: 'qo', rec: worthKeeping(lg, p, qoAmount(p), N, t.strategy), sal: qoAmount(p), tid: t.tid });
         else pending.push(p.id);
@@ -1499,7 +1506,7 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
       const budget = hardCap(lg); // own-player (Bird) rights allow going over the cap – every team up to the hard cap
       let wants = rank < 9 && worth > 12 && pay + ask <= budget;
       // will he stay? the more he likes the team (winning, role, loyalty), the likelier
-      const accepts = rng.chance(Math.max(0.15, Math.min(0.95, 0.6 + 2 * own)));
+      const accepts = !refuses(p, t.tid) && rng.chance(Math.max(0.15, Math.min(0.95, 0.6 + 2 * own)));
       // a core player who wants to stay is not let go over money: the team clears room (trades or releases contracts it can do without)
       if (!wants && accepts && rank < 9 && worth > 6 && keeps(lg, t.tid, p)) {
         const nextPay = () => t.roster.map(pid => lg.players[pid]).filter(x => x.contract.exp > Y).reduce((a, x) => a + x.contract.sal, 0) + deadPay(lg, t.tid, N);
@@ -1516,7 +1523,7 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
         t.roster = t.roster.filter(pid => pid !== p.id);
         p.tid = null;
         // the team wanted him but he tests the market: it keeps his Bird rights and may bid over the cap in free agency
-        if (wants && !rfaEligible(p, N, lg)) p.bird = t.tid;
+        if (wants && !rfaEligible(p, N, lg) && !refuses(p, t.tid)) p.bird = t.tid;
         // restricted free agent: a qualifying offer keeps the right to match
         if (rfaEligible(p, N, lg) && worthKeeping(lg, p, qoAmount(p), N, t.strategy)) {
           p.rfa = t.tid; p.qo = qoAmount(p);

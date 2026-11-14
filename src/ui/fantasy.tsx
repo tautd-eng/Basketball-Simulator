@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Fantasy draft room.
 import { useMemo, useState } from 'react';
+import { posLabel, natural } from './positions';
 import { canRun } from '../league/humans';
 import { run } from '../league/commands';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf } from '../data';
@@ -38,7 +39,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
   const [boards, toggleBoards] = useBoards();
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (p: any) => p.name, fmt: (v: any, p: any) => <button className="link" onClick={() => openPlayer(p.id)}>{v}</button> },
-    { key: 'pos', label: 'Pos', title: 'Position', get: (p: any) => posNum(p.pos), fmt: (_: any, p: any) => <span className="dim">{p.pos}</span> },
+    { key: 'pos', label: 'Pos', title: 'Position', get: (p: any) => natural(p), fmt: (_: any, p: any) => <span className="dim">{posLabel(p)}</span> },
     { key: 'age', label: 'Age', title: 'Age', asc: true, get: (p: any) => ageIn(p, lg.season) },
     { key: 'ovr', label: 'OVR', title: 'Overall', get: (p: any) => ovrOf(p.z, p.id), fmt: (v: any) => <b>{v}</b> },
     { key: 'sal', label: 'Contract', title: 'The contract he signs with the team that drafts him: share of the cap per season, and the years', get: (p: any) => fantasyContract(p, lg.season).sal,
@@ -79,7 +80,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
           <div className="panel">
             <h2>{lg.teams[lg.userTid].name}</h2>
             {mine.length ? (
-              <ul className="news">{mine.map((p: any, i: number) => <li key={p.id}><span className="yr">{f.picks.find((x: any) => x.pid === p.id)?.pick}</span><span>{p.name} <span className="dim">{p.pos} · OVR {ovrOf(p.z, p.id)}</span></span></li>)}</ul>
+              <ul className="news">{mine.map((p: any, i: number) => <li key={p.id}><span className="yr">{f.picks.find((x: any) => x.pid === p.id)?.pick}</span><span>{p.name} <span className="dim">{posLabel(p)} · OVR {ovrOf(p.z, p.id)}</span></span></li>)}</ul>
             ) : <p className="note">You haven't picked anyone yet.</p>}
           </div>
         )}

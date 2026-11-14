@@ -218,7 +218,12 @@ function parts(lg: League, p: Player, strategy: Horizon) {
 function pv(lg: League, p: Player, strategy: Horizon, tid?: string) {
   const k = p.id + strategy + (tid ?? '');
   let v = vCache.get(k);
-  if (v === undefined) { const x = parts(lg, p, strategy); v = x.prod - (tid ? moneyWeight(lg, tid) : 0.45) * x.cost; vCache.set(k, v); }
+  if (v === undefined) {
+    const x = parts(lg, p, strategy); v = x.prod - (tid ? moneyWeight(lg, tid) : 0.45) * x.cost;
+    // a player who asked his team for a trade is worth less to it: he will walk when his contract ends
+    if (tid && (p as any).treq?.tid === tid && p.tid === tid && v > 0) v *= 0.6;
+    vCache.set(k, v);
+  }
   return v;
 }
 

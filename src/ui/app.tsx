@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { LotteryReveal } from './draftday';
+import { posLabel, natural } from './positions';
 import { DraftSummary } from './offseason';
 import { Guide } from './guide';
 import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
@@ -819,13 +820,15 @@ function Setup({ onStart, onBack, host }: any) {
   const [seed] = useState(() => Math.floor(Math.random() * 1e9));
   const [user, setUser] = useState('');
   const [start, setStart] = useState(LAST_SEASON + 1); // today's league first
-  const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed' | 'fictional'>('real');
-  const [fmode, setFmode] = useState<'shuffle' | 'chrono' | 'mixed' | 'fictional'>('shuffle');
+  const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed' | 'fictional'>('fictional');
+  const [fmode, setFmode] = useState<'shuffle' | 'chrono' | 'mixed' | 'fictional'>('fictional');
   const si = seasonInfo(start);
   const teams = Object.entries(si.teams).sort((a, b) => a[1].name.localeCompare(b[1].name));
   const years: number[] = [];
   for (let y = LAST_SEASON + 1; y >= 1980; y--) years.push(y); // newest first
   const future = start > LAST_SEASON;
+  // generated classes have no real careers to follow: the "how closely to follow reality" question goes away
+  const generated = (future ? fmode : mode) === 'fictional';
   const label = `${start - 1}–${String(start).slice(2)}`;
   const pickYear = (y: number) => { setStart(y); if (user && !seasonInfo(y).teams[user]) setUser(''); };
   return (
@@ -851,7 +854,7 @@ function Setup({ onStart, onBack, host }: any) {
           </select>
         </label>
         <div className="opt-list">
-          <Opt title="How closely to follow reality" value={destinyName(d)}>
+          {!generated && <Opt title="How closely to follow reality" value={destinyName(d)}>
             <fieldset className="field radio-set">
               {DESTINY.map(([v, l, txt]) => (
                 <label key={v} className={`radio ${d === v ? 'on' : ''}`}>
@@ -861,7 +864,7 @@ function Setup({ onStart, onBack, host }: any) {
               ))}
               {mode !== 'real' && <small>With mixed classes this works by career year: a rookie develops like the real player did in the same year of his career.</small>}
             </fieldset>
-          </Opt>
+          </Opt>}
           <Opt title={future ? `Draft classes from ${LAST_SEASON + 1}` : 'Draft classes'} value={(future ? FUTURE_MODES.find(x => x[0] === fmode) : CLASS_MODES.find(x => x[0] === mode))?.[1]}>
             {future ? <fieldset className="field radio-set">
               {FUTURE_MODES.map(([k, l, txt]) => (
@@ -898,7 +901,7 @@ function Setup({ onStart, onBack, host }: any) {
             <small className="dim">Can be changed later inside the league under “Season format”.</small>
           </Opt>
         </div>
-        <button className="primary big" onClick={() => onStart(d / 100, seed, user || null, settingsOf(form), fantasy ? { rr } : false, start, mode, fmode)}>{fantasy ? 'To the fantasy draft' : 'Start the league'}</button>
+        <button className="primary big" onClick={() => onStart(generated ? 0 : d / 100, seed, user || null, settingsOf(form), fantasy ? { rr } : false, start, mode, fmode)}>{fantasy ? 'To the fantasy draft' : 'Start the league'}</button>
       </div>
     </div>
   );
@@ -1154,7 +1157,7 @@ function AwardTeams({ lg, a, openPlayer, compact }: any) {
         {groups.map(([name, teams]: any) => teams.map((t: string[], i: number) => (
           <div key={name + i} className="award-team">
             <h3>{name} – {['1st', '2nd', '3rd'][i] ?? i + 1} team</h3>
-            <ul>{t.map(pid => <li key={pid}>{P(pid)} <span className="dim">{lg.players[pid]?.pos}</span></li>)}</ul>
+            <ul>{t.map(pid => <li key={pid}>{P(pid)} <span className="dim">{posLabel(lg.players[pid])}</span></li>)}</ul>
           </div>
         )))}
       </div>
@@ -1360,7 +1363,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
               {roster.map((p: any) => (
                 <tr key={p.id}>
                   <td className="l"><PFace lg={lg} p={p} /><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{plan?.core.includes(p.id) && <span className="chip tiny" title="Core player – the team builds around him">core</span>}{plan?.rising.includes(p.id) && <span className="chip tiny" title="Young piece – he gets minutes and is not shopped">young</span>}{p.injury > 0 && <span className="inj" title={p.inj ? `${injName(p.inj.k)} – out ~${p.injury} more games` : 'Injured'}>+{p.injury}</span>}{p.entered === (lg.phase === 'regular' || lg.phase === 'playoffs' || lg.phase === 'freeagency' ? lg.season : lg.season + 1) && <span className="chip tiny">R</span>}</td>
-                  <td className="dim">{p.pos}</td>
+                  <td className="dim">{posLabel(p)}</td>
                   <td className="l role-col">{(() => {
                     const ro = roleOf(p.z, p.pos);
                     const mpg = p.cur.gp ? p.cur.min / p.cur.gp : 0, gs = p.cur.gp ? p.cur.gs / p.cur.gp : 0;
@@ -1406,7 +1409,7 @@ function OverseasRights({ lg, tid, openPlayer }: any) {
         <tbody>{ps.map(p => (
           <tr key={p.id}>
             <td className="l"><PFace lg={lg} p={p} /><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button></td>
-            <td>{p.pos}</td><td>{ageIn(p, lg.season)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td>{potOf(p, lg.season)}</td>
+            <td>{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td>{potOf(p, lg.season)}</td>
             <td className="l dim">{p.draft ? `${p.draft.year}, No. ${p.draft.pick}` : '–'}</td>
             <td className="l dim">{p.stash - 1}–{String(p.stash).slice(2)}</td>
             {mine && <td><button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setMsg(r.msg); bump(x => x + 1); if (r.ok) saveLeague(lg); }}>Bring over now</button></td>}

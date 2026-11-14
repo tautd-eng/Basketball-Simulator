@@ -3,6 +3,7 @@
 // development → expansion draft → lottery → draft → contract decisions → free agency → season preview →
 // new season), and the screens of the steps that have no room of their own elsewhere.
 import { useState } from 'react';
+import { posLabel, natural } from './positions';
 import { PL, TL } from './nav';
 import { shownOvr as ovrOf, seasonInfo, H, histShown, LAST_SEASON } from '../data';
 import { ageIn } from '../players';
@@ -300,7 +301,7 @@ export function RetireStep({ lg, onChange, openPlayer }: any) {
   const Y = lg.season;
   const rows = (o?.ret ?? []).map((r: any) => ({ ...r, key: r.pid, p: lg.players[r.pid] })).filter((r: any) => r.p).map((r: any) => ({ ...r, c: careerSummary(lg, r.p) }));
   const cols = [
-    { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><button className="link" onClick={() => openPlayer(r.pid)}>{v}</button>{r.c.hof ? <span className="chip tiny" title="In the Hall of Fame in reality">HOF</span> : null}<br /><span className="dim small-t">{r.p.pos} · {r.tid ? <>last with {teamTag(lg, r.tid)}</> : 'free agent'}</span></> },
+    { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><button className="link" onClick={() => openPlayer(r.pid)}>{v}</button>{r.c.hof ? <span className="chip tiny" title="In the Hall of Fame in reality">HOF</span> : null}<br /><span className="dim small-t">{posLabel(r.p)} · {r.tid ? <>last with {teamTag(lg, r.tid)}</> : 'free agent'}</span></> },
     { key: 'age', label: 'Age', get: (r: any) => r.age },
     { key: 'ovr', label: 'OVR', title: 'Overall in his last season', get: (r: any) => r.ovr, fmt: (v: any) => <span className={`ovr ${v >= 90 ? 'star' : v >= 80 ? 'good' : v >= 70 ? 'mid' : 'low'} sm`}>{v}</span> },
     { key: 'rk', label: 'Pos. rank', title: 'Where he ranked at his position (guards / forwards / centers) in the league – a top-20 player at his position does not retire (only past 40)', get: (r: any) => r.rk ?? 999, fmt: (v: any, r: any) => v < 999 ? <span className="dim">No. {v} {['G', 'F', 'C'][(x => x <= 2.5 ? 0 : x >= 4.5 ? 2 : 1)(posNum(r.p.pos))]}</span> : '–' },

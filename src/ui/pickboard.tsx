@@ -2,6 +2,7 @@
 // The draft board beside a draft room: every pick in order, in the team colours – who was taken,
 // who is on the clock, and who picks next. Used by the real draft and the fantasy draft.
 import { useEffect, useRef, useState } from 'react';
+import { posLabel, natural } from './positions';
 import { colorsOf, Logo } from './art';
 import { shownOvr } from '../data';
 import { onlineCtx } from '../online/sync';
@@ -57,7 +58,7 @@ export function PickBoard({ lg, slots, at, openPlayer, title = 'Draft board', sh
                   <span className="pb-n">{s.n}</span>
                   <span className="pb-team" style={{ background: st.background, color: st.color }} title={lg.teams[s.tid]?.name}>{lg.teams[s.tid]?.abbr}</span>
                   <span className="pb-what">
-                    {p ? <><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{p.pos}{showOvr ? ` · ${shownOvr(p.z, p.id)}` : ''}</span></>
+                    {p ? <><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}{showOvr ? ` · ${shownOvr(p.z, p.id)}` : ''}</span></>
                       : clock ? <b className="pb-otc">On the clock</b>
                       : <span className="dim">{lg.teams[s.tid]?.name}</span>}
                     {s.via && <span className="dim small-t"> via {lg.teams[s.via]?.abbr}</span>}

@@ -2,6 +2,7 @@
 // Playoff series previews: how the teams compare, who to watch, the season
 // series and a prediction (series odds from team strength and home court).
 import { useMemo, useState } from 'react';
+import { posLabel, natural } from './positions';
 import { homeOfGame, seriesText, playoffFormat } from '../league/league';
 import { shownOvr as ovrOf } from '../data';
 import { teamRows } from './rankings';
@@ -60,7 +61,7 @@ function TeamSide({ lg, tid, seed, row }: any) {
         {row.ortg != null && <><span>ORtg {row.ortg.toFixed(1)}{rk('ortg')}</span><span>DRtg {row.drtg.toFixed(1)}{rk('drtg')}</span><span>Net {(row.net > 0 ? '+' : '') + row.net.toFixed(1)}{rk('net')}</span></>}
       </div>}
       <ul className="pv-players">{stars.map((p: any) => (
-        <li key={p.id}><PFace lg={lg} p={p} size={24} /><span><PL pid={p.id} /> <span className="dim">{p.pos} · OVR {ovrOf(p.z, p.id)}</span><br /><span className="dim small-t">{per(p, 'pts')} pts · {per(p, 'reb')} reb · {per(p, 'ast')} ast</span></span></li>
+        <li key={p.id}><PFace lg={lg} p={p} size={24} /><span><PL pid={p.id} /> <span className="dim">{posLabel(p)} · OVR {ovrOf(p.z, p.id)}</span><br /><span className="dim small-t">{per(p, 'pts')} pts · {per(p, 'reb')} reb · {per(p, 'ast')} ast</span></span></li>
       ))}</ul>
       {hurt.length > 0 && <p className="pv-inj">Injured: {hurt.map((p: any, i: number) => <span key={p.id}>{i ? ', ' : ''}<PL pid={p.id} /> <span className="dim">({p.inj ? injName(p.inj.k) : 'injury'}, ~{p.injury} g)</span></span>)}</p>}
     </div>
