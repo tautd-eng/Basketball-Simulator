@@ -3,7 +3,8 @@
 import { htStr, htCol, htDiff } from './units';
 import { Linkify } from './nav';
 import { run } from '../league/commands';
-import { showDollars, dollarsOf } from './money';
+import { showDollars, dollarsOf, money } from './money';
+import { ATTR_ORDER, grouped } from './grades';
 import { useEffect, useMemo, useState } from 'react';
 import { fatigueAt, nextCal, fatigueLabel } from '../league/fatigue';
 import { injName } from '../league/injuries';
@@ -280,7 +281,7 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
   const rh: number[][] = p.rh?.length ? p.rh : [[lg.season, ...RATING_LABELS.map(r => attrOf(p.z, r))]];
   const ovrBy = Object.fromEntries(p.ovrHist.map((x: any) => [x[0], histShown(x)]));
   const progRows = rh.map((row, i) => ({ key: row[0], s: row[0], ovr: ovrBy[row[0]] ?? null, r: row.slice(1), prev: i ? rh[i - 1].slice(1) : null, pOvr: i ? ovrBy[rh[i - 1][0]] ?? null : null }));
-  const progCols = [
+  const progCols = grouped([
     { key: 's', label: 'Season', get: (x: any) => x.s, fmt: (s: any) => `${s - 1}–${String(s).slice(2)}` },
     { key: 'age', label: 'Age', get: (x: any) => Math.floor(x.s + 1 / 12 - p.born) },
     { key: 'ovr', label: 'OVR', get: (x: any) => x.ovr, fmt: (o: any, x: any) => { const pr = x.pOvr; const d = pr != null && o != null ? o - pr : 0; return <>{o ?? '–'}{d ? <span className={d > 0 ? 'pos delta' : 'neg delta'}>{d > 0 ? '+' : ''}{d}</span> : null}</>; } },
@@ -289,7 +290,8 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
       get: (x: any) => x.r[i],
       fmt: (val: any, x: any) => { const d = x.prev ? val - x.prev[i] : 0; return <span className={`rt ${val >= 70 ? 'hi' : val <= 30 ? 'lo' : ''}`}>{val}{Math.abs(d) >= 2 ? <span className={d > 0 ? 'pos delta' : 'neg delta'}>{d > 0 ? '+' : ''}{d}</span> : null}</span>; },
     })),
-  ];
+
+  ]);
 
   const [editFace, setEditFace] = useState(false);
   const [, bump] = useState(0);
@@ -306,6 +308,7 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
             <h2>{p.name}</h2>
             <p className="dim">{p.pos} · {htStr(p.ht)} · age {ageIn(p, lg.season)} · {p.tid ? <button className="link" onClick={() => openTeam(p.tid)}>{status}</button> : status}</p>
             {p.tid && (lg.phase === 'regular' || lg.phase === 'playoffs') && <p className="dim">Status: {p.injury > 0 ? `injured – ${p.inj ? injName(p.inj.k) : 'injury'}, out ~${p.injury} more games` : fatigueLabel(fatigueAt(lg, p, nextCal(lg, todayIndex(lg)))).toLowerCase()}</p>}
+            {p.tid && !p.retired && !p.prospect && p.contract && <ContractLine lg={lg} p={p} />}
             {p.draft?.tid && <p className="dim">Draft {p.draft.year}: No. {p.draft.pick} ({lg.teams[p.draft.tid]?.abbr ?? p.draft.tid})</p>}
             {(p as any).stash && <p className="dim">Playing overseas – expected to come over for {(p as any).stash - 1}–{String((p as any).stash).slice(2)}.{(p as any).rights === lg.userTid && <> <button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setRecallMsg(r.msg); onChange?.(); bump(x => x + 1); }}>Bring him over now</button></>}</p>}
             {recallMsg && <p className="hint">{recallMsg}</p>}
@@ -316,27 +319,25 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
         {!p.prospect && <RoleCard p={p} />}
         {p.awards.length > 0 && <AwardChips p={p} />}
         <h3>Current skills</h3>
-        <div className="ratings">
-          {RATING_LABELS.map(r => {
-            const val = attrOf(p.z, r);
-            return (
-              <div key={r.name} className="rating">
-                <span className="rl">{r.name}{r.tendency ? ' *' : ''}</span>
-                <span className="bar"><span style={{ width: `${val}%` }}></span></span>
-                <span className="rv">{val}</span>
-              </div>
-            );
-          })}
-          {[['Perimeter defense', perD(p.z, p.ht)], ['Post defense', postD(p.z, p.ht)], ['Rim protection', rimD(p.z, p.ht)]].map(([n, z]: any) => {
-            const val = ratingOf(z);
-            return (
-              <div key={n} className="rating">
-                <span className="rl">{n}</span>
-                <span className="bar"><span style={{ width: `${val}%` }}></span></span>
-                <span className="rv">{val}</span>
-              </div>
-            );
-          })}
+        <div className="ratings grouped">
+          {SKILL_GROUPS.map(([g, keys]) => (
+            <div key={g} className="rating-group">
+              <h4>{g}</h4>
+              {keys.map(k => {
+                const L = k[0] === 'r' ? RATING_LABELS[+k.slice(1)] : null;
+                const face: any = { perd: ['Perimeter defense', perD], postd: ['Post defense', postD], rimp: ['Rim protection', rimD] }[k];
+                const val = L ? attrOf(p.z, L) : ratingOf(face[1](p.z, p.ht));
+                const name = L ? L.name + (L.tendency ? ' *' : '') : face[0];
+                return (
+                  <div key={k} className={`rating ${L?.tendency ? 'tend' : ''}`}>
+                    <span className="rl">{name}</span>
+                    <span className="bar"><span style={{ width: `${val}%` }}></span></span>
+                    <span className="rv">{val}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
         <p className="note">Ratings are relative to the league of that era (50 = average player). * – tendency, not ability.</p>
         {!p.retired && !p.prospect && <Priorities key={p.id + lg.season} lg={lg} p={p} onChange={onChange} />}
@@ -412,5 +413,29 @@ function OvrChart({ p }: any) {
         <text x={X(peak[0])} y={Y(peak[1]) - 8} className="axis strong" textAnchor="middle">peak {peak[1]}</text>
       </svg>
     </div>
+  );
+}
+
+/** The skills on the player card, in the same groups as the tables (see ATTR_ORDER). */
+const SKILL_GROUPS: [string, string[]][] = [
+  ['Offense', ATTR_ORDER.slice(0, ATTR_ORDER.indexOf('r6'))],
+  ['Rebounding', ['r6', 'r7']],
+  ['Defense', ATTR_ORDER.slice(ATTR_ORDER.indexOf('r10'))],
+];
+
+/** His contract: salary, how long it runs, options, rookie deal, an extension waiting to start. */
+function ContractLine({ lg, p }: any) {
+  const c = p.contract, S = lg.season;
+  const lbl = (y: number) => `${y - 1}–${String(y).slice(2)}`;
+  const left = c.exp - S + (lg.phase === 'draft' ? 0 : 1);
+  const opts = (c.opts ?? []).filter((o: any) => o.s >= S);
+  return (
+    <p className="contract-line">
+      <b>Contract:</b> {money(c.sal, S)} a season · through {lbl(c.exp)}{' '}
+      <span className="dim">({left <= 0 ? 'expiring – a free agent this summer' : `${left} season${left > 1 ? 's' : ''} left`})</span>
+      {c.rookie ? <span className="chip tiny">rookie deal</span> : null}
+      {opts.map((o: any) => <span key={o.s} className="chip tiny" title={o.k === 'team' ? 'The team decides whether to keep him that season' : 'He decides whether to stay that season'}>{o.k} option {lbl(o.s)}</span>)}
+      {p.ext ? <span className="dim"> · extension signed: {money(p.ext.sal, S)} through {lbl(p.ext.exp)}</span> : null}
+    </p>
   );
 }

@@ -1070,3 +1070,11 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .stepbar li.dimmed { opacity: 0.6; cursor: pointer; }
 .peek-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .readonly .host-only, .readonly button.primary { display: none !important; }
+/* rating groups: offence | rebounding | defence */
+th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
+.ratings.grouped { align-items: start; }
+.rating-group { display: flex; flex-direction: column; gap: 6px; }
+.rating-group h4 { margin: 2px 0 2px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.rating.tend .bar span { opacity: .55; }
+.contract-line { margin: 4px 0; }
+.contract-line .chip { margin-left: 6px; }

@@ -1,7 +1,7 @@
 // @ts-nocheck
 // League-wide rankings: every player in the league sortable by any rating,
 // and power rankings of the teams (roster strength plus how they actually play).
-import { fmtAttr, defCols } from './grades';
+import { fmtAttr, defCols, grouped } from './grades';
 import { htStr, htCol, htDiff } from './units';
 import { TLogo, PFace } from './art';
 import { useNavState } from './nav';
@@ -68,7 +68,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
     .filter((p: any) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
     .map((p: any) => ({ key: p.id, p, l: inSeason ? p.cur : [...p.career].reverse().find((c: any) => !c.po) })),
   [lg, who, team, pos, q, age, S, lg.trades?.length, lg.fa?.log.length, lg.day, lg.phase]);
-  const cols = [
+  const cols = grouped([
     { key: 'rank', label: '#', get: (r: any) => -ovrOf(r.p.z, r.p.id), fmt: () => '' },
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><PFace lg={lg} p={r.p} /><button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button></> },
     { key: 'team', label: 'Team', left: true, get: (r: any) => (r.p.tid ? lg.teams[r.p.tid].abbr : 'FA'), title: 'FA – free agent', fmt: (v: any, r: any) => r.p.tid ? <button className="link" onClick={() => openTeam(r.p.tid)}>{v}</button> : <span className="dim">FA</span> },
@@ -79,11 +79,11 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
     potCol((r: any) => r.p, S),
     { key: 'off', label: 'Off', title: 'Offensive attribute rating (0–100, like OVR)', get: (r: any) => offRating(r.p) },
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
-    ...RATING_LABELS.slice(0, 12).map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name, get: (r: any) => R(r.p, i), fmt: fmtAttr })),
+    ...RATING_LABELS.map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (tendency, not quality)' : ''), get: (r: any) => R(r.p, i), fmt: L.tendency ? (v: any) => <span className="dim">{v}</span> : fmtAttr })),
     ...defCols((r: any) => r.p),
     { key: 'pts', label: 'Pts', title: inSeason ? 'This season, per game' : 'Last season, per game', get: (r: any) => (r.l?.gp ? r.l.pts / r.l.gp : null), fmt: f1 },
     { key: 'sal', label: 'Salary', get: (r: any) => (r.p.tid ? r.p.contract.sal : null), fmt: (v: any) => (v == null ? '–' : moneyOf(v, S)) },
-  ];
+  ]);
   // rank column: position by OVR within the filtered list
   const order = [...rows].sort((a: any, b: any) => ovrOf(b.p.z, b.p.id) - ovrOf(a.p.z, a.p.id));
   const rankOf = new Map(order.map((r: any, i: number) => [r.key, i + 1]));

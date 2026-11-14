@@ -21,3 +21,22 @@ export const defCols = (pOf: (r: any) => any) => [
   { key: 'postd', label: 'PostD', title: 'Post defense', get: (r: any) => { const p = pOf(r); return ratingOf(postD(p.z, p.ht)); }, fmt: fmtAttr },
   { key: 'rimp', label: 'Rim', title: 'Rim protection', get: (r: any) => { const p = pOf(r); return ratingOf(rimD(p.z, p.ht)); }, fmt: fmtAttr },
 ];
+
+/**
+ * Ratings in groups, the same order everywhere: offence (usage first, then scoring – inside, drawing fouls,
+ * free throws, threes with the three-point volume beside them – then passing and ball handling),
+ * rebounding, and defence (overall defence, the three faces, steals, blocks, fouls).
+ * Indexes are RATING_LABELS positions ('r' + i); the defence faces are perd / postd / rimp.
+ */
+export const ATTR_ORDER = ['r12', 'r0', 'r3', 'r2', 'r1', 'r13', 'r4', 'r5', 'r6', 'r7', 'r10', 'perd', 'postd', 'rimp', 'r8', 'r9', 'r11'];
+const GRP_START = new Set(['r6', 'r10']);
+/** Puts the rating columns of a table in ATTR_ORDER (where the first of them stood) and marks where each group starts. */
+export function grouped(cols: any[]) {
+  const isA = (c: any) => ATTR_ORDER.includes(c.key);
+  const at = cols.findIndex(isA);
+  if (at < 0) return cols;
+  const attrs = cols.filter(isA).sort((a, b) => ATTR_ORDER.indexOf(a.key) - ATTR_ORDER.indexOf(b.key))
+    .map((c, i) => (i === 0 || GRP_START.has(c.key) ? { ...c, grp: true } : c));
+  const rest = cols.filter(c => !isA(c));
+  return [...rest.slice(0, at), ...attrs, ...rest.slice(at)];
+}

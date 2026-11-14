@@ -77,7 +77,7 @@ export function SeriesPreview({ lg, s, rows, openGame }: any) {
   const [k, p] = odds.best;
   const fav = odds.hi >= 0.5 ? s.hi : s.lo;
   const started = s.hw + s.lw > 0;
-  const story = useMemo(() => seriesStory(lg, s, rh, rl, odds, wa, wb), [lg, lg.day, s, s.hw, s.lw, rh, rl]);
+  const story = seriesStory(lg, s, rh, rl, odds, wa, wb);
   return (
     <div className="pv">
       <div className="pv-head">

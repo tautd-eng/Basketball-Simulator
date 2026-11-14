@@ -3,7 +3,7 @@ import { LotteryReveal } from './draftday';
 import { DraftSummary } from './offseason';
 import { Guide } from './guide';
 import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
-import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
+import { fmtAttr, defCols, gradeMode, setGradeMode, grouped } from './grades';
 import { htStr, htCol, htDiff, htUnit, setHtUnit } from './units';
 import { PlayoffPreviews, SeriesDialog } from './preview';
 import { forward } from '../league/commands';
@@ -199,7 +199,18 @@ function App() {
   }, []);
 
   // the game opens on the main menu; leagues are opened from there (Load game / online)
-  useEffect(() => { setReady(true); }, []);
+  // …but a reload (or the phone bringing the app back) reopens the league that was open, on the same section
+  const resume = useRef<boolean | null>(null);
+  const switchRef = useRef<any>(null);
+  useEffect(() => { try { resume.current = sessionStorage.getItem('nba-open') === '1'; } catch { resume.current = false; } setReady(true); }, []);
+  useEffect(() => {
+    if (!ready || !resume.current || !switchRef.current) return;
+    resume.current = false;
+    const t = tab; let pl: string | null = null; try { pl = sessionStorage.getItem('nba-player'); } catch { /* */ }
+    switchRef.current(currentSlot()).then(() => { setTab(t); try { history.replaceState(history.state, '', '#' + t); } catch { /* */ } if (pl) setPlayer(pl); }).catch(() => {});
+  }, [ready]);
+  useEffect(() => { try { if (lg) sessionStorage.setItem('nba-open', '1'); else if (ready) sessionStorage.removeItem('nba-open'); } catch { /* */ } }, [lg, ready]);
+  useEffect(() => { if (resume.current !== false) return; try { if (player) sessionStorage.setItem('nba-player', player); else sessionStorage.removeItem('nba-player'); } catch { /* */ } }, [player]);
   const [screen, setScreen] = useState<'menu' | 'new' | 'load' | 'host' | 'prefs' | 'guide'>('menu');
   const [hostAfter, setHostAfter] = useState(false);
   // a new version of the online league arrived / the host applied others' moves
@@ -275,6 +286,7 @@ function App() {
     const l = await loadLeague(id);
     if (l) { ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('apzvalga'); setPlayer(null); setShowSaves(false); if (host) setShowOnline(true); }
   };
+  switchRef.current = switchTo;
   const startNew = () => { setSlot(newSlotId()); setLg(null); setShowSaves(false); setScreen('new'); };
   const toMenu = () => { setLg(null); setPlayer(null); setLive(null); setClutch(null); setGameView(null); setShowSaves(false); setShowSettings(false); setShowHumans(false); setScreen('menu'); };
   const onlinePanel = showOnline && <OnlinePanel lg={lg} joinCode={joinCode} close={() => { setShowOnline(false); if (joinCode) try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* ignore */ } }}
@@ -1217,7 +1229,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
   const inSeason = lg.phase === 'regular' || lg.phase === 'playoffs';
   const calNow = inSeason ? nextCal(lg, todayIndex(lg)) : 0;
   const RT = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
-  const attrCols = [
+  const attrCols = grouped([
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><PFace lg={lg} p={r.p} /><button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button>{r.p.injury > 0 && <span className="inj" title={r.p.inj ? `${injName(r.p.inj.k)} – out ~${r.p.injury} more games` : 'Injured'}>+{r.p.injury}</span>}</> },
     { key: 'pos', label: 'Pos', get: (r: any) => r.p.pos, fmt: (v: any) => <span className="dim">{v}</span> },
     { key: 'role', label: 'Role', left: true, asc: true, get: (r: any) => roleOf(r.p.z, r.p.pos).arch.name, fmt: (_: any, r: any) => { const ro = roleOf(r.p.z, r.p.pos); return <><RoleBadge id={ro.arch.id} />{ro.second && <RoleBadge id={ro.second.id} small />}</>; } },
@@ -1229,7 +1241,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
     ...RATING_LABELS.map((L: any, i: number) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (tendency, not quality)' : ''), get: (r: any) => RT(r.p, i), cls: L.tendency ? 'dim' : '', ...(L.tendency ? {} : { fmt: fmtAttr }) })),
     ...defCols((r: any) => r.p),
-  ];
+  ]);
   return (
     <div className="panel">
       <div className="team-head">

@@ -9,6 +9,7 @@ import { ageIn } from '../players';
 import { aiResponse, executeTrade, fillRoster, ensurePicks, deadlineDay, pastDeadline, describeAssets, tradeableValue, pickTradeValue, pickUsed, rightOptions, describeRight, rightTradeValue, pickTied } from '../ai/trades';
 import { payroll, hardCap } from '../ai/value';
 import { isHuman } from '../league/humans';
+import { Linkify } from './nav';
 import { propose as sendOffer, answer, withdraw, inbox, outbox, proposalProblem, describeSide } from '../league/proposals';
 import { tradeRules, findTrades } from '../ai/trades';
 
@@ -169,14 +170,14 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         {inc.length > 0 && <ul className="news">{inc.map((pr: any) => {
           const bad = proposalProblem(lg, pr);
           return <li key={pr.id}><span className="yr"><TL tid={pr.from} abbr /></span><span>
-            The {lg.teams[pr.from].name} offer <b>{describeSide(lg, pr.fromGives)}</b> for <b>{describeSide(lg, pr.toGives)}</b>.
+            The {lg.teams[pr.from].name} offer <b><Linkify text={describeSide(lg, pr.fromGives)} /></b> for <b><Linkify text={describeSide(lg, pr.toGives)} /></b>.
             {pr.note ? <span className="dim"> {pr.note}</span> : null}{pr.ai ? <span className="dim small-t"> {pr.exp !== undefined ? `Stands until day ${pr.exp}.` : 'Stands until this stage ends.'}</span> : null}
             {bad ? <span className="dim"> {bad}</span> : null}{' '}
             <button className="small primary" disabled={!!bad || closed} onClick={() => reply2(pr.id, true)}>Accept</button>{' '}
             <button className="small" onClick={() => reply2(pr.id, false)}>Decline</button></span></li>;
         })}</ul>}
         {out.length > 0 && <><p className="dim">Your offers waiting for an answer:</p><ul className="news">{out.map((pr: any) => <li key={pr.id}><span className="yr"><TL tid={pr.to} abbr /></span><span>
-          You offer {describeSide(lg, pr.fromGives)} for {describeSide(lg, pr.toGives)}.{' '}
+          You offer <Linkify text={describeSide(lg, pr.fromGives)} /> for <Linkify text={describeSide(lg, pr.toGives)} />.{' '}
           <button className="small" onClick={() => { run(lg, { t: 'withdrawProposal', id: pr.id }); setMsg('Offer withdrawn.'); onDone(); }}>Withdraw</button></span></li>)}</ul></>}
       </div>}
       <div className="panel">
@@ -223,8 +224,8 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
             <thead><tr><th className="l">Partner</th><th className="l">{lg.teams[a].abbr} get</th><th className="l">{lg.teams[a].abbr} give</th><th title="Market value received vs given">Value</th><th></th></tr></thead>
             <tbody>{found.map((r: any, i: number) => <tr key={i}>
               <td className="l"><TL tid={r.tid} abbr /></td>
-              <td className="l">{describeSide(lg, r.gets)}</td>
-              <td className="l dim">{describeSide(lg, r.gives)}</td>
+              <td className="l"><Linkify text={describeSide(lg, r.gets)} /></td>
+              <td className="l dim"><Linkify text={describeSide(lg, r.gives)} /></td>
               <td>{r.getV.toFixed(1)} / {r.giveV.toFixed(1)}</td>
               <td><button className="small" onClick={() => load(r)}>Load</button></td>
             </tr>)}</tbody>

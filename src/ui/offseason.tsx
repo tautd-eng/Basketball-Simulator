@@ -2,7 +2,7 @@
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
 import { hash01 } from '../rng';
-import { fmtAttr, defCols } from './grades';
+import { fmtAttr, defCols, grouped } from './grades';
 import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
 import { Linkify, PL, TL, nav } from './nav';
@@ -54,7 +54,7 @@ const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 export function attrCols(pOf: (r: any) => any, S: number, proj = false) {
   const cache = new Map<string, number[]>();
   const zOf = (r: any) => { const p = pOf(r); if (!proj) return p.z; let z = cache.get(p.id); if (!z) { z = projectedZ(p, S); cache.set(p.id, z); } return z; };
-  return [
+  return grouped([
     { key: 'role', label: 'Role', left: true, asc: true, title: 'Archetype – for a young player without a clear role yet, what he projects to become (proj.)', get: (r: any) => roleSortKey(pOf(r), S), fmt: (_: any, r: any) => <RoleCell p={pOf(r)} S={S} /> },
     htCol((r: any) => pOf(r).ht),
     ...RATING_LABELS.map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (a tendency, not a skill)' : '') + (proj ? ' – projected at his peak' : ''), get: (r: any) => attrOf(zOf(r), L), fmt: (v: any, r: any) => {
@@ -64,7 +64,7 @@ export function attrCols(pOf: (r: any) => any, S: number, proj = false) {
       return <span title={`Now ${v - d}`}>{fmtAttr(v)}{d >= 3 ? <span className="pos small-t"> +{d}</span> : d <= -3 ? <span className="neg small-t"> {d}</span> : null}</span>;
     } })),
     ...defCols(pOf),
-  ];
+  ]);
 }
 /** A "Sort by" picker for a draft table: every column that can sort, by its full name. */
 export function SortBy({ cols, value, onChange }: any) {
@@ -269,6 +269,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
   const fa = lg.fa;
   const [msg, setMsg] = useState<string | null>(null);
   const [offersOf, setOffersOf] = useState<string | null>(null);
+  const [neg, setNeg] = useState<string | null>(null);
   // the market right now: which teams would make each of the best free agents an offer
   const market = useMemo(() => {
     const m = new Map<string, any[]>();
@@ -280,7 +281,6 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
   if (!fa) return null;
   if (fa.stage === 1 && !fa.sumSeen) return <OptionsSummary lg={lg} openPlayer={openPlayer} onOpen={() => { fa.sumSeen = true; onChange(); try { window.scrollTo({ top: 0 }); } catch { /* */ } }} />;
   const act = (fn: () => any) => { const r = fn(); if (r?.msg) setMsg(r.msg); onChange(); };
-  const [neg, setNeg] = useState<string | null>(null);
   const N = lg.season;
   const u = lg.userTid ? lg.teams[lg.userTid] : null;
   const pay = u ? payroll(lg, u.tid) : 0;
