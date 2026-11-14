@@ -5,7 +5,8 @@ import { canRun } from '../league/humans';
 import { run } from '../league/commands';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf } from '../data';
 import { ageIn } from '../players';
-import { money } from './money';
+import { money, usd } from './money';
+import { hardCap } from '../ai/value';
 import { fantasyContract, fantasyTidAt, fantasyOnClock, fantasyPool, fantasyUserPick, fantasyAdvance, fantasyStep } from '../league/fantasy';
 import { AutoControls, useAutoPlay } from './draftday';
 import { posNum } from '../engine/game';
@@ -58,6 +59,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
           <BoardsToggle open={boards} toggle={toggleBoards} />
         </div>
         {on && <OnClock lg={lg} tid={on.tid} pick={on.pick} round={on.round} mine={myTurn} />}
+        {lg.userTid && <MyFantasyTeam lg={lg} openPlayer={openPlayer} />}
         <p className="note">All players from the {(lg.start ?? 1980) - 1}–{String(lg.start ?? 1980).slice(2)} season go into one pool. {f.rounds} rounds in snake order (the last pick of a round picks first in the next){f.rr ? `, and from round ${f.rr} the order turns again (${f.rr}RR)` : ''}. Undrafted players become free agents.</p>
         <div className="def-row">
           {myTurn ? <span className="chip on-clock">You're on the clock – pick from the list!</span> : on && canRun(lg) ? <button className="primary" disabled={playing} onClick={() => act(() => fantasyStep(lg))}>Next pick</button> : on ? <span className="hint">Waiting for the host to move the draft on.</span> : null}
@@ -88,6 +90,25 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
             return { n: i + 1, round, tid: made?.tid ?? tid, pid: made?.pid };
           })} />
       </section>
+    </div>
+  );
+}
+
+/** Your team so far in a fantasy draft: who you have and what they will cost (share of the cap per season). */
+function MyFantasyTeam({ lg, openPlayer }: any) {
+  const S = lg.season, mine = lg.fantasy.picks.filter((x: any) => x.tid === lg.userTid).map((x: any) => lg.players[x.pid]).filter(Boolean);
+  const total = mine.reduce((a: number, p: any) => a + fantasyContract(p, S).sal, 0);
+  const hc = hardCap(lg), lim = hc < Infinity ? hc : 1;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  return (
+    <div className="fz-mine">
+      <div className="fz-sum">
+        <b>{lg.teams[lg.userTid].name}</b>
+        <span>{mine.length} player{mine.length === 1 ? '' : 's'} · salaries <b className={total > lim ? 'neg' : ''}>{pct(total)}</b> of the cap{usd(total, S)}</span>
+        <span className="dim">{hc < Infinity ? <>hard cap {pct(hc)} · room left <b className={total > hc ? 'neg' : ''}>{pct(hc - total)}</b></> : <>cap 100% · {total <= 1 ? <>space {pct(1 - total)}</> : <>over by {pct(total - 1)}</>}</>}</span>
+      </div>
+      <div className="fz-bar" aria-hidden="true"><span style={{ width: `${Math.min(100, (total / Math.max(lim, total)) * 100)}%` }} className={total > lim ? 'over' : ''} /></div>
+      {mine.length > 0 && <div className="fz-list">{mine.map((p: any) => { const c = fantasyContract(p, S); return <span key={p.id} className="chip"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{ovrOf(p.z, p.id)} · {money(c.sal, S)} · {c.exp - S + 1}y</span></span>; })}</div>}
     </div>
   );
 }

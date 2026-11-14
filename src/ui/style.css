@@ -1125,3 +1125,10 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .pt-top { display: flex; align-items: center; gap: 6px; }
 .pt-what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pt-all { align-self: center; flex: none; }
+/* fantasy draft: your team so far */
+.fz-mine { background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+.fz-sum { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
+.fz-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.fz-bar span { display: block; height: 100%; background: var(--accent); }
+.fz-bar span.over { background: var(--neg); }
+.fz-list { display: flex; flex-wrap: wrap; gap: 6px; }
