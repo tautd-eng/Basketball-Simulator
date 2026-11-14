@@ -59,12 +59,15 @@ export async function advance(lg: League, target: Target, onProgress: () => void
   };
   let n = 0;
   let last = performance.now();
+  // running through a whole year: the GM handles the user's own free agents (re-signs those worth keeping)
+  (lg as any)._auto = target === 'nextSeason' || target === 'years5';
   while (!done()) {
     if (shouldStop()) break;
     if (!stepOnce(lg)) break;
     n++;
     if (performance.now() - last > 120) { onProgress(); await tick(); last = performance.now(); }
   }
+  delete (lg as any)._auto;
   onProgress();
 }
 

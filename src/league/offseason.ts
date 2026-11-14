@@ -483,6 +483,12 @@ export function enterFreeAgency(lg: League) {
   const decisions: NonNullable<FreeAgency['decisions']> = [];
   processOptions(lg, rng, optLog, decisions);
   const pending = contracts(lg, rng, optLog, decisions);
+  // this year's draft picks of people's teams: sign them to their rookie deals, or let them go
+  for (const p of Object.values(lg.players)) {
+    if (!p.tid || p.draft?.year !== Y || !isHuman(lg, p.tid) || p.retired) continue;
+    const t = lg.teams[p.tid];
+    decisions.push({ pid: p.id, kind: 'rookie', rec: p.draft.round === 1 || worthKeeping(lg, p, p.contract.sal, N, t.strategy), sal: p.contract.sal, tid: p.tid });
+  }
   arrivals(lg, rng);
   lg.season = N;
   updateStrategies(lg);
@@ -765,16 +771,24 @@ function applyDecisions(lg: League) {
       if (p.contract.exp === N - 1) { t.roster = t.roster.filter(x => x !== p.id); p.tid = null; }
       continue;
     }
+    if (d.kind === 'rookie') {
+      // not signed: he leaves without a contract (no money on the books) and is a free agent
+      if (!keep && p.tid === tid) {
+        lg.teams[tid].roster = lg.teams[tid].roster.filter(x => x !== p.id);
+        p.tid = null; p.contract = { sal: MIN_SAL, exp: N - 1 }; p.noRfa = true;
+        fa.log.push({ st: 0, kind: 'release', pid: p.id, tid, desc: 'draft pick not signed', user: true });
+      }
+      continue;
+    }
     if (d.kind === 'team') {
       if (keep) {
         p.contract.opts = (p.contract.opts ?? []).filter(o => o.s !== N);
         fa.log.push({ st: 0, kind: 'option', pid: p.id, tid: tid!, desc: 'you exercised the team option', user: true });
       } else if (tid && p.tid === tid) {
-        // declined: unrestricted, but the exclusive re-signing window of stage 1 still applies
+        // declined: an unrestricted free agent – the team keeps his Bird rights
         lg.teams[tid].roster = lg.teams[tid].roster.filter(x => x !== p.id);
         p.tid = null; p.bird = tid; p.noRfa = true;
         p.contract = { sal: p.contract.sal, exp: N - 1 };
-        fa.pending.push(p.id);
         fa.log.push({ st: 0, kind: 'option', pid: p.id, tid, desc: 'you declined the team option', user: true });
       }
     } else if (keep) {
@@ -916,7 +930,11 @@ export function faStage(lg: League) {
   const rng = rngOf(lg);
   const st = fa.stage;
   if (st === 0) { applyDecisions(lg); fa.stage = 1; save(lg, rng); return; }
-  if (st === 1) { resolvePending(lg, rng); aiRecallStash(lg, rng); }
+  if (st === 1) {
+    // the league is being run on (a full year, five years): the GM decides on people's own free agents they made no offer to
+    if ((lg as any)._auto) fa.pending = Object.values(lg.players).filter(p => p.bird && isHuman(lg, p.bird) && isFreeAgent(lg, p) && !offersOn(lg, p.id).some(o => o.tid === p.bird)).map(p => p.id);
+    resolvePending(lg, rng); aiRecallStash(lg, rng);
+  }
   // each wave of the market: front offices look at who is out there, who they can afford and who they lost,
   // and decide again whether this is a year to go all in, to tank, or something in between
   updateModes(lg, true);
@@ -1508,9 +1526,9 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
         // he asked out: he will not re-sign here
         if (refuses(p, t.tid)) { log.push({ st: 0, kind: 'leave', pid: p.id, tid: t.tid, desc: 'he asked for a trade and will not re-sign' }); continue; }
         p.bird = t.tid;
-        // restricted: the user decides on a qualifying offer; otherwise an exclusive re-signing window
+        // restricted: the user decides on a qualifying offer; otherwise he is on the market from the first wave like
+        // everyone else – the team keeps his Bird rights (it can pay him over the cap) but has no exclusive window
         if (rfaEligible(p, N, lg)) decisions.push({ pid: p.id, kind: 'qo', rec: worthKeeping(lg, p, qoAmount(p), N, t.strategy), sal: qoAmount(p), tid: t.tid });
-        else pending.push(p.id);
       }
       continue;
     }

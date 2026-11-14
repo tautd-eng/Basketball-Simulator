@@ -374,17 +374,19 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
           {msg && <p className="hint" role="status">{msg}</p>}
         </div>
         <OthersWaiting lg={lg} onChange={onChange} />
+        {fa.stage === 0 && <PlayerOptionResults lg={lg} openPlayer={openPlayer} />}
+        {fa.stage >= 1 && fa.stage <= 3 && <BirdRights lg={lg} openPlayer={openPlayer} goFA={goFA} />}
         {decisions.length > 0 && (
           <div className="panel">
             <h2>Your contract decisions</h2>
             {(() => {
               const u = lg.userTid, hc = hardCap(lg);
               if (!u || hc === Infinity) return null;
-              const off = decisions.filter((d: any) => d.kind === 'team' && lg.players[d.pid].tid === u && (d.choice ?? d.rec) === false).reduce((a: number, d: any) => a + d.sal, 0);
+              const off = decisions.filter((d: any) => (d.kind === 'team' || d.kind === 'rookie') && lg.players[d.pid].tid === u && (d.choice ?? d.rec) === false).reduce((a: number, d: any) => a + d.sal, 0);
               const pay = payroll(lg, u) - off;
               return <p className={pay > hc ? 'hint warn-t' : 'note'}>Payroll with these choices: <b>{Math.round(pay * 100)}%</b> of the cap (hard cap {Math.round(hc * 100)}%).{pay > hc ? ' Over the hard cap – trade salary away or decline an option before you confirm.' : ''}</p>;
             })()}
-            <p className="note">Team option – whether to keep the player next season at the salary in his contract. Qualifying offer – if you tender it, the player becomes a restricted free agent: you can match other teams' offers, and if nobody offers, he plays for you for one year at this amount. If you don't choose, the GM decides (his recommendation is marked).</p>
+            <p className="note">Team option – whether to keep the player next season at the salary in his contract. Rookie contract – sign your draft pick to his rookie deal, or let him go (no money on your books, he becomes a free agent). Qualifying offer – if you tender it, the player becomes a restricted free agent: you can match other teams' offers, and if nobody offers, he plays for you for one year at this amount. If you don't choose, the GM decides (his recommendation is marked).</p>
             <div className="tbl-wrap"><table className="tbl">
               <thead><tr><th className="l">Player</th><th>Age</th><th>OVR</th><th className="l">Decision</th><th>Salary</th><th className="l">GM suggests</th><th></th></tr></thead>
               <tbody>{decisions.map((d: any) => {
@@ -394,12 +396,12 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
                 return <tr key={d.pid}>
                   <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}</span></td>
                   <td>{ageIn(p, N)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td>
-                  <td className="l">{d.kind === 'team' ? 'Team option' : 'Qualifying offer'}</td>
+                  <td className="l">{d.kind === 'team' ? 'Team option' : d.kind === 'rookie' ? `Rookie contract${p.draft ? ` (No. ${p.draft.pick})` : ''}` : 'Qualifying offer'}</td>
                   <td>{moneyOf(d.sal, N)}</td>
-                  <td className="l dim">{d.rec ? (d.kind === 'team' ? 'keep' : 'tender') : (d.kind === 'team' ? 'decline' : 'don\'t tender')}</td>
+                  <td className="l dim">{d.rec ? (d.kind === 'team' ? 'keep' : d.kind === 'rookie' ? 'sign' : 'tender') : (d.kind === 'team' ? 'decline' : d.kind === 'rookie' ? 'let go' : 'don\'t tender')}</td>
                   <td className="l">
-                    <button className={`small ${yes === true ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'decide', pid: d.pid, yes: true }))}>{d.kind === 'team' ? 'Keep' : 'Tender'}</button>{' '}
-                    <button className={`small ${yes === false ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'decide', pid: d.pid, yes: false }))}>{d.kind === 'team' ? 'Decline' : 'Don\'t tender'}</button>
+                    <button className={`small ${yes === true ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'decide', pid: d.pid, yes: true }))}>{d.kind === 'team' ? 'Keep' : d.kind === 'rookie' ? 'Sign' : 'Tender'}</button>{' '}
+                    <button className={`small ${yes === false ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'decide', pid: d.pid, yes: false }))}>{d.kind === 'team' ? 'Decline' : d.kind === 'rookie' ? 'Let go' : 'Don\'t tender'}</button>
                   </td>
                 </tr>;
               })}</tbody>
@@ -569,8 +571,13 @@ function BidsDialog({ lg, pid, close }: any) {
   const w = bids.find((x: any) => x.tid === won);
   const top = bids[0];
   const pc = (x: number) => `${(x * 100).toFixed(1)}%`;
+  const same = hi - lo < 0.0015;               // everyone offered (about) the same – usually the minimum
+  const tied = bids.filter((x: any) => x.sal >= hi - 1e-4).length;
+  const fit = (x: any) => (x?.why?.length ? x.why.join('; ') : 'the fit – his role there and the team around him');
   let why: string;
   if (!w) why = 'He signed elsewhere after these offers.';
+  else if (same) why = `Every team offered about the same${hi <= MIN_SAL * 1.01 ? ' (the minimum)' : ''}, so money did not decide it – he picked the ${lg.teams[w.tid].name} for ${fit(w)}.`;
+  else if (w.sal >= top.sal - 1e-4 && tied > 1) why = `${tied} teams offered the most; he picked the ${lg.teams[w.tid].name} for ${fit(w)}.`;
   else if (w.tid === top.tid || w.sal >= top.sal - 1e-4) why = `The ${lg.teams[w.tid].name} paid the most per season${w.why?.length ? ` – and ${w.why.join(', ')}` : ''}.`;
   else {
     const less = ((1 - w.sal / top.sal) * 100).toFixed(0);
@@ -580,11 +587,13 @@ function BidsDialog({ lg, pid, close }: any) {
     <div className="overlay center" onClick={close}>
       <div className="dialog bids-dlg" role="dialog" aria-label={`Offers for ${p.name}`} onClick={e => e.stopPropagation()}>
         <div className="team-head"><h2>{p.name} – the offers</h2><button className="ghost small" onClick={close}>Close</button></div>
+        <p className="lead">{why}</p>
         <p className="note">{bids.length} team{bids.length > 1 ? 's' : ''} made an offer in {S}. Salary per season as a share of the cap, and the whole contract (Total).</p>
-        <div className="bid-scale" aria-hidden="true">
-          {bids.map((x: any, i: number) => <span key={i} className={`bid-dot ${x.tid === won ? 'won' : ''}`} style={{ left: pos(x.sal), top: `${8 + (i % 3) * 16}px` }} title={`${lg.teams[x.tid]?.abbr} ${pc(x.sal)} × ${x.yrs}`}>{lg.teams[x.tid]?.abbr}</span>)}
+        {!same && <div className="bid-scale" aria-hidden="true">
+          {bids.map((x: any, i: number) => { const near = bids.slice(0, i).filter((y: any) => Math.abs(y.sal - x.sal) / span < 0.08).length;
+            return <span key={i} className={`bid-dot ${x.tid === won ? 'won' : ''}`} style={{ left: pos(x.sal), top: `${4 + (near % 4) * 17}px` }} title={`${lg.teams[x.tid]?.abbr} ${pc(x.sal)} × ${x.yrs}`}>{lg.teams[x.tid]?.abbr}</span>; })}
           <span className="bid-axis lo">{pc(lo)}</span><span className="bid-axis hi">{pc(hi)}</span>
-        </div>
+        </div>}
         <table className="tbl compact">
           <thead><tr><th className="l">Team</th><th>Per season</th><th>Years</th><th>Total</th><th className="l">What else he saw</th></tr></thead>
           <tbody>{bids.map((x: any, i: number) => <tr key={i} className={x.tid === won ? 'mine' : ''}>
@@ -593,7 +602,6 @@ function BidsDialog({ lg, pid, close }: any) {
             <td className="l dim small-t">{x.under ? 'under his asking price' : x.why?.length ? x.why.join('; ') : '–'}</td>
           </tr>)}</tbody>
         </table>
-        <p className="lead">{why}</p>
       </div>
     </div>
   );
@@ -666,6 +674,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
           <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
         </div>
         {offersOf && <OffersDialog lg={lg} p={lg.players[offersOf]} offers={market.get(offersOf) ?? faOffersFor(lg, lg.players[offersOf])} close={() => setOffersOf(null)} openPlayer={openPlayer} />}
+        {lg.phase === 'freeagency' && <BirdRights lg={lg} openPlayer={openPlayer} onPick={(pid: string) => { setSel(pid); setMsg(null); }} />}
         {sp && canSign && interest(sp) && <p className="hint">{interest(sp)!.length ? <>Competition for {sp.name}: <b>{interest(sp)!.length}</b> other team{interest(sp)!.length > 1 ? 's' : ''} interested – <button className="link-btn" onClick={() => setOffersOf(sp.id)}>see who</button>.</> : <>No other team is after {sp.name} right now.</>}</p>}
         {sp && canSign && <FAOfferBox key={sp.id} lg={lg} p={sp} onDone={(r: any) => { setMsg(r.msg); if (r.ok) setSel(null); onChange(); }} onCancel={() => setSel(null)} />}
         {msg && <p className="hint" role="status">{msg}</p>}
@@ -809,4 +818,29 @@ function ExactPct({ value, min, max, onSet }: any) {
   const [txt, setTxt] = useState<string | null>(null);
   const apply = () => { if (txt == null) return; const v = parseFloat(txt.replace(',', '.')) / 100; if (Number.isFinite(v) && v > 0) onSet(Math.max(min, Math.min(max, Math.round(v * 10000) / 10000))); setTxt(null); };
   return <label className="ext-exact">exact <input inputMode="decimal" value={txt ?? (value * 100).toFixed(2)} onChange={e => setTxt(e.target.value)} onBlur={apply} onKeyDown={e => { if (e.key === 'Enter') apply(); }} aria-label="Offer, % of the cap" />%</label>;
+}
+
+/** What your players decided on their player options this summer. */
+function PlayerOptionResults({ lg, openPlayer }: any) {
+  const u = lg.userTid, rows = (lg.fa?.log ?? []).filter((x: any) => x.kind === 'option' && x.tid === u && !x.user && /player option/.test(x.desc ?? ''));
+  if (!u || !rows.length) return null;
+  return <div className="panel"><h2>Player options</h2>
+    <ul className="news">{rows.map((x: any, i: number) => { const p = lg.players[x.pid]; return <li key={i}><span className="yr">{/declined/.test(x.desc) ? 'out' : 'in'}</span><span><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{x.desc}</span></span></li>; })}</ul>
+  </div>;
+}
+
+/** Your own free agents: on the market like everyone, but you hold their Bird rights. */
+export function BirdRights({ lg, openPlayer, goFA, onPick }: any) {
+  const u = lg.userTid, N = lg.season;
+  const ps = Object.values(lg.players).filter((p: any) => p.bird === u && isFreeAgent(lg, p)).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)) as any[];
+  if (!u || !ps.length) return null;
+  return <div className="panel accent bird">
+    <h2>Your free agents · Bird rights</h2>
+    <p className="note">Their contracts ended and they are on the market from the first wave – every team can bid. You hold their <b>Bird rights</b>: you may re-sign them even over the free-agent limit (up to the hard cap), and they like staying a little more. Make an offer before the wave ends, or they may sign elsewhere.</p>
+    <ul className="news">{ps.map(p => { const o = offersOn(lg, p.id).find((x: any) => x.tid === u); return <li key={p.id}><span className="yr">{ovrOf(p.z, p.id)}</span><span>
+      <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · asks {moneyOf(faDemand(lg, p, u, preferredYears(p, N)), N)}</span>
+      {o ? <span className="chip tiny on-clock">your offer: {moneyOf(o.sal, N)} × {o.yrs}</span> : null}{' '}
+      {onPick ? <button className="small" onClick={() => onPick(p.id)}>Negotiate</button> : goFA ? <button className="small" onClick={goFA}>Make an offer</button> : null}
+    </span></li>; })}</ul>
+  </div>;
 }

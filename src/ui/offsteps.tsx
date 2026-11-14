@@ -29,7 +29,7 @@ export function stepsOf(lg: any) {
     ...(exp ? [{ k: 'expansion', t: 'Expansion draft' }] : []),
     { k: 'lottery', t: 'Lottery' },
     { k: 'draft', t: 'Draft' },
-    { k: 'decisions', t: 'Options & decisions' },
+    { k: 'decisions', t: 'Team & rookie options' },
     { k: 'fa', t: 'Free agency' },
     { k: 'preview', t: 'Season preview' },
   ];

@@ -3,6 +3,7 @@
 // depends on the money and on how things are going for him (role, winning,
 // age, ambition), see prefs.extensionNeed.
 import { Rng } from '../rng';
+import { pastDeadline } from '../ai/trades';
 import { refuses } from './requests';
 import { League, Player } from '../types';
 import { tagOf, ageIn, addTx } from '../players';
@@ -27,7 +28,8 @@ export function nextPayroll(lg: League, tid: string) {
 }
 
 export function extendable(lg: League, p: Player) {
-  return lg.phase === 'regular' && !!p.tid && p.contract.exp === lg.season && !p.ext;
+  // until the trade deadline – after it, an expiring player goes to free agency
+  return lg.phase === 'regular' && !!p.tid && p.contract.exp === lg.season && !p.ext && !pastDeadline(lg);
 }
 
 /** The user offers an extension (salary as share of the cap, years from next season). */
@@ -35,7 +37,7 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
   const p = lg.players[pid];
   const tid = lg.userTid;
   if (!p || !tid || p.tid !== tid) return { ok: false, msg: 'This player is not on your team.' };
-  if (!extendable(lg, p)) return { ok: false, msg: 'Extensions are possible during the regular season for players whose contract ends this season.' };
+  if (!extendable(lg, p)) return { ok: false, msg: 'Extensions are possible in the regular season until the trade deadline, for players whose contract ends this season – after that he goes to free agency.' };
   if (refuses(p, tid)) return { ok: false, msg: `${p.name} has asked for a trade – he won't talk about an extension.` };
   const N = lg.season + 1;
   const max = maxSalary(p, N);

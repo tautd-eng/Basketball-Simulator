@@ -183,7 +183,7 @@ export interface FreeAgency {
   stage: number; pending: string[]; mle: string[];
   log: { st: number; kind: 'sign' | 'resign' | 'trade' | 'release' | 'leave' | 'option' | 'qo' | 'match' | 'sheet'; pid?: string; tid?: string; sal?: number; exp?: number; desc?: string; user?: boolean; from?: string }[];
   /** stage 0: the user's contract decisions (team options, qualifying offers) with the GM's recommendation */
-  decisions?: { pid: string; kind: 'team' | 'qo'; rec: boolean; choice?: boolean; sal: number; tid?: string }[];
+  decisions?: { pid: string; kind: 'team' | 'qo' | 'rookie'; rec: boolean; choice?: boolean; sal: number; tid?: string }[];
   /** offer sheets to the user's restricted free agents, waiting for match / no match */
   sheets?: { pid: string; tid: string; sal: number; exp: number; st?: number }[];
   sumSeen?: boolean;                // the summary of the contract decisions was shown
