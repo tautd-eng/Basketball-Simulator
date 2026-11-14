@@ -145,8 +145,10 @@ function App() {
   const [ready, setReady] = useState(false);
   const [rev, setRev] = useState(0);
   const [tab, setTab] = useState(() => {
-    const h = location.hash.replace('#', '');
-    return ['apzvalga', 'komandos', 'reitingai', 'laisvieji', 'mainai', 'statistika', 'draftai', 'istorija', 'rungtynes'].includes(h) ? h : 'apzvalga';
+    // older links used Lithuanian section names
+    const OLD: Record<string, string> = {"apzvalga": "overview", "komandos": "teams", "reitingai": "rankings", "laisvieji": "free-agents", "mainai": "trades", "statistika": "stats", "draftai": "draft-classes", "istorija": "history", "rungtynes": "games", "valdymas": "management", "algos": "salaries", "gidas": "guide"};
+    const raw = location.hash.replace('#', ''), h = OLD[raw] ?? raw;
+    return ['overview', 'teams', 'rankings', 'free-agents', 'trades', 'stats', 'draft-classes', 'history', 'games', 'management', 'salaries', 'guide'].includes(h) ? h : 'overview';
   });
   const [team, setTeam] = useState<string | null>(null);
   const [player, setPlayer] = useState<string | null>(null);
@@ -270,7 +272,7 @@ function App() {
   function start(destiny: number, seed: number, userTid: string | null, settings: any, fantasy = false, startYear = 1980, classMode: any = 'real', futureMode: any = 'shuffle') {
     const l = newLeague(destiny, seed, settings, { fantasy, start: startYear, classMode, futureMode });
     l.userTid = userTid;
-    setLg(l); setTeam(userTid ?? 'LAL'); setTab('apzvalga');
+    setLg(l); setTeam(userTid ?? 'LAL'); setTab('overview');
     saveLeague(l).then(ok => setSaved(ok ? 'ok' : 'fail'));
     if (hostAfter) { setHostAfter(false); setShowOnline(true); }
   }
@@ -280,17 +282,17 @@ function App() {
   if (!ready) return <div className="loading">Loading league…</div>;
   const switchTo = async (id: string, host = false) => {
     if (id.startsWith('online-') && currentUser()) {
-      try { const l = await openOnline(id.slice(7)); setSlot(id); ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('apzvalga'); setPlayer(null); setShowSaves(false); return; } catch { /* the copy in this browser */ }
+      try { const l = await openOnline(id.slice(7)); setSlot(id); ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('overview'); setPlayer(null); setShowSaves(false); return; } catch { /* the copy in this browser */ }
     }
     setSlot(id);
     const l = await loadLeague(id);
-    if (l) { ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('apzvalga'); setPlayer(null); setShowSaves(false); if (host) setShowOnline(true); }
+    if (l) { ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('overview'); setPlayer(null); setShowSaves(false); if (host) setShowOnline(true); }
   };
   switchRef.current = switchTo;
   const startNew = () => { setSlot(newSlotId()); setLg(null); setShowSaves(false); setScreen('new'); };
   const toMenu = () => { setLg(null); setPlayer(null); setLive(null); setClutch(null); setGameView(null); setShowSaves(false); setShowSettings(false); setShowHumans(false); setScreen('menu'); };
   const onlinePanel = showOnline && <OnlinePanel lg={lg} joinCode={joinCode} close={() => { setShowOnline(false); if (joinCode) try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* ignore */ } }}
-    onOpen={(l: any, id: string) => { setSlot(slotOf(id)); ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('apzvalga'); setPlayer(null); saveLeague(l, slotOf(id)); }} />;
+    onOpen={(l: any, id: string) => { setSlot(slotOf(id)); ensurePicks(l); l.trades ??= []; setLg(l); setTeam(l.userTid ?? Object.keys(l.teams)[0]); setTab('overview'); setPlayer(null); saveLeague(l, slotOf(id)); }} />;
   if (!lg) {
     const back = () => { setHostAfter(false); setScreen('menu'); };
     const body = screen === 'new' ? <Setup onStart={start} onBack={back} host={hostAfter} />
@@ -311,7 +313,7 @@ function App() {
   const goBack = () => { if (!views.current.length) return; try { history.back(); } catch { restore(); } };
   const openPlayer = (pid: string) => { if (pid !== player) remember(); setPlayer(pid); };
   const closePlayer = () => { const top = views.current[views.current.length - 1]; if (top && top.player !== player && top.tab === tab) goBack(); else setPlayer(null); };
-  const openTeam = (tid: string) => { if (tab !== 'komandos' || team !== tid || player) remember(); setTeam(tid); setPlayer(null); setTab('komandos'); try { history.replaceState(history.state, '', '#komandos'); } catch { /* ignore */ } window.scrollTo(0, 0); };
+  const openTeam = (tid: string) => { if (tab !== 'teams' || team !== tid || player) remember(); setTeam(tid); setPlayer(null); setTab('teams'); try { history.replaceState(history.state, '', '#komandos'); } catch { /* ignore */ } window.scrollTo(0, 0); };
   nav.remember = remember;
   nav.lg = lg; nav.player = openPlayer; nav.team = (tid: string) => { setPlayer(null); if (live) closeLive(); setGameView(null); openTeam(tid); };
   /** Online: which of today's games you may play on your screen – your own, when the other side is the computer or has said it is done; the host any other game. */
@@ -344,7 +346,7 @@ function App() {
       <nav className="tabs" aria-label="Sections">
         <div className="side-brand"><span className="ball" aria-hidden="true"></span><span>Basketball<br />Simulator</span></div>
         {tabsFor(lg).map(([k, l, main]) => (
-          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
+          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'trades' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
         <div className="side-foot">
           <button className="host-only" onClick={() => setShowSettings(true)}><TabIcon k="format" /><span className="tl">Season format</span></button>
@@ -361,20 +363,20 @@ function App() {
           <p className="more-ver">Version {BUILD}</p>
         </div>
       </div>}
-      <main className={tab === 'laisvieji' || lg.phase === 'fantasy' || (tab === 'apzvalga' && (lg.phase === 'freeagency' || lg.phase === 'draft')) ? 'wide' : ''}>
+      <main className={tab === 'free-agents' || lg.phase === 'fantasy' || (tab === 'overview' && (lg.phase === 'freeagency' || lg.phase === 'draft')) ? 'wide' : ''}>
         {lg.phase === 'fantasy' && <FantasyRoom lg={lg} openPlayer={openPlayer} onTick={bump} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'apzvalga' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={!lg.online && humans(lg).length <= 1 ? clutchStart : null} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('laisvieji')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'valdymas' && <TeamMgmt key={lg.userTid ?? ''} lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'reitingai' && <Rankings lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
-        {lg.phase !== 'fantasy' && tab === 'laisvieji' && <FreeAgentsView lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'mainai' && <Trades key={(lg.userTid ?? '') + (tradeSeed?.n ?? '')} seed={tradeSeed?.pid} lg={lg} openPlayer={openPlayer} onDone={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'komandos' && <TeamView lg={lg} tid={team ?? 'LAL'} setTid={(t: string) => { if (t !== team) remember(); setTeam(t); }} openPlayer={openPlayer} openGame={openGame} />}
-        {lg.phase !== 'fantasy' && tab === 'algos' && <SalaryView lg={lg} openPlayer={openPlayer} openTeam={openTeam} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'draftai' && <div className="col"><Drafts lg={lg} openPlayer={openPlayer} openTeam={openTeam} onChange={async () => { setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />{lg.fantasy?.done && <FantasyResults lg={lg} openPlayer={openPlayer} />}</div>}
-        {lg.phase !== 'fantasy' && tab === 'istorija' && <HistoryView lg={lg} openPlayer={openPlayer} openTeam={openTeam} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'statistika' && <StatsView lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
-        {lg.phase !== 'fantasy' && tab === 'rungtynes' && <Games lg={lg} openPlayer={openPlayer} />}
-        {tab === 'gidas' && <Guide />}
+        {lg.phase !== 'fantasy' && tab === 'overview' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={!lg.online && humans(lg).length <= 1 ? clutchStart : null} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('free-agents')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'management' && <TeamMgmt key={lg.userTid ?? ''} lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'rankings' && <Rankings lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
+        {lg.phase !== 'fantasy' && tab === 'free-agents' && <FreeAgentsView lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'trades' && <Trades key={(lg.userTid ?? '') + (tradeSeed?.n ?? '')} seed={tradeSeed?.pid} lg={lg} openPlayer={openPlayer} onDone={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'teams' && <TeamView lg={lg} tid={team ?? 'LAL'} setTid={(t: string) => { if (t !== team) remember(); setTeam(t); }} openPlayer={openPlayer} openGame={openGame} />}
+        {lg.phase !== 'fantasy' && tab === 'salaries' && <SalaryView lg={lg} openPlayer={openPlayer} openTeam={openTeam} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'draft-classes' && <div className="col"><Drafts lg={lg} openPlayer={openPlayer} openTeam={openTeam} onChange={async () => { setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />{lg.fantasy?.done && <FantasyResults lg={lg} openPlayer={openPlayer} />}</div>}
+        {lg.phase !== 'fantasy' && tab === 'history' && <HistoryView lg={lg} openPlayer={openPlayer} openTeam={openTeam} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'stats' && <StatsView lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
+        {lg.phase !== 'fantasy' && tab === 'games' && <Games lg={lg} openPlayer={openPlayer} />}
+        {tab === 'guide' && <Guide />}
       </main>
       <footer className="foot">
         <span>Data: Basketball-Reference (via sumitrodatta/bball-reference-datasets). The league is saved in this browser. <span className="dim">Version {BUILD}</span></span>
@@ -394,7 +396,7 @@ function App() {
         onFinish={async () => { const res = finishClutch(lg, clutch); sendResult(clutch.home, clutch.away, res); bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
       {gameView && <GameModal lg={lg} res={gameView} close={() => setGameView(null)} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
       {live && <LiveGame lg={lg} data={live} close={closeLive} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
-      {player && <PlayerPanel lg={lg} pid={player} findTrades={(pid: string) => { setPlayer(null); setTradeSeed({ pid, n: Date.now() }); go('mainai'); }} close={closePlayer} openTeam={(t) => { openTeam(t); }} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+      {player && <PlayerPanel lg={lg} pid={player} findTrades={(pid: string) => { setPlayer(null); setTradeSeed({ pid, n: Date.now() }); go('trades'); }} close={closePlayer} openTeam={(t) => { openTeam(t); }} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
     </div>
   );
 }
@@ -414,31 +416,31 @@ const destinyName = (pct: number) => DESTINY.reduce((b, x) => (Math.abs(x[0] - p
 
 /** Sections: [key, label, shown in the phone's bottom bar (the rest go under "More")] */
 const TABS: [string, string, boolean][] = [
-  ['apzvalga', 'Overview', true], ['komandos', 'Teams', true], ['reitingai', 'Rankings', true], ['statistika', 'Stats', false], ['rungtynes', 'Games', false],
-  ['mainai', 'Trades', true], ['laisvieji', 'Free agents', false], ['algos', 'Salaries', false], ['draftai', 'Draft classes', false],
-  ['istorija', 'History', false], ['gidas', 'Guide', false],
+  ['overview', 'Overview', true], ['teams', 'Teams', true], ['rankings', 'Rankings', true], ['stats', 'Stats', false], ['games', 'Games', false],
+  ['trades', 'Trades', true], ['free-agents', 'Free agents', false], ['salaries', 'Salaries', false], ['draft-classes', 'Draft classes', false],
+  ['history', 'History', false], ['guide', 'Guide', false],
 ];
 /** where a new group starts in the PC side bar (club · league · market · archive) */
-const GROUP_START = new Set(['komandos', 'mainai', 'istorija']);
+const GROUP_START = new Set(['teams', 'trades', 'history']);
 
 /** The sections for this league: Team management only when the user runs a team. */
-const tabsFor = (lg: any): [string, string, boolean][] => lg?.userTid ? [TABS[0], ['valdymas', 'Team management', true], ...TABS.slice(1).map(([k, l, m]) => [k, l, k === 'mainai' ? false : m] as [string, string, boolean])] : TABS;
+const tabsFor = (lg: any): [string, string, boolean][] => lg?.userTid ? [TABS[0], ['management', 'Team management', true], ...TABS.slice(1).map(([k, l, m]) => [k, l, k === 'trades' ? false : m] as [string, string, boolean])] : TABS;
 
 /** Small line icons for the tab bar (bottom bar on phones). */
 function TabIcon({ k }: { k: string }) {
   const d: Record<string, string> = {
-    apzvalga: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
-    komandos: 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z',
-    reitingai: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-    valdymas: 'M4 6h16M4 12h10M4 18h6M18 10l3 2-3 2',
-    statistika: 'M3 3v18h18M7 15l4-4 3 3 6-7',
-    mainai: 'M4 8h13l-3-3M20 16H7l3 3',
-    laisvieji: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6M19 4v4M17 6h4',
-    draftai: 'M4 5h16v14H4zM8 9h8M8 13h5',
-    algos: 'M12 3v18M16 7c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3',
-    istorija: 'M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4',
-    rungtynes: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
-    gidas: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h11M8 8h6',
+    'overview': 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
+    'teams': 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z',
+    'rankings': 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+    'management': 'M4 6h16M4 12h10M4 18h6M18 10l3 2-3 2',
+    'stats': 'M3 3v18h18M7 15l4-4 3 3 6-7',
+    'trades': 'M4 8h13l-3-3M20 16H7l3 3',
+    'free-agents': 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6M19 4v4M17 6h4',
+    'draft-classes': 'M4 5h16v14H4zM8 9h8M8 13h5',
+    'salaries': 'M12 3v18M16 7c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3',
+    'history': 'M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4',
+    'games': 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+    'guide': 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h11M8 8h6',
     format: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4',
     people: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5c2.4.6 4 2.4 4 5.5',
     saves: 'M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7',
