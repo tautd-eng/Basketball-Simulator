@@ -2,7 +2,7 @@
 // Locally a command is applied at once. Online (shared league) the same command is also sent to the host,
 // who applies it to the league before simulating – so every person's moves go through this one door.
 import { League, TradeAsset } from '../types';
-import { faOffer, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, draftPick, draftOnClock, expPick, expOnClock, recallStash } from './offseason';
+import { faOffer, withdrawOffer, setOfferOrder, faRenounce, faRelease, faDecide, faMatch, draftPick, draftOnClock, expPick, expOnClock, recallStash } from './offseason';
 import { userExtend } from './extensions';
 import { fantasyOnClock, fantasyUserPick } from './fantasy';
 import { aiResponse, executeTrade, fillRoster, tradeRules, pickUsed } from '../ai/trades';
@@ -14,6 +14,7 @@ export type Cmd =
   | { t: 'mgmt'; mgmt: any }                                         // rotation, positions, matchups, tactics
   | { t: 'faOffer'; pid: string; sal: number; yrs: number }
   | { t: 'faWithdraw'; pid: string }
+  | { t: 'faOrder'; pids: string[] }
   | { t: 'faRenounce'; pid: string }
   | { t: 'release'; pid: string }
   | { t: 'decide'; pid: string; yes: boolean }                       // team option / qualifying offer
@@ -49,6 +50,7 @@ export function apply(lg: League, env: Envelope): Result {
       case 'mgmt': lg.teams[tid].mgmt = JSON.parse(JSON.stringify(cmd.mgmt)); return { ok: true, msg: '' };
       case 'faOffer': return faOffer(lg, cmd.pid, cmd.sal, cmd.yrs);
       case 'faWithdraw': withdrawOffer(lg, cmd.pid, tid); return { ok: true, msg: 'Offer withdrawn.' };
+      case 'faOrder': setOfferOrder(lg, tid, cmd.pids); return { ok: true, msg: 'Order saved.' };
       case 'faRenounce': if (p?.bird !== tid) return no('Not your free agent.'); faRenounce(lg, cmd.pid); return { ok: true, msg: `${p.name} – you let him go.` };
       case 'release': if (p?.tid !== tid) return no('Not your player.'); return faRelease(lg, cmd.pid);
       case 'decide': {

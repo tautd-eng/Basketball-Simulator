@@ -135,7 +135,7 @@ export interface Pick { season: number; round: number; orig: string; owner: stri
 export interface PickRight { kind: 'swap' | 'worse'; season: number; round: number; a: string; b: string }
 export interface TradeAsset { pid?: string; pick?: { season: number; round: number; orig: string }; right?: PickRight }
 /** A person's contract offer to a free agent, waiting for his answer. */
-export interface FAOfferRec { pid: string; tid: string; sal: number; yrs: number; s: number; day: number; st?: number }
+export interface FAOfferRec { pid: string; tid: string; sal: number; yrs: number; s: number; day: number; st?: number; prio?: number }
 /** A trade offer from one human-run team to another: from gives fromGives, to gives toGives. */
 export interface Proposal { id: number; from: string; to: string; fromGives: TradeAsset[]; toGives: TradeAsset[]; s: number; day: number; phase: string; note?: string; /** a computer team's offer to a person */ ai?: boolean; /** (in season) the last day it stands */ exp?: number }
 export interface TradeRec { s: number; day: number; phase: string; a: string; b: string; aGets: TradeAsset[]; bGets: TradeAsset[]; user?: boolean; desc: string; info?: Record<string, [number, number]>; mv?: [number, number] }

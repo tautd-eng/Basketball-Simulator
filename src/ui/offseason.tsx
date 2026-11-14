@@ -19,7 +19,7 @@ import { discount, reasons, preferredYears, lengthPrice, offerUtility } from '..
 import { isFreeAgent } from '../ai/trades';
 import {
   initDraft, draftOnClock, draftAdvance, draftPick, draftSuggest, finishDraft,
-  enterFreeAgency, faStage, startSeason, faOffer, faDemand, offersOn, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, prevTeam, faOffersFor,
+  enterFreeAgency, faStage, startSeason, faOffer, faDemand, offersOn, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, prevTeam, faOffersFor, faBudget, myOffers,
 } from '../league/offseason';
 import { DecisionsBoard } from './offsteps';
 import { isHuman, handTo, canRun } from '../league/humans';
@@ -644,10 +644,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
                 : <button className="small" onClick={() => setRel(p.id)}>Release</button>)}</td>
             </tr>)}</tbody>
           </table></div>
-          {offersOn && (lg.offers ?? []).some((o: any) => o.tid === u.tid) && <>
-            <h3>Your open offers</h3>
-            <ul className="news">{(lg.offers ?? []).filter((o: any) => o.tid === u.tid).map((o: any) => { const q = lg.players[o.pid]; return <li key={o.pid}><span className="yr">{o.yrs} yr</span><span><button className="link" onClick={() => setSel(o.pid)}>{q.name}</button> <span className="dim">{moneyOf(o.sal, N)} per season · answers {lg.phase === 'freeagency' ? 'at the end of the wave' : 'tomorrow'}</span> <button className="small ghost" onClick={() => { run(lg, { t: 'faWithdraw', pid: o.pid }); setMsg('Offer withdrawn.'); onChange(); }}>Withdraw</button></span></li>; })}</ul>
-          </>}
+          <MyOffers lg={lg} onChange={onChange} setSel={setSel} setMsg={setMsg} />
         </section>
       )}
     </div>
@@ -681,6 +678,7 @@ export function FAOfferBox({ lg, p, onDone, onCancel }: any) {
   return (
     <div className="offer ext" role="group" aria-label={`Offer to ${p.name}`}>
       <div><b>{p.name}</b> <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · OVR {ovrOf(p.z, p.id)} · max contract {pc(max)}{usd(max, N)} · your payroll {Math.round(pay * 100)}% of the cap</span></div>
+      <BudgetBar lg={lg} tid={tid} extra={mineNow ? offer - mineNow.sal : offer} />
       <p className="note">{why.length ? `About your team: ${why.map((x: any) => x.t).join('; ')}.` : 'He cares about the terms, not the team.'}{p.rfa && p.rfa !== tid ? ` Restricted free agent – the ${lg.teams[p.rfa].name} can match your offer.` : ''} He would pick {pref} year{pref > 1 ? 's' : ''} himself.{L.why ? ` For ${years} years: ${L.why}.` : ''}</p>
       <table className="tbl compact ext-years">
         <thead><tr><th className="l">Years</th>{[1, 2, 3, 4, 5].map(y => <th key={y}><button className={`small ${y === years ? 'primary' : ''}`} onClick={() => { setYears(y); setSal(null); }}>{y}</button></th>)}</tr></thead>
@@ -693,6 +691,8 @@ export function FAOfferBox({ lg, p, onDone, onCancel }: any) {
         <b className="ext-amt">{(offer * 100).toFixed(2)}% {dol && <span className="dim">· {$(offer)}</span>}</b>
         <button className="small" onClick={() => bump(0.0025)} aria-label="a quarter percent more">+¼</button>
         <button className="small" onClick={() => bump(0.01)} aria-label="1% of the cap more">+1%</button>
+        <ExactPct value={offer} min={MIN_SAL} max={max} onSet={(v: number) => setSal(v)} />
+        <button className="small" onClick={() => setSal(max)}>Max</button>
         <button className="small ghost" onClick={() => setSal(null)}>His number</button>
       </div>
       <div className={`ext-chance ${offer + 1e-9 >= n ? 'pos' : offer >= n * 0.93 ? 'mid' : 'neg'}`}>
@@ -709,4 +709,62 @@ export function FAOfferBox({ lg, p, onDone, onCancel }: any) {
       </div>
     </div>
   );
+}
+
+/** Room for free agents at a glance: payroll, your open offers, and what is left under the limit. */
+export function BudgetBar({ lg, tid, extra = 0 }: any) {
+  if (!tid) return null;
+  const b = faBudget(lg, tid), N = lg.season;
+  const scale = Math.max(b.hard < Infinity ? b.hard : b.limit * 1.2, b.pay + b.open + Math.max(0, extra)) * 1.02;
+  const w = (x: number) => `${Math.max(0, (x / scale) * 100)}%`;
+  const pc = (x: number) => `${Math.round(x * 1000) / 10}%`;
+  const left = b.after - Math.max(0, extra);
+  return (
+    <div className="budget">
+      <div className="budget-bar" aria-hidden="true">
+        <span className="bb-pay" style={{ width: w(b.pay) }} />
+        <span className="bb-open" style={{ width: w(b.open) }} />
+        {extra > 0 && <span className="bb-new" style={{ width: w(extra) }} />}
+        <i className="bb-mark" style={{ left: w(b.limit) }} title={`Limit for other teams' free agents: ${pc(b.limit)} of the cap`} />
+        {b.hard < Infinity && <i className="bb-mark hard" style={{ left: w(b.hard) }} title={`Hard cap: ${pc(b.hard)}`} />}
+      </div>
+      <div className="budget-legend small-t">
+        <span><i className="sw bb-pay" />payroll {pc(b.pay)}{usd(b.pay, N)}</span>
+        <span><i className="sw bb-open" />your open offers {pc(b.open)}</span>
+        {extra > 0 && <span><i className="sw bb-new" />this offer {pc(extra)}</span>}
+        <span>room left for free agents: <b className={left < 0 ? 'neg' : ''}>{pc(left)}</b> <span className="dim">(limit {pc(b.limit)}{b.hard < Infinity ? `, hard cap ${pc(b.hard)}` : ''})</span></span>
+      </div>
+      {left < 0 && <p className="hint">Your offers add up to more than the room: if several are accepted, the ones higher in your order go through first – minimum deals and your own players (Bird rights) do not need room.</p>}
+    </div>
+  );
+}
+
+/** Your open offers in the order you want them to go through when the room runs short. */
+function MyOffers({ lg, onChange, setSel, setMsg }: any) {
+  const u = lg.userTid, N = lg.season;
+  const list = myOffers(lg, u);
+  if (!list.length) return null;
+  const move = (i: number, d: number) => {
+    const ids = list.map((o: any) => o.pid); const j = i + d; if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]]; run(lg, { t: 'faOrder', pids: ids }); onChange();
+  };
+  return <>
+    <h3>Your open offers – in order of priority</h3>
+    <BudgetBar lg={lg} tid={u} />
+    <ol className="news my-offers">{list.map((o: any, i: number) => { const q = lg.players[o.pid]; return <li key={o.pid}>
+      <span className="yr">{i + 1}.</span>
+      <span><button className="link" onClick={() => setSel(o.pid)}>{q.name}</button> <span className="dim">{moneyOf(o.sal, N)} × {o.yrs} yr{o.yrs > 1 ? 's' : ''} · answers {lg.phase === 'freeagency' ? 'at the end of the wave' : 'tomorrow'}</span>{' '}
+        <button className="small ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Higher priority">▲</button>
+        <button className="small ghost" disabled={i === list.length - 1} onClick={() => move(i, 1)} aria-label="Lower priority">▼</button>{' '}
+        <button className="small ghost" onClick={() => { run(lg, { t: 'faWithdraw', pid: o.pid }); setMsg('Offer withdrawn.'); onChange(); }}>Withdraw</button></span>
+    </li>; })}</ol>
+    <p className="note">If more of them say yes than your room allows, the higher ones are signed first; a lower one waits for the next wave.</p>
+  </>;
+}
+
+/** Type an exact share of the cap (applied on Enter or when the field loses focus; kept within min…max). */
+function ExactPct({ value, min, max, onSet }: any) {
+  const [txt, setTxt] = useState<string | null>(null);
+  const apply = () => { if (txt == null) return; const v = parseFloat(txt.replace(',', '.')) / 100; if (Number.isFinite(v) && v > 0) onSet(Math.max(min, Math.min(max, Math.round(v * 10000) / 10000))); setTxt(null); };
+  return <label className="ext-exact">exact <input inputMode="decimal" value={txt ?? (value * 100).toFixed(2)} onChange={e => setTxt(e.target.value)} onBlur={apply} onKeyDown={e => { if (e.key === 'Enter') apply(); }} aria-label="Offer, % of the cap" />%</label>;
 }

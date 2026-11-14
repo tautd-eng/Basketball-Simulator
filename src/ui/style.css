@@ -1173,3 +1173,17 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
   .guide-page { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
 }
 .neg-chip { background: color-mix(in srgb, var(--neg) 22%, transparent) !important; color: var(--neg) !important; border-color: var(--neg) !important; }
+/* free-agent room */
+.budget { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.budget-bar { position: relative; height: 12px; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; display: flex; overflow: visible; }
+.budget-bar > span { display: block; height: 100%; }
+.bb-pay { background: color-mix(in srgb, var(--ink) 45%, transparent); }
+.bb-open { background: var(--accent); }
+.bb-new { background: color-mix(in srgb, var(--accent) 45%, transparent); background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(255,255,255,.25) 4px 7px); }
+.bb-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--pos, #3c9); }
+.bb-mark.hard { background: var(--neg); }
+.budget-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.budget-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.ext-exact { display: inline-flex; align-items: center; gap: 4px; }
+.ext-exact input { width: 5.5em; border: 1px solid var(--line); background: var(--sunk); color: inherit; border-radius: 6px; padding: 3px 6px; }
+.my-offers li { align-items: center; }

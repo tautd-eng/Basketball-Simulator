@@ -449,6 +449,13 @@ const capLimit = (N: number) => (N < 1985 ? 1.3 : 1.0);
 export const FA_CAP = 1.1;
 /** How far a team may go signing someone else's free agent (the old soft cap when the league has no hard cap). */
 const ceiling = (lg: League, N: number) => (hardCap(lg) < Infinity ? Math.min(hardCap(lg), FA_CAP) : capLimit(N));
+/** A team's room for free agents: payroll now, what its open offers would add, and the limit for other teams' free agents. */
+export function faBudget(lg: League, tid: string) {
+  const N = lg.season, pay = payroll(lg, tid);
+  const offers = (lg.offers ?? []).filter(o => o.tid === tid);
+  const open = offers.reduce((a, o) => a + o.sal, 0);
+  return { pay, open, limit: ceiling(lg, N), hard: hardCap(lg), room: ceiling(lg, N) - pay, after: ceiling(lg, N) - pay - open };
+}
 /** Mid-level exception (from 1995): what a team over the cap may pay one free agent per summer. */
 const MLE = 0.1;
 /** Salary floor: teams below it spend more freely in free agency and fill the gap with one-year deals. */
@@ -536,11 +543,11 @@ export function faDemand(lg: League, p: Player, tid: string, years?: number) {
 }
 
 /** Why the team cannot pay this salary, or null. Sets which exception is used. */
-function capCheck(lg: League, tid: string, p: Player, sal: number): { err: string | null; mle?: boolean } {
+function capCheck(lg: League, tid: string, p: Player, sal: number, reserve = 0): { err: string | null; mle?: boolean } {
   const N = lg.season;
   const t = lg.teams[tid];
   if (t.roster.length >= ROSTER_MAX) return { err: `Roster is full (${ROSTER_MAX}) – release a player first.` };
-  const pay = payroll(lg, tid);
+  const pay = payroll(lg, tid) + reserve; // reserve: room kept for the team's offers it ranked higher
   const room = ceiling(lg, N) - pay;
   const hc = hardCap(lg);
   if (pay + sal > hc + 1e-9 && !(sal <= MIN_SAL * 1.0001 && t.roster.length < ROSTER_MIN)) {
@@ -575,13 +582,21 @@ export function faOffer(lg: League, pid: string, sal: number, years?: number): {
   const cc = capCheck(lg, tid, p, sal);
   if (cc.err) return { ok: false, msg: cc.err };
   const yrs = Math.max(1, Math.min(5, Math.round(years ?? preferredYears(p, lg.season))));
+  const prev = (lg.offers ?? []).find(o => o.pid === pid && o.tid === tid);
+  const prio = prev?.prio ?? (lg.offers ?? []).filter(o => o.tid === tid).reduce((a, o) => Math.max(a, o.prio ?? 0), 0) + 1;
   lg.offers = (lg.offers ?? []).filter(o => !(o.pid === pid && o.tid === tid));
-  lg.offers.push({ pid, tid, sal, yrs, s: lg.season, day: lg.day, st: lg.fa?.stage });
+  lg.offers.push({ pid, tid, sal, yrs, s: lg.season, day: lg.day, st: lg.fa?.stage, prio });
   const need = faDemand(lg, p, tid, yrs);
   const when = lg.phase === 'freeagency' ? 'at the end of this wave' : 'tomorrow';
   return { ok: true, msg: `Offer made: ${yrs} yr${yrs > 1 ? 's' : ''} at ${(sal * 100).toFixed(1)}% of the cap. ${p.name} decides ${when}${sal + 1e-9 < need ? ` – it is under his number (${(need * 100).toFixed(1)}%), so he may say no` : ''}.` };
 }
 
+/** The order in which a team wants its open offers to go through when the room runs short (first = most wanted). */
+export function setOfferOrder(lg: League, tid: string, pids: string[]) {
+  for (const o of lg.offers ?? []) if (o.tid === tid) { const i = pids.indexOf(o.pid); o.prio = i < 0 ? 999 : i + 1; }
+}
+/** A team's open offers, most wanted first. */
+export const myOffers = (lg: League, tid: string | null) => (lg.offers ?? []).filter(o => o.tid === tid).sort((a, b) => (a.prio ?? 999) - (b.prio ?? 999));
 export const offersOn = (lg: League, pid: string) => (lg.offers ?? []).filter(o => o.pid === pid);
 export function withdrawOffer(lg: League, pid: string, tid = lg.userTid) { lg.offers = (lg.offers ?? []).filter(o => !(o.pid === pid && o.tid === tid)); }
 
@@ -590,6 +605,9 @@ function humanBids(lg: League, p: Player, rng: Rng, ask: number) {
   const out: { o: FAOfferRec; score: number; mle: boolean }[] = [];
   for (const o of offersOn(lg, p.id)) {
     if (!lg.teams[o.tid]?.active) continue;
+    // room is kept for the offers this team ranked higher (still open, for other players) – this one waits if they need it
+    const reserve = (lg.offers ?? []).filter(x => x.tid === o.tid && x.pid !== p.id && (x.prio ?? 999) < (o.prio ?? 999) && x.sal > MIN_SAL * 1.0001).reduce((a, x) => a + x.sal, 0);
+    if (reserve > 0 && capCheck(lg, o.tid, p, o.sal, reserve).err && !capCheck(lg, o.tid, p, o.sal).err) continue;
     const cc = capCheck(lg, o.tid, p, o.sal);
     if (cc.err) { lg.news.push({ s: lg.season, t: `${lg.teams[o.tid].name}: the offer to ${tagOf(p, lg.season)} no longer fits – ${cc.err}` }); withdrawOffer(lg, p.id, o.tid); continue; }
     const need = faDemand(lg, p, o.tid, o.yrs);
