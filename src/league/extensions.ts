@@ -45,7 +45,7 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
   sal = Math.max(MIN_SAL, sal);
   const hc = hardCap(lg);
   if (nextPayroll(lg, tid) + sal > hc + 1e-9) return { ok: false, msg: `You would exceed the hard cap next season (${Math.round(hc * 100)}% of the cap): ${Math.round(nextPayroll(lg, tid) * 100)}% is already committed.` };
-  if ((p.extNo ?? -1) > lg.day) return { ok: false, msg: `${p.name} turned down your last offer and is not talking for now – try again in ${p.extNo! - lg.day} days.` };
+  if ((p as any).extNoS === lg.season) return { ok: false, msg: `${p.name} turned down your offer and will not talk about an extension again – he goes to free agency.` };
   const { need, why, chance } = extensionChance(lg, p, tid, sal, years);
   if (chance <= 0) return { ok: false, msg: extensionChance(lg, p, tid, sal, years).out ? `${p.name} wants out – no contract would keep him; he is going to free agency.` : `${p.name} says no: he wants at least ${(need * 100).toFixed(1)}% of the cap for ${years} yrs${why.length ? ` (${why.join(', ')})` : ''}.` };
   if (chance < 1) {
@@ -54,8 +54,8 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
     const yes = rng.chance(chance);
     save(lg, rng);
     if (!yes) {
-      p.extNo = lg.day + 10;
-      return { ok: false, msg: `${p.name} turned it down (${Math.round(chance * 100)}% chance) – he wanted ${(need * 100).toFixed(1)}% of the cap. No more talks for 10 days.` };
+      (p as any).extNoS = lg.season; // no more talks this season: after the deadline he is a free agent
+      return { ok: false, msg: `${p.name} turned it down (${Math.round(chance * 100)}% chance) – he wanted ${(need * 100).toFixed(1)}% of the cap. He won't talk about an extension again this season and goes to free agency.` };
     }
   }
   p.ext = { sal, exp: lg.season + years };

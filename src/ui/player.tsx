@@ -180,7 +180,7 @@ export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
   const dol = showDollars(), $ = (x: number) => dollarsOf(x, lg.season + 1, true);
   const pc = (x: number) => `${(x * 100).toFixed(1)}%`;
   const bump = (dx: number) => setSal(Math.max(0.012, Math.min(max, Math.round((offer + dx) * 10000) / 10000)));
-  const cooling = (p.extNo ?? -1) > lg.day;
+  const cooling = (p as any).extNoS === lg.season;
   return (
     <div className="offer ext" role="group" aria-label={`Contract extension for ${p.name}`}>
       <div><b>Extend {compact ? (openPlayer ? <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> : p.name) : 'contract'}</b> <span className="dim">Contract ends this season. Market value (what he would ask in free agency): <b>{pc(est.ask)}</b> of the cap{dol ? ` (${$(est.ask)})` : ''} · max {pc(max)}.</span></div>
@@ -211,9 +211,9 @@ export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
         <button className="small ghost" onClick={() => setSal(null)}>His number</button>
       </div>
       <div className={`ext-chance ${cooling ? 'neg' : ch.chance >= 1 ? 'pos' : ch.chance > 0.4 ? 'mid' : 'neg'}`}>
-        {cooling ? <>He turned down your last offer – no talks for {p.extNo - lg.day} more days.</>
+        {cooling ? <>He turned down your offer – no more extension talks this season; he goes to free agency.</>
           : ch.chance >= 1 ? <>He signs – this is his number{offer > ch.need + 1e-4 ? ` (you are paying ${((offer - ch.need) * 100).toFixed(2)}% more than you need to)` : ''}.</>
-          : ch.chance > 0 ? <>A gamble: <b>{Math.round(ch.chance * 100)}%</b> he takes {((1 - offer / ch.need) * 100).toFixed(1)}% less than his number – the more he wants to stay, the more room there is. If he says no, he will not talk for 10 days.</>
+          : ch.chance > 0 ? <>A gamble: <b>{Math.round(ch.chance * 100)}%</b> he takes {((1 - offer / ch.need) * 100).toFixed(1)}% less than his number – the more he wants to stay, the more room there is. If he says no, talks are over for the season – he goes to free agency.</>
           : est.out ? <>He wants out: what he would ask to stay is more than a max contract – he is going to free agency.</>
           : <>He will not take this – {est.interest < 40 ? 'he is not sold on staying, so no discount at all.' : 'too far under his number.'}</>}
       </div>
