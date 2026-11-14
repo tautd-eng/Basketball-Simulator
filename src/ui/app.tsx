@@ -347,6 +347,8 @@ function App() {
           <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'} ${GROUP_START.has(k) ? 'gstart' : ''}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
         <div className="side-foot">
+          <button className="host-only" onClick={() => setShowSettings(true)}><TabIcon k="format" /><span className="tl">Season format</span></button>
+          {!octx && <button onClick={() => setShowHumans(true)}><TabIcon k="people" /><span className="tl">Players & teams</span></button>}
           <button onClick={() => setShowSaves(true)}><TabIcon k="saves" /><span className="tl">Saves</span></button>
           <button onClick={() => setShowOnline(true)}><TabIcon k="online" /><span className="tl">Online league</span></button>
           <button onClick={toMenu}><TabIcon k="menu" /><span className="tl">Main menu</span></button>
@@ -424,6 +426,8 @@ function TabIcon({ k }: { k: string }) {
     istorija: 'M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4',
     rungtynes: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
     gidas: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h11M8 8h6',
+    format: 'M4 5h16v15H4zM4 9h16M9 3v4M15 3v4',
+    people: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5c2.4.6 4 2.4 4 5.5',
     saves: 'M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7',
     online: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
     menu: 'M4 6h16M4 12h16M4 18h16',
