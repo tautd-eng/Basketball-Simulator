@@ -305,7 +305,14 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
   const act = (fn: () => any) => { const r = fn(); if (r?.msg) setMsg(r.msg); onChange(); };
   const N = lg.season;
   const u = lg.userTid ? lg.teams[lg.userTid] : null;
-  const pay = u ? payroll(lg, u.tid) : 0;
+  // before the decisions are confirmed: payroll and roster as your current choices would leave them
+  // (declined options and unsigned rookies off the books, tendered qualifying offers on them as cap holds)
+  const choice = (d: any) => d.choice ?? d.rec;
+  const myDec = fa.stage === 0 && u ? (fa.decisions ?? []).filter((d: any) => (d.tid ?? lg.userTid) === u.tid) : [];
+  const dropped = myDec.filter((d: any) => (d.kind === 'team' || d.kind === 'rookie') && lg.players[d.pid].tid === u!.tid && choice(d) === false);
+  const holds = myDec.filter((d: any) => d.kind === 'qo' && choice(d) === true);
+  const pay = u ? payroll(lg, u.tid) - dropped.reduce((a: number, d: any) => a + d.sal, 0) + holds.reduce((a: number, d: any) => a + d.sal, 0) : 0;
+  const nPlayers = u ? u.roster.length - dropped.length : 0;
   const capLim = N < 1985 ? 1.3 : 1.0;
   const pending = fa.stage === 1 ? fa.pending.map((pid: string) => lg.players[pid]).filter((p: any) => (p.bird ?? lg.userTid) === lg.userTid) : [];
   const top = Object.values(lg.players).filter((p: any) => isFreeAgent(lg, p)).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)).slice(0, 8);
@@ -363,7 +370,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
           </div>
           <p className="note">{fa.stage <= 3 ? STAGE_TXT[fa.stage] : 'Free agency is over. When the season starts, teams with fewer than 13 players will sign minimum deals, and teams with more than 15 will release their weakest.'}</p>
           {u && <div className="kv">
-            <div><span className="dim">{u.name}</span> {u.roster.length} players · payroll {Math.round(pay * 100)}% of the cap{usd(pay, N)} {hardCap(lg) < Infinity ? <> · room under the cap ({Math.round(hardCap(lg) * 100)}%): <b className={pay > hardCap(lg) ? 'neg' : ''}>{Math.round((hardCap(lg) - pay) * 100)}%</b></> : <> · cap space {Math.max(0, Math.round((capLim - pay) * 100))}%{N >= 1995 ? ` · mid-level exception ${fa.mle.includes(u.tid) ? 'used' : 'available'}` : ''}</>}</div>
+            <div><span className="dim">{u.name}</span> {nPlayers} players{fa.stage === 0 && (dropped.length || holds.length) ? <span className="dim"> (with your choices{holds.length ? `, incl. ${holds.length} qualifying offer${holds.length > 1 ? 's' : ''} as cap hold` : ''})</span> : ''} · payroll {Math.round(pay * 100)}% of the cap{usd(pay, N)} {hardCap(lg) < Infinity ? <> · room under the cap ({Math.round(hardCap(lg) * 100)}%): <b className={pay > hardCap(lg) ? 'neg' : ''}>{Math.round((hardCap(lg) - pay) * 100)}%</b></> : <> · cap space {Math.max(0, Math.round((capLim - pay) * 100))}%{N >= 1995 ? ` · mid-level exception ${fa.mle.includes(u.tid) ? 'used' : 'available'}` : ''}</>}</div>
           </div>}
           <div className="def-row">
             {fa.stage <= 3
@@ -382,8 +389,6 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
             {(() => {
               const u = lg.userTid, hc = hardCap(lg);
               if (!u || hc === Infinity) return null;
-              const off = decisions.filter((d: any) => (d.kind === 'team' || d.kind === 'rookie') && lg.players[d.pid].tid === u && (d.choice ?? d.rec) === false).reduce((a: number, d: any) => a + d.sal, 0);
-              const pay = payroll(lg, u) - off;
               return <p className={pay > hc ? 'hint warn-t' : 'note'}>Payroll with these choices: <b>{Math.round(pay * 100)}%</b> of the cap (hard cap {Math.round(hc * 100)}%).{pay > hc ? ' Over the hard cap – trade salary away or decline an option before you confirm.' : ''}</p>;
             })()}
             <p className="note">Team option – whether to keep the player next season at the salary in his contract. Rookie contract – sign your draft pick to his rookie deal, or let him go (no money on your books, he becomes a free agent). Qualifying offer – if you tender it, the player becomes a restricted free agent: you can match other teams' offers, and if nobody offers, he plays for you for one year at this amount. If you don't choose, the GM decides (his recommendation is marked).</p>
