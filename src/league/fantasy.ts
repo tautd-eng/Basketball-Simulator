@@ -1,6 +1,7 @@
 // Fantasy draft: every player of the starting season's league goes into one pool and the
 // teams build new rosters in a snake draft. AI teams pick by value and need.
 import { League, Player } from '../types';
+import { hash01 } from '../rng';
 import { isHuman, handTo } from './humans';
 import { rngOf, beginFirstSeason } from './league';
 import { askingSalary, contractYears, MIN_SAL, hardCap, payroll } from '../ai/value';
@@ -105,6 +106,12 @@ export function fantasyAdvance(lg: League, all = false) {
   if (!on) fantasyFinish(lg);
 }
 
+/** The contract a player signs with the team that drafts him in a fantasy draft: his market value, for a length set
+ *  by his age (the same as shown in the draft room before you pick him). */
+export function fantasyContract(p: Player, season: number) {
+  return { sal: askingSalary(p, season), exp: season - 1 + Math.max(1, contractYears(p, season, () => hash01(p.id + 'fyrs'))) };
+}
+
 export function fantasyFinish(lg: League) {
   const f = lg.fantasy!;
   if (f.done) return;
@@ -112,7 +119,7 @@ export function fantasyFinish(lg: League) {
   const rng = rngOf(lg);
   // new contracts for drafted players; the rest become free agents
   for (const p of Object.values(lg.players)) {
-    if (p.tid) p.contract = { sal: askingSalary(p, lg.season), exp: lg.season - 1 + Math.max(1, contractYears(p, lg.season, () => rng.next())) };
+    if (p.tid) p.contract = fantasyContract(p, lg.season);
     else p.contract = { sal: MIN_SAL, exp: lg.season };
   }
   lg.rng = [...rng.s] as any;

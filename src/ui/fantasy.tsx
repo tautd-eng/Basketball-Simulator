@@ -5,7 +5,8 @@ import { canRun } from '../league/humans';
 import { run } from '../league/commands';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf } from '../data';
 import { ageIn } from '../players';
-import { fantasyTidAt, fantasyOnClock, fantasyPool, fantasyUserPick, fantasyAdvance, fantasyStep } from '../league/fantasy';
+import { money } from './money';
+import { fantasyContract, fantasyTidAt, fantasyOnClock, fantasyPool, fantasyUserPick, fantasyAdvance, fantasyStep } from '../league/fantasy';
 import { AutoControls, useAutoPlay } from './draftday';
 import { posNum } from '../engine/game';
 import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
@@ -39,6 +40,8 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
     { key: 'pos', label: 'Pos', title: 'Position', get: (p: any) => posNum(p.pos), fmt: (_: any, p: any) => <span className="dim">{p.pos}</span> },
     { key: 'age', label: 'Age', title: 'Age', asc: true, get: (p: any) => ageIn(p, lg.season) },
     { key: 'ovr', label: 'OVR', title: 'Overall', get: (p: any) => ovrOf(p.z, p.id), fmt: (v: any) => <b>{v}</b> },
+    { key: 'sal', label: 'Contract', title: 'The contract he signs with the team that drafts him: share of the cap per season, and the years', get: (p: any) => fantasyContract(p, lg.season).sal,
+      fmt: (v: any, p: any) => { const c = fantasyContract(p, lg.season), y = c.exp - lg.season + 1; return <span title={`${money(v, lg.season)} a season through ${c.exp - 1}–${String(c.exp).slice(2)}`}>{money(v, lg.season)} <span className="dim">· {y} yr{y > 1 ? 's' : ''}</span></span>; } },
     ...attrCols((p: any) => p, lg.season),
     { key: 'act', label: '', get: () => 0, fmt: (_: any, p: any) => myTurn ? <button className="small primary" onClick={() => act(() => { run(lg, { t: 'fantasyPick', pid: p.id }); })}>Pick</button> : null },
   ];
