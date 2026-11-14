@@ -65,13 +65,13 @@ export function userExtend(lg: League, pid: string, sal: number, years: number):
 }
 
 /** AI teams try to extend the players they want to keep, a few at a time through the season. */
-export function aiExtensions(lg: League, rng: Rng) {
+export function aiExtensions(lg: League, rng: Rng, chance = 0.12) {
   const N = lg.season + 1;
   for (const t of Object.values(lg.teams)) {
     if (!t.active || isHuman(lg, t.tid)) continue;
     const ranked = t.roster.map(pid => lg.players[pid]).sort((a, b) => playerValue(b, N, t.strategy) - playerValue(a, N, t.strategy));
     for (const p of ranked) {
-      if (!extendable(lg, p) || refuses(p, t.tid) || !rng.chance(0.12)) continue;
+      if (!extendable(lg, p) || refuses(p, t.tid) || !rng.chance(chance)) continue;
       const rank = ranked.indexOf(p);
       if (rank >= 7) continue;
       if (t.strategy === 'rebuild' && ageIn(p, N) >= 30) continue;

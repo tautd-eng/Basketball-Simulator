@@ -9,7 +9,7 @@ import { League, Player } from '../types';
 import { ageIn } from '../players';
 import { bpmOf, shownOvr } from '../data';
 import { peakShown } from '../ai/plan';
-import { teamStrength, askingSalary, maxSalary, askAtBpm, peakBpm } from '../ai/value';
+import { teamStrength, askingSalary, maxSalary, askAtBpm, peakBpm, maxPlayer } from '../ai/value';
 
 export interface Traits { money: number; win: number; role: number; loyal: number; market: number }
 
@@ -156,7 +156,8 @@ export function extensionNeed(lg: League, p: Player, tid: string, years: number)
   const len = L.len, young = L.young;
   if (L.why) why.push(L.why);
   const raw = ask * (1 - stay) * (1 - len) * young;
-  const need = Math.max(0.012, Math.min(max, raw));
+  // a max player wants the max – no hometown discount, whatever the length
+  const need = maxPlayer(p, N) ? max : Math.max(0.012, Math.min(max, raw));
   const parts = [
     { t: interest >= 50 ? 'wants to stay – hometown discount' : 'not keen on staying – wants more', pct: -stay },
     { t: age >= 30 ? 'contract length (security for a veteran)' : 'contract length', pct: -len },

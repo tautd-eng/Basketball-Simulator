@@ -19,10 +19,7 @@ import { rookieContract, vetContract, rfaEligible, qoAmount, worthKeeping, optsO
 import { discount, offerUtility, lengthPrice, preferredYears, reasons } from './prefs';
 import { pickOwner, ensurePicks, aiTradeRound, isFreeAgent, complyHardCap, aiDraftTrade, boardScore, settlePickRights, clearRoom, worthTo } from '../ai/trades';
 import { keeps, refreshPlans } from '../ai/plan';
-import {
-  askingSalary, contractYears, payroll, playerValue, peakBpm, MIN_SAL, zClamp, projectBpm, maxSalary, hardCap, vetMin,
-  deadPay, releaseDead,
-} from '../ai/value';
+import { askingSalary, contractYears, payroll, playerValue, peakBpm, MIN_SAL, zClamp, projectBpm, maxSalary, hardCap, vetMin, deadPay, releaseDead, maxPlayer } from '../ai/value';
 
 const save = (lg: League, r: Rng) => { lg.rng = [...r.s] as any; };
 const ROSTER_MAX = 15, ROSTER_MIN = 13;
@@ -543,6 +540,7 @@ const seasonLabelOf = (s: number) => `${s - 1}–${String(s).slice(2)}`;
 export function faDemand(lg: League, p: Player, tid: string, years?: number) {
   const N = lg.season;
   const stage = lg.phase === 'freeagency' ? Math.max(1, Math.min(3, lg.fa?.stage ?? 3)) : 4;
+  if (maxPlayer(p, N)) return maxSalary(p, N); // a max player asks for the max, whatever the team or the wave
   const ask = askingSalary(p, N) * STAGE_MULT[stage];
   const mult = years ? lengthPrice(p, N, years, Math.min(maxSalary(p, N), askingSalary(p, N))).mult : 1;
   return Math.max(MIN_SAL, Math.min(maxSalary(p, N), ask * (1 - discount(lg, p, tid)) * mult));
@@ -1067,7 +1065,7 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     let sal = 0, mle = false, needRoom = false;
     // a team pays what he asks of it: less where he wants to play, more where he does not
     const dT = discount(lg, p, t.tid);
-    const askT = Math.min(max, ask * (1 - dT));
+    const askT = maxPlayer(p, N) ? max : Math.min(max, ask * (1 - dT)); // a max player gets the max from anyone who wants him
     // his own team, and he does not want to stay: it pays the premium only for a player it builds around
     if (dT < -0.2 && p.bird === t.tid && !keeps(lg, t.tid, p)) continue;
     const underFloor = pay < FLOOR;
@@ -1513,6 +1511,8 @@ function aiTeamOption(lg: League, t: Team, p: Player, Y: number, log: FreeAgency
 }
 
 
+/** Computer teams play by the people's rules: no re-signing before the market (extensions until the trade deadline). */
+export const RULES = { same: true };
 /** AI teams decide on their expiring contracts; the user's expiring players are returned (re-signing window). */
 function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonNullable<FreeAgency['decisions']>): string[] {
   const Y = lg.season, N = Y + 1;
@@ -1541,7 +1541,7 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
     const ranked = t.roster.map(pid => lg.players[pid]).sort((a, b) => playerValue(b, Y + 1, t.strategy) - playerValue(a, Y + 1, t.strategy));
     for (const p of expiring) {
       const own = discount(lg, p, t.tid);
-      const ask = Math.min(maxSalary(p, N), askingSalary(p, N) * (1 - own));
+      const ask = maxPlayer(p, N) ? maxSalary(p, N) : Math.min(maxSalary(p, N), askingSalary(p, N) * (1 - own));
       const rank = ranked.indexOf(p);
       const v = playerValue(p, Y + 1, t.strategy);
       const worth = v / Math.max(MIN_SAL, ask);
@@ -1550,13 +1550,13 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
       // will he stay? the more he likes the team (winning, role, loyalty), the likelier
       const accepts = !refuses(p, t.tid) && rng.chance(Math.max(0.15, Math.min(0.95, 0.6 + 2 * own)));
       // a core player who wants to stay is not let go over money: the team clears room (trades or releases contracts it can do without)
-      if (!wants && accepts && rank < 9 && worth > 6 && keeps(lg, t.tid, p)) {
+      if (!RULES.same && !wants && accepts && rank < 9 && worth > 6 && keeps(lg, t.tid, p)) {
         const nextPay = () => t.roster.map(pid => lg.players[pid]).filter(x => x.contract.exp > Y).reduce((a, x) => a + x.contract.sal, 0) + deadPay(lg, t.tid, N);
         clearRoom(lg, t, () => budget - nextPay() - ask, worthTo(lg, p, t.tid), Y + 1, `to make room to re-sign ${p.name}`);
         pay = nextPay();
         wants = pay + ask <= budget;
       }
-      if (wants && accepts) {
+      if (wants && accepts && !RULES.same) {
         p.contract = vetContract(p, N, ask, contractYears(p, N, () => rng.next()), rng);
         lockTrade(lg, p);
         pay += ask;
@@ -1564,8 +1564,9 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
       } else {
         t.roster = t.roster.filter(pid => pid !== p.id);
         p.tid = null;
-        // the team wanted him but he tests the market: it keeps his Bird rights and may bid over the cap in free agency
-        if (wants && !rfaEligible(p, N, lg) && !refuses(p, t.tid)) p.bird = t.tid;
+        // the team wants him: he is on the market like everyone (the same rules as for people) – the team keeps his
+        // Bird rights and may bid over the cap in free agency
+        if ((wants || (RULES.same && rank < 9 && worth > 6)) && !rfaEligible(p, N, lg) && !refuses(p, t.tid)) p.bird = t.tid;
         // restricted free agent: a qualifying offer keeps the right to match
         if (rfaEligible(p, N, lg) && worthKeeping(lg, p, qoAmount(p), N, t.strategy)) {
           p.rfa = t.tid; p.qo = qoAmount(p);

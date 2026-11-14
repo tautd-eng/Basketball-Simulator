@@ -73,6 +73,11 @@ export function askingSalary(p: Player, season: number) {
   return Math.min(maxSalary(p, season), Math.max(vetMin(p, season), SAL_K * Math.pow(b, SAL_EXP)));
 }
 
+/** A max player: his market value reaches the maximum – he asks for the max from everyone, always (no discounts). */
+export function maxPlayer(p: Player, season: number) {
+  return askingSalary(p, season) >= maxSalary(p, season) * 0.97;
+}
+
 /** What a player of this level (BPM) would ask – e.g. at his projected peak, for a long deal signed young. */
 export function askAtBpm(p: Player, season: number, bpm: number) {
   const b = Math.max(0, bpm + hiddenBoost(p.id) - REPL);

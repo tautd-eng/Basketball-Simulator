@@ -549,6 +549,8 @@ function regularDayEnd(lg: League, day: number, rng: Rng) {
   if (day % 4 === 3 && !pastDeadline(lg)) aiTradeRound(lg, rng, 0.75);
   if (pastDeadline(lg)) expireAiOffers(lg); // the deadline closes every open trade offer
   if (day % 10 === 5) aiExtensions(lg, rng);
+  // the trade deadline is also the last day to extend: front offices make their final calls
+  if (day === deadlineDay(lg)) aiExtensions(lg, rng, 0.75);
   // GMs settle on a plan early and take a last look three weeks before the deadline, so buyers and sellers are set for the rush
   const dlDay = deadlineDay(lg);
   if ((day % 12 === 8 && day < dlDay - 20) || day === dlDay - 20) updateModes(lg);
