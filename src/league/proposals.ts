@@ -1,6 +1,6 @@
 // Hot seat: trade offers between two human-run teams wait in the other team's inbox until that team is played.
 import { League, Proposal, TradeAsset } from '../types';
-import { tradeRules, executeTrade, fillRoster, pickUsed, describeAssets } from '../ai/trades';
+import { tradeRules, executeTrade, fillRoster, pickUsed, describeAssets, pastDeadline } from '../ai/trades';
 import { isHuman } from './humans';
 
 const owned = (lg: League, tid: string, xs: TradeAsset[]) => xs.every(x =>
@@ -46,5 +46,7 @@ export const describeSide = (lg: League, xs: TradeAsset[]) => (xs.length ? descr
 /** Computer teams' offers that have run out: a few days in the season, or the end of the stage it was made in. */
 export function expireAiOffers(lg: League) {
   if (!lg.proposals?.length) return;
+  // past the trade deadline (and through the playoffs) every open offer is off the table – people's too
+  if ((lg.phase === 'regular' && pastDeadline(lg)) || lg.phase === 'playoffs') { lg.proposals = []; return; }
   lg.proposals = lg.proposals.filter(pr => !pr.ai || (pr.s === lg.season && pr.phase === lg.phase && (pr.exp === undefined || lg.day <= pr.exp) && !proposalProblem(lg, pr)));
 }

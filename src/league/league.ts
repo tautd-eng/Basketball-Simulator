@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { newPlayer, ageIn, realTarget, prospectZ, tagOf, snapRatings } from '../players';
 import { buildClasses, ClassMode, FutureMode } from './classes';
+import { expireAiOffers } from './proposals';
 import { ROSTERS_2027, INACTIVE_2027, OUT_2027, RETIRED_2027, EXPERT_2027, EXPERT_PULL, registerNew2027 } from '../rosters2027';
 import { rookieContract } from './contracts';
 import { nextCal, fatigueAt, addLoad, fatigueExcess, calDay } from './fatigue';
@@ -544,6 +545,7 @@ function regularDayEnd(lg: League, day: number, rng: Rng) {
   if (lg.schedule.some(g => !g.done && g.day === day)) return;
   resolveOffersInSeason(lg, rng); // free agents answer the offers people made them
   if (day % 4 === 3 && !pastDeadline(lg)) aiTradeRound(lg, rng, 0.75);
+  if (pastDeadline(lg)) expireAiOffers(lg); // the deadline closes every open trade offer
   if (day % 10 === 5) aiExtensions(lg, rng);
   // GMs settle on a plan early and take a last look three weeks before the deadline, so buyers and sellers are set for the rush
   const dlDay = deadlineDay(lg);

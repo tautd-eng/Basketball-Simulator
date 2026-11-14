@@ -2,6 +2,7 @@
 // (so the page stays responsive) and saving to the browser.
 import { League } from './types';
 import { bioOf } from './players';
+import { expireAiOffers } from './league/proposals';
 import { H } from './data';
 import { simDay, awaitingPlayoffs, currentRound, checkRosters } from './league/league';
 import { initDraft, draftAdvance, enterFreeAgency, faStage, startSeason, offStep, offRetire, offDevelop } from './league/offseason';
@@ -157,6 +158,7 @@ function migrate(lg: League) {
     if (hp?.b) continue;
     p.born = bioOf(base, hp, p.draft?.year ?? lg.season).born;
   }
+  expireAiOffers(lg); // offers left open past the trade deadline by older versions
   checkRosters(lg); // older saves: duplicate names, players on two rosters
   // older saves: the opening contracts marked every player as on his first (rookie) deal
   if (!(lg as any).rookieFix) {
