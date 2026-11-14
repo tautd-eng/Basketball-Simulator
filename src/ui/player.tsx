@@ -20,6 +20,7 @@ import { seasonInfo } from '../data';
 import { describeLog, recallStash } from '../league/offseason';
 import { PFace, SKINS, HAIR_STYLES, FACIAL_STYLES, faceOf } from './art';
 import { RoleCard } from './roles';
+import { ExactPct } from './offseason';
 
 /** Small editor for the generated portrait (saved with the league). */
 function FaceEditor({ p, season, onChange }: any) {
@@ -205,6 +206,8 @@ export function ExtensionBox({ lg, p, onChange, compact, openPlayer }: any) {
         <b className="ext-amt">{(offer * 100).toFixed(2)}% {dol && <span className="dim">· {$(offer)}</span>}</b>
         <button className="small" onClick={() => bump(0.0025)} aria-label="a quarter percent more">+¼</button>
         <button className="small" onClick={() => bump(0.01)} aria-label="1% of the cap more">+1%</button>
+        <ExactPct value={offer} min={0.012} max={max} onSet={(v: number) => setSal(v)} />
+        <button className="small" onClick={() => setSal(max)}>Max</button>
         <button className="small ghost" onClick={() => setSal(null)}>His number</button>
       </div>
       <div className={`ext-chance ${cooling ? 'neg' : ch.chance >= 1 ? 'pos' : ch.chance > 0.4 ? 'mid' : 'neg'}`}>

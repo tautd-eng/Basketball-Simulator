@@ -815,7 +815,7 @@ function MyOffers({ lg, onChange, setSel, setMsg }: any) {
 }
 
 /** Type an exact share of the cap (applied on Enter or when the field loses focus; kept within min…max). */
-function ExactPct({ value, min, max, onSet }: any) {
+export function ExactPct({ value, min, max, onSet }: any) {
   const [txt, setTxt] = useState<string | null>(null);
   const apply = () => { if (txt == null) return; const v = parseFloat(txt.replace(',', '.')) / 100; if (Number.isFinite(v) && v > 0) onSet(Math.max(min, Math.min(max, Math.round(v * 10000) / 10000))); setTxt(null); };
   return <label className="ext-exact">exact <input inputMode="decimal" value={txt ?? (value * 100).toFixed(2)} onChange={e => setTxt(e.target.value)} onBlur={apply} onKeyDown={e => { if (e.key === 'Enter') apply(); }} aria-label="Offer, % of the cap" />%</label>;
