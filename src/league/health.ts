@@ -237,13 +237,23 @@ export function performanceShift(lg: League, Y: number) {
     const d = out.get(p.id)!.dz;
     for (let k = 0; k < NK; k++) d[k] += PERF.overall * bpmShift * w * OVR_DIR[k];
   });
-  for (const { p } of lines) {
+  for (const { p, l } of lines) {
     const d = out.get(p.id)!;
     d.dz[K.def] += 0.3 * (d.dz[K.stl] + d.dz[K.blk] + d.dz[K.drb]) / 3;
     d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z);
+    // small minutes say little: a good stretch in garbage time or as the tenth man is no proof he got better, and a
+    // reserve on a deep team is not punished for his role – the signal counts in full only in a real rotation role
+    const f = minutesTrust(l.min / Math.max(1, l.gp), d.ovrGain > 0);
+    if (f < 1) { for (let k = 0; k < NK; k++) d.dz[k] *= f; d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z); }
   }
   return out;
 }
+/** How much a season's signal counts by minutes per game: a step up only from ~15 mpg (in full from ~30),
+ *  a step down a little from the start, in full from ~26 mpg. */
+export const minutesTrust = (mpg: number, up: boolean) => up
+  ? (mpg < MPG.upFrom ? 0 : MPG.upMin + (1 - MPG.upMin) * Math.min(1, (mpg - MPG.upFrom) / (MPG.upFull - MPG.upFrom)))
+  : MPG.downMin + (1 - MPG.downMin) * Math.min(1, Math.max(0, (mpg - MPG.downFrom) / (MPG.downFull - MPG.downFrom)));
+export const MPG = { upFrom: 15, upMin: 0.35, upFull: 30, downFrom: 10, downMin: 0.25, downFull: 26 };
 const gameScore = (l: StatLine) => l.pts + 0.4 * l.fgm - 0.7 * l.fga - 0.4 * (l.fta - l.ftm) + 0.7 * l.orb + 0.3 * l.drb + l.stl + 0.7 * l.ast + 0.7 * l.blk - 0.4 * l.pf - l.tov;
 
 export function develop(lg: League, rng: Rng) {
