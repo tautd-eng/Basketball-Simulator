@@ -542,6 +542,14 @@ const seasonLabelOf = (s: number) => `${s - 1}–${String(s).slice(2)}`;
  * a little less), never more than his value; with several teams able to pay it, a little more. Max players ask for
  * the max regardless.
  */
+/**
+ * The team with his Bird rights can offer more than anyone else (a year more, bigger raises) – worth about a tenth of
+ * the deal to him; together with knowing the place it keeps most good players at home unless another team is clearly
+ * better for him. The same edge for people's teams and the computer's.
+ */
+const birdEdge = (p: Player, tid: string) => (p.bird === tid ? 0.1 : 0);
+/** How far a thin market can bring a free agent's expectation down in each wave (share of his value). */
+const MKT_FLOOR = [1, 0.85, 0.75, 0.6];
 export function readMarket(lg: League) {
   const fa = lg.fa;
   if (!fa || fa.stage < 1 || fa.stage > 3) return;
@@ -566,11 +574,16 @@ export function readMarket(lg: League) {
     can.sort((a, b) => b.amt - a.amt);
     const atValue = can.filter(c => c.amt >= value).length;
     const second = can.length >= 2 ? can[1].amt : can.length ? can[0].amt * 0.85 : floor;
-    let price = Math.min(value * (atValue >= 3 ? 1.08 : 1), second);
+    // his own team holds his Bird rights and can pay him: it keeps him at his value – the market does not pull him down
+    const own = p.bird ? can.find(c => c.tid === p.bird && c.amt >= value) : undefined;
+    let price = own ? value : Math.min(value * (atValue >= 3 ? 1.08 : 1), second);
+    // a thin market lowers what he expects, but only so far in each wave (he would rather wait for the next one)
+    price = Math.max(price, value * MKT_FLOOR[stage]);
     price = Math.max(floor, Math.min(max, price));
     fa.mkt[p.id] = Math.round(price * 10000) / 10000; fa.mktN[p.id] = atValue;
-    // he will most likely sign where the most room is: that room is spoken for when the next player looks
-    if (can.length) { const t = can[0].tid; room.set(t, room.get(t)! - price); spots.set(t, spots.get(t)! - 1); }
+    // where he will most likely sign: his own team if it can keep him (over the cap, Bird rights), else where the most room is
+    const buyer = own ?? can[0];
+    if (buyer) { const t = buyer.tid; if (!own) room.set(t, room.get(t)! - price); spots.set(t, spots.get(t)! - 1); }
   }
 }
 /** What he expects this wave: the market's read (non-max players), else his value lowered by the wave. */
@@ -661,7 +674,7 @@ function humanBids(lg: League, p: Player, rng: Rng, ask: number) {
     if (cc.err) { lg.news.push({ s: lg.season, t: `${lg.teams[o.tid].name}: the offer to ${tagOf(p, lg.season)} no longer fits – ${cc.err}` }); withdrawOffer(lg, p.id, o.tid); continue; }
     const need = faDemand(lg, p, o.tid, o.yrs);
     if (o.sal + 1e-9 < need && !(o.sal >= need * 0.93 && rng.chance(0.35))) continue;
-    out.push({ o, score: offerUtility(lg, p, o.tid, o.sal, ask, o.yrs) + 0.06 * rng.normal(), mle: !!cc.mle });
+    out.push({ o, score: offerUtility(lg, p, o.tid, o.sal, ask, o.yrs) + birdEdge(p, o.tid) + 0.06 * rng.normal(), mle: !!cc.mle });
   }
   return out.sort((a, b) => b.score - a.score);
 }
@@ -910,7 +923,7 @@ function bestBid(lg: League, p: Player, rng: Rng, skip?: string, clear = false):
     const twelfth = vals[Math.min(vals.length, 12) - 1] ?? 0;
     if (t.roster.length >= ROSTER_MIN && playerValue(p, N, t.strategy) <= twelfth) continue;
     if (!worthKeeping(lg, p, sal, N, t.strategy)) continue;
-    const score = offerUtility(lg, p, t.tid, sal, ask, yrs) + 0.05 * rng.normal() - (need ? 0.1 : 0);
+    const score = offerUtility(lg, p, t.tid, sal, ask, yrs) + birdEdge(p, t.tid) + 0.05 * rng.normal() - (need ? 0.1 : 0);
     bids.push({ t, sal, yrs, score, cut, need });
   }
   bids.sort((a, b) => b.score - a.score);
@@ -1142,7 +1155,7 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     // (a star still in his prime is not a veteran to avoid – he is the kind of player a rebuild is for)
     if (t.mode === 'tank' && ageIn(p, N) > 27 && sal > MIN_SAL * 2.5 && !(shownOvr(p.z, p.id) >= 85 && ageIn(p, N) <= 30)) continue;
     // the player picks the offer he likes best: money against his ask, plus the team's appeal to him
-    const score = offerUtility(lg, p, t.tid, sal, ask, yrsOffer) + 0.06 * rng.normal();
+    const score = offerUtility(lg, p, t.tid, sal, ask, yrsOffer) + birdEdge(p, t.tid) + 0.06 * rng.normal();
     offers.push({ t, sal, score, mle, cut, needRoom });
   }
   return offers;
@@ -1192,6 +1205,17 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
     // early on, some players wait for a better market
     if (!rng.chance(STAGE_SIGN[stage] + (offers.length >= 3 ? 0.1 : 0))) continue;
     offers.sort((a, b) => b.score - a.score);
+    // his old team (Bird rights) wants him back: it pays what the market pays – it meets the best other offer if it can
+    // stay under its Bird limit, and with the edge of his own team that usually keeps him
+    const mine = offers.find(o => o.t.tid === p.bird);
+    if (mine && offers[0] !== mine && (keeps(lg, mine.t.tid, p) || playerValue(p, N, mine.t.strategy) / Math.max(MIN_SAL, offers[0].sal) > 10)) {
+      const top = Math.max(...offers.filter(o => o !== mine).map(o => o.sal));
+      if (top > mine.sal && payroll(lg, mine.t.tid) + top <= Math.min(hardCap(lg), pre ? 1.6 : 1.45)) {
+        mine.score += offerUtility(lg, p, mine.t.tid, top, ask, yrsOffer) - offerUtility(lg, p, mine.t.tid, mine.sal, ask, yrsOffer);
+        mine.sal = top;
+        offers.sort((a, b) => b.score - a.score);
+      }
+    }
     // he picked his own team's offer: now it makes the room (or, if it cannot, he takes the next best)
     while (offers[0]?.needRoom) {
       const x = offers[0], lim = Math.min(hardCap(lg), pre ? 1.6 : 1.45);
