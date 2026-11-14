@@ -27,14 +27,27 @@ export function applyTeamTheme(tid: string | null | undefined, abbr?: string) {
   root.style.setProperty('--team2-ink', lum(other) > 0.6 ? '#111111' : '#ffffff');
   // the whole page takes the team's tint: background, panels, insets and lines
   const base = dark ? { bg: [13, 19, 32], surface: [21, 29, 44], sunk: [17, 24, 39], line: [37, 48, 72] } : { bg: [238, 241, 246], surface: [255, 255, 255], sunk: [246, 248, 251], line: [217, 223, 233] };
-  const tint = (b: number[], t: number) => toHex(mix(b, p, t));
-  root.style.setProperty('--bg', tint(base.bg, dark ? 0.16 : 0.13));
-  root.style.setProperty('--surface', tint(base.surface, dark ? 0.08 : 0.035));
-  root.style.setProperty('--sunk', tint(base.sunk, dark ? 0.12 : 0.07));
-  root.style.setProperty('--line', tint(base.line, dark ? 0.22 : 0.18));
+  // (in dark mode the readable accent tints, so a navy or a black team still shows)
+  const tc = dark ? c : p;
+  const tint = (b: number[], t: number) => toHex(mix(b, tc, t));
+  root.style.setProperty('--bg', tint(base.bg, dark ? 0.3 : 0.24));
+  root.style.setProperty('--surface', tint(base.surface, dark ? 0.18 : 0.08));
+  root.style.setProperty('--sunk', tint(base.sunk, dark ? 0.24 : 0.14));
+  root.style.setProperty('--line', tint(base.line, dark ? 0.4 : 0.3));
   // the header in the team's own colour, its text readable on it
   const head = dark ? mix(p, [0, 0, 0], 0.35) : p;
   root.style.setProperty('--head-bg', toHex(head));
   root.style.setProperty('--head-ink', lum(head) > 0.6 ? '#111111' : '#ffffff');
   root.classList.add('team-theme');
 }
+
+// ---------------------------------------------------------------- light / dark
+type Mode = 'dark' | 'light' | 'system';
+export const themeMode = (): Mode => { try { const m = localStorage.getItem('theme'); return m === 'light' || m === 'system' ? m : 'dark'; } catch { return 'dark'; } };
+/** Dark by default; light, or the device's setting, if chosen in Preferences. */
+export function applyThemeMode(m: Mode = themeMode()) {
+  const root = document.documentElement;
+  if (m === 'system') delete root.dataset.theme; else root.dataset.theme = m;
+}
+export function setThemeMode(m: Mode) { try { localStorage.setItem('theme', m); } catch { /* ignore */ } applyThemeMode(m); }
+try { applyThemeMode(); } catch { /* no document (tests) */ }

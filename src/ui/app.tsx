@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { applyTeamTheme } from './teamtheme';
+import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
 import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
 import { htStr, htCol, htDiff, htUnit, setHtUnit } from './units';
 import { PlayoffPreviews, SeriesDialog } from './preview';
@@ -604,6 +604,9 @@ function PrefsScreen({ onBack }: any) {
         <button className="ghost small menu-back" onClick={onBack}>← Main menu</button>
         <h1>Preferences</h1>
         <label className="commish"><input type="checkbox" checked={showDollars()} onChange={e => { setShowDollars(e.target.checked); bump(x => x + 1); }} /> Show salaries in dollars too (that season's money). Off: everything is a share of the salary cap – the same in every era.</label>
+        <div className="field"><span>Theme</span>
+          <div className="seg">{([['dark', 'Dark'], ['light', 'Light'], ['system', 'Like my device']] as const).map(([k, t]) => <button key={k} className={themeMode() === k ? 'on' : ''} onClick={() => { setThemeMode(k); bump(x => x + 1); }}>{t}</button>)}</div>
+        </div>
         <div className="field"><span>Ratings in tables</span>
           <div className="seg">{([['letters', 'Letters (A+ … F)'], ['numbers', 'Numbers (0–99)']] as const).map(([k, t]) => <button key={k} className={gradeMode() === k ? 'on' : ''} onClick={() => { setGradeMode(k); bump(x => x + 1); }}>{t}</button>)}</div>
           <small>Draft, free agency, team and ranking tables. A player's profile always shows the numbers.</small>
