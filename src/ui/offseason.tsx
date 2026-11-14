@@ -12,7 +12,7 @@ import { run } from '../league/commands';
 import { RoleCell, roleSortKey, projectedZ } from './roles';
 import { money, usd, showDollars, dollarsOf } from './money';
 import { useMemo, useState } from 'react';
-import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf, seasonInfo, attrOf } from '../data';
+import { shownOvr as ovrOf, shownFromRaw, shownFromBpm, RATING_LABELS, ratingOf, seasonInfo, attrOf, perD, K } from '../data';
 import { ageIn } from '../players';
 import { peakBpm, payroll, askingSalary, MIN_SAL, maxSalary, hardCap } from '../ai/value';
 import { discount, reasons, preferredYears, lengthPrice, offerUtility } from '../league/prefs';
@@ -49,6 +49,25 @@ export const potLetter = (v: number) => POT_STEPS.find(([t]) => v >= t)![1];
 /** A potential column: the scouts' estimate as a letter grade (the number on hover). */
 export const potCol = (pOf: (r: any) => any, S: number) => ({ key: 'pot', label: 'Pot.', title: "Potential as the scouts see it – they can be wrong, especially about prospects; the real potential stays hidden", get: (r: any) => potOf(pOf(r), S),
   fmt: (v: number) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; } });
+/**
+ * The scouts' read on a prospect today: his current overall plus their error (his own, the same every time you
+ * look; smaller than for potential – they can watch him play), and how athletic he is – a physical profile from his
+ * game (drawing fouls, rebounds, steals, blocks, perimeter defense), which scouts see clearly.
+ */
+export const scoutNow = (p: any) => {
+  const h = (k: string) => hash01(p.id.split('~')[0] + k);
+  const n = (h('na') + h('nb') + h('nc') - 1.5) * 2;
+  return Math.max(30, Math.min(99, Math.round(ovrOf(p.z, p.id) + n * 3.5)));
+};
+export const athOf = (p: any) => {
+  const z = p.z, c = (z[K.drw] + z[K.orb] + z[K.drb] + z[K.stl] + z[K.blk] + 1.5 * perD(z, p.ht)) / 6.5;
+  return ratingOf(c * 2.5); // the composite varies little, so it is spread out to the usual 0–99 scale
+};
+/** Columns for prospects: what the scouts think he is now, and his athleticism. */
+export const scoutCols = (pOf: (r: any) => any) => [
+  { key: 'now', label: 'Now', title: 'His overall today as the scouts see it – an estimate, it can be a few points off (the real one shows once he is drafted)', get: (r: any) => scoutNow(pOf(r)), fmt: (v: number) => <span className="dim" title="Scouts' estimate">~{v}</span> },
+  { key: 'ath', label: 'Ath.', title: 'Athleticism: his physical game – drawing fouls, rebounding, steals, blocks and perimeter defense', get: (r: any) => athOf(pOf(r)), fmt: fmtAttr },
+];
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 /** Height and every rating, for lists where you choose players without opening their cards.
  *  `proj`: the ratings he projects to at his peak (the league's average development, skill by skill) instead of today's. */
@@ -146,6 +165,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
     { key: 'age', label: 'Age', asc: true, get: (p: any) => ageIn(p, d.year + 1) },
     { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts (his overall stays hidden until he is picked)', asc: true, get: (p: any) => p.draft?.realPick ?? 99 },
     potCol((p: any) => p, d.year + 1),
+    ...scoutCols((p: any) => p),
     ...(lg.userTid ? [{ key: 'my', label: 'My board', title: 'Your own board – + adds him, the number is his place on it', asc: true, get: (p: any) => { const i = boardOf(lg, d.year).indexOf(p.id); return i < 0 ? 999 : i; }, fmt: (_: any, p: any) => <BoardToggle lg={lg} year={d.year} pid={p.id} onChange={() => act(() => {})} /> }] : []),
     ...attrCols((p: any) => p, d.year + 1, proj),
     { key: 'act', label: '', get: () => 0, fmt: (_: any, p: any) => myTurn ? <button className={`small ${p.id === suggestion ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'draftPick', pid: p.id }))}>Pick</button> : null },

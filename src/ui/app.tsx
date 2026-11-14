@@ -49,7 +49,7 @@ import { StatsView } from './stats';
 import { Reporter } from './reporter';
 import { fantasyAdvance } from '../league/fantasy';
 import { Trades } from './trades';
-import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode, potCol } from './offseason';
+import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode, potCol, scoutCols } from './offseason';
 import { recallStash } from '../league/offseason';
 import { Rankings, offRating, defRating } from './rankings';
 import { fatigueAt, nextCal, fatigueExcess, fatigueLabel } from '../league/fatigue';
@@ -1496,9 +1496,10 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
     ...(yours ? [{ key: 'mine', label: 'Your board', title: 'Where your own scouts rank him (talent, their projection and your needs) – other teams do not see this', asc: true, get: (r: any) => r.mine }] : []),
     { key: 'name', label: 'Prospect', left: true, asc: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button> },
     ...(you ? [{ key: 'my', label: 'My board', title: 'Your own board – + adds him, the number is his place on it', asc: true, get: (r: any) => { const i = boardOf(lg, c.year).indexOf(r.p.id); return i < 0 ? 999 : i; }, fmt: (_: any, r: any) => <BoardToggle lg={lg} year={c.year} pid={r.p.id} onChange={changed} /> }] : []),
-    { key: 'pos', label: 'Pos', left: true, get: (r: any) => r.p.pos },
+    { key: 'pos', label: 'Pos', left: true, get: (r: any) => natural(r.p), fmt: (_: any, r: any) => posLabel(r.p) },
     { key: 'age', label: 'Age', get: (r: any) => Math.floor(c.year + 1 - r.p.born) },
     potCol((r: any) => r.p, c.year + 1),
+    ...scoutCols((r: any) => r.p),
     ...attrCols((r: any) => r.p, c.year + 1, proj),
   ];
   return (
