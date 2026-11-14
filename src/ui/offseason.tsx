@@ -550,10 +550,29 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
   const list = Object.values(lg.players).filter((p: any) => (isFreeAgent(lg, p) || (lg.fa?.stage === 1 && lg.fa.pending.includes(p.id))) && posOk(p, pos));
   const rows = list.map((p: any) => ({ key: p.id, p, l: lastLine(p), need: u ? faDemand(lg, p, u.tid, preferredYears(p, N)) : askingSalary(p, N) }));
   const pick = (r: any) => { setSel(r.p.id); setMsg(null); };
+  // who is interested in whom right now (AI teams that would make an offer, and people's offers) – the amounts stay secret
+  const [offersOf, setOffersOf] = useState<string | null>(null);
+  const fa = lg.fa;
+  const market = useMemo(() => {
+    const m = new Map<string, any[]>();
+    if (lg.phase !== 'freeagency' || !fa || fa.stage < 1 || fa.stage > 3) return m;
+    const top = Object.values(lg.players).filter((p: any) => isFreeAgent(lg, p)).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)).slice(0, 100);
+    for (const p of top as any[]) m.set(p.id, faOffersFor(lg, p));
+    return m;
+  }, [lg.phase, fa?.stage, fa?.log?.length, lg.trades?.length, (lg.offers ?? []).length]);
+  const interest = (p: any) => {
+    const ai = market.get(p.id);
+    const people = offersOn(lg, p.id).filter((o: any) => o.tid !== lg.userTid).map((o: any) => o.tid);
+    if (!ai && !people.length) return null;
+    return [...new Set([...(ai ?? []).map((o: any) => o.tid), ...people])].filter(t => t !== lg.userTid);
+  };
   const cols = [
     { key: 'name', label: 'Player', left: true, get: (r: any) => r.p.name, fmt: (v: any, r: any) => <><button className="link" onClick={() => openPlayer(r.p.id)}>{v}</button>{r.p.bird && r.p.bird === lg.userTid ? <span className="chip tiny">yours</span> : null}{offersOn(lg, r.p.id).some((o: any) => o.tid === lg.userTid) ? <span className="chip tiny on-clock" title="You made him an offer">offer made</span> : null}{r.p.rfa ? <span className="chip tiny rfa" title={`Restricted free agent: the ${lg.teams[r.p.rfa]?.name} can match an offer`}>RFA {lg.teams[r.p.rfa]?.abbr}</span> : null}</> },
     { key: 'need', label: 'Asks', title: 'What he asks from your team (for the length he would pick himself)', get: (r: any) => r.need, fmt: (v: any) => moneyOf(v, N) },
     ...(u ? [{ key: 'disc', label: 'For you', title: 'Discount he gives your team (+) or premium he wants (−) compared to his market price', get: (r: any) => discount(lg, r.p, u.tid), fmt: (v: any, r: any) => <span className={v > 0.02 ? 'pos' : v < -0.02 ? 'neg' : 'dim'} title={reasons(lg, r.p, u.tid).map(x => x.t).join('; ') || 'he doesn\'t mind either way'}>{v > 0 ? '+' : ''}{Math.round(v * 100)}%</span> }] : []),
+    ...(market.size ? [{ key: 'int', label: 'Interest', title: 'Teams interested in him – click to see who (what they offer stays secret until he signs)', left: true, get: (r: any) => interest(r.p)?.length ?? -1,
+      fmt: (_: any, r: any) => { const t = interest(r.p); if (!t) return <span className="dim">–</span>; if (!t.length) return <span className="dim">none</span>;
+        return <button className="link-btn" onClick={() => setOffersOf(r.p.id)}><b>{t.length}</b> <span className="chip tiny">interested</span></button>; } }] : []),
     { key: 'pos', label: 'Pos', get: (r: any) => posNum(r.p.pos), fmt: (_: any, r: any) => <span className="dim">{r.p.pos}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, N) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
@@ -584,6 +603,8 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
         <div className="def-row">
           <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
         </div>
+        {offersOf && <OffersDialog lg={lg} p={lg.players[offersOf]} offers={market.get(offersOf) ?? faOffersFor(lg, lg.players[offersOf])} close={() => setOffersOf(null)} openPlayer={openPlayer} />}
+        {sp && canSign && interest(sp) && <p className="hint">{interest(sp)!.length ? <>Competition for {sp.name}: <b>{interest(sp)!.length}</b> other team{interest(sp)!.length > 1 ? 's' : ''} interested – <button className="link-btn" onClick={() => setOffersOf(sp.id)}>see who</button>.</> : <>No other team is after {sp.name} right now.</>}</p>}
         {sp && canSign && <FAOfferBox key={sp.id} lg={lg} p={sp} onDone={(r: any) => { setMsg(r.msg); if (r.ok) setSel(null); onChange(); }} onCancel={() => setSel(null)} />}
         {msg && <p className="hint" role="status">{msg}</p>}
         <SortTable cols={cols} rows={rows} initial="ovr" limit={150} />
