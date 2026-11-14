@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { fmtAttr, defCols, gradeMode, setGradeMode } from './grades';
 import { htStr, htCol, htDiff, htUnit, setHtUnit } from './units';
 import { PlayoffPreviews, SeriesDialog } from './preview';
 import { forward } from '../league/commands';
@@ -595,6 +596,10 @@ function PrefsScreen({ onBack }: any) {
         <button className="ghost small menu-back" onClick={onBack}>← Main menu</button>
         <h1>Preferences</h1>
         <label className="commish"><input type="checkbox" checked={showDollars()} onChange={e => { setShowDollars(e.target.checked); bump(x => x + 1); }} /> Show salaries in dollars too (that season's money). Off: everything is a share of the salary cap – the same in every era.</label>
+        <div className="field"><span>Ratings in tables</span>
+          <div className="seg">{([['letters', 'Letters (A+ … F)'], ['numbers', 'Numbers (0–99)']] as const).map(([k, t]) => <button key={k} className={gradeMode() === k ? 'on' : ''} onClick={() => { setGradeMode(k); bump(x => x + 1); }}>{t}</button>)}</div>
+          <small>Draft, free agency, team and ranking tables. A player's profile always shows the numbers.</small>
+        </div>
         <div className="field"><span>Heights</span>
           <div className="seg">{([['m', 'Metres (2.01 m)'], ['ft', 'Feet and inches (6′7″)']] as const).map(([k, t]) => <button key={k} className={htUnit() === k ? 'on' : ''} onClick={() => { setHtUnit(k); bump(x => x + 1); }}>{t}</button>)}</div>
         </div>
@@ -1178,7 +1183,8 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
     { key: 'pot', label: 'Pot.', title: 'Potential', get: (r: any) => potOf(r.p, lg.season) },
     { key: 'off', label: 'Off', title: 'Offensive attribute rating (0–100, like OVR)', get: (r: any) => offRating(r.p) },
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
-    ...RATING_LABELS.map((L: any, i: number) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (tendency, not quality)' : ''), get: (r: any) => RT(r.p, i), cls: L.tendency ? 'dim' : '' })),
+    ...RATING_LABELS.map((L: any, i: number) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (tendency, not quality)' : ''), get: (r: any) => RT(r.p, i), cls: L.tendency ? 'dim' : '', ...(L.tendency ? {} : { fmt: fmtAttr }) })),
+    ...defCols((r: any) => r.p),
   ];
   return (
     <div className="panel">

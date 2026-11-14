@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
+import { fmtAttr, defCols } from './grades';
 import { PickBoard, OnClock } from './pickboard';
 import { htStr, htCol, htDiff } from './units';
 import { Linkify, PL, TL, nav } from './nav';
@@ -38,10 +39,11 @@ export function attrCols(pOf: (r: any) => any, S: number, proj = false) {
     htCol((r: any) => pOf(r).ht),
     ...RATING_LABELS.map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name + (L.tendency ? ' (a tendency, not a skill)' : '') + (proj ? ' – projected at his peak' : ''), get: (r: any) => attrOf(zOf(r), L), fmt: (v: any, r: any) => {
       if (L.tendency) return <span className="dim">{v}</span>;
-      if (!proj) return v;
+      if (!proj) return fmtAttr(v);
       const d = v - attrOf(pOf(r).z, L);
-      return <span title={`Now ${v - d}`}>{v}{d >= 3 ? <span className="pos small-t"> +{d}</span> : d <= -3 ? <span className="neg small-t"> {d}</span> : null}</span>;
+      return <span title={`Now ${v - d}`}>{fmtAttr(v)}{d >= 3 ? <span className="pos small-t"> +{d}</span> : d <= -3 ? <span className="neg small-t"> {d}</span> : null}</span>;
     } })),
+    ...defCols(pOf),
   ];
 }
 /** A "Sort by" picker for a draft table: every column that can sort, by its full name. */

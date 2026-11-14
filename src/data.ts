@@ -25,13 +25,13 @@ export const RATING_LABELS: { k: number; short: string; name: string; inv?: bool
   { k: K.ft, short: 'FT', name: 'Free throws' },
   { k: K.drw, short: 'Drw', name: 'Drawing fouls' },
   { k: K.ast, short: 'Pas', name: 'Passing' },
-  { k: K.tov, short: 'BH', name: 'Ball security', inv: true },
+  { k: K.tov, short: 'BH', name: 'Ball handling', inv: true },
   { k: K.orb, short: 'ORb', name: 'Offensive rebounding' },
   { k: K.drb, short: 'DRb', name: 'Defensive rebounding' },
   { k: K.stl, short: 'Stl', name: 'Steals' },
   { k: K.blk, short: 'Blk', name: 'Blocks' },
   { k: K.def, short: 'Def', name: 'Defense' },
-  { k: K.pf, short: 'Dis', name: 'Discipline', inv: true },
+  { k: K.pf, short: 'Fls', name: 'Foul discipline (how rarely he fouls)', inv: true },
   { k: K.usg, short: 'Usg', name: 'Usage', tendency: true },
   { k: K.tpr, short: '3PA%', name: 'Three-point tendency', tendency: true },
 ];
@@ -192,6 +192,12 @@ export function attrZ(z: number[], k: number): number {
     const vol = Math.max(0, Math.min(2, z[K.tpr] + 0.5 * z[K.usg]));
     const gate = Math.max(0, Math.min(1, (z[K.tp] + 0.5) / 1.5));
     return 0.75 * z[K.tp] + 0.25 * z[K.ft] + 0.4 * vol * gate;
+  }
+  if (k === K.tov) {
+    // ball handling: keeping the ball safe counts for most when he has it a lot (a creator), so security is
+    // weighed with how much of the offence he runs – a spot-up role player who rarely touches it is not a handler
+    const load = 0.3 * z[K.usg] + 0.7 * z[K.ast];
+    return 1.3 * (0.4 * z[K.tov] - 0.6 * load);   // in turnover terms (the label inverts it)
   }
   return z[k];
 }

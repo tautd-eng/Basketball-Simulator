@@ -1,6 +1,7 @@
 // @ts-nocheck
 // League-wide rankings: every player in the league sortable by any rating,
 // and power rankings of the teams (roster strength plus how they actually play).
+import { fmtAttr, defCols } from './grades';
 import { htStr, htCol, htDiff } from './units';
 import { TLogo, PFace } from './art';
 import { useNavState } from './nav';
@@ -78,7 +79,8 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
     { key: 'pot', label: 'Pot.', title: 'Potential – the level he can reach', get: (r: any) => potOf(r.p, S) },
     { key: 'off', label: 'Off', title: 'Offensive attribute rating (0–100, like OVR)', get: (r: any) => offRating(r.p) },
     { key: 'def', label: 'Def', title: 'Defensive attribute rating (0–100, like OVR)', get: (r: any) => defRating(r.p) },
-    ...RATING_LABELS.slice(0, 12).map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name, get: (r: any) => R(r.p, i) })),
+    ...RATING_LABELS.slice(0, 12).map((L, i) => ({ key: 'r' + i, label: L.short, title: L.name, get: (r: any) => R(r.p, i), fmt: fmtAttr })),
+    ...defCols((r: any) => r.p),
     { key: 'pts', label: 'Pts', title: inSeason ? 'This season, per game' : 'Last season, per game', get: (r: any) => (r.l?.gp ? r.l.pts / r.l.gp : null), fmt: f1 },
     { key: 'sal', label: 'Salary', get: (r: any) => (r.p.tid ? r.p.contract.sal : null), fmt: (v: any) => (v == null ? '–' : moneyOf(v, S)) },
   ];
