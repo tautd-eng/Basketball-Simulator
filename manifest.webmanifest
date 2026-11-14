@@ -1,6 +1,6 @@
 {
-  "name": "NBA History Simulator",
-  "short_name": "NBA History",
+  "name": "Basketball Simulator",
+  "short_name": "Basketball Sim",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
