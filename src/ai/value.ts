@@ -8,7 +8,18 @@ import { hiddenBoost } from '../hboost';
 const REPL = -2.5; // replacement level, BPM
 
 /** BPM projection for the next `years` seasons using the mean aging curves. */
+// projections are asked for again and again (trade talks, free agency) for the same ratings: remember the last one per
+// ratings array (checked by a signature of the values, so a change of ratings is never missed)
+const projCache = new WeakMap<number[], { sig: number; age: number; years: number; out: number[] }>();
+const sigOf = (z: number[]) => { let s = 0; for (let i = 0; i < z.length; i++) s += z[i] * (i + 1.37) + z[i] * z[i] * 0.013; return s; };
 export function projectBpm(z: number[], age: number, years: number): number[] {
+  const sig = sigOf(z), c = projCache.get(z);
+  if (c && c.sig === sig && c.age === age && c.years === years) return c.out.slice();
+  const out = projectRaw(z, age, years);
+  projCache.set(z, { sig, age, years, out });
+  return out.slice();
+}
+function projectRaw(z: number[], age: number, years: number): number[] {
   const out: number[] = [];
   let cur = z.slice();
   for (let y = 0; y < years; y++) {
