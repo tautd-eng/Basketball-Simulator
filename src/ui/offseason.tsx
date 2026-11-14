@@ -841,9 +841,10 @@ export function BirdRights({ lg, openPlayer, goFA, onPick }: any) {
   if (!u || !ps.length) return null;
   return <div className="panel accent bird">
     <h2>Your free agents · Bird rights</h2>
-    <p className="note">Their contracts ended and they are on the market from the first wave – every team can bid. You hold their <b>Bird rights</b>: you may re-sign them even over the free-agent limit (up to the hard cap), and they like staying a little more. Make an offer before the wave ends, or they may sign elsewhere.</p>
+    <p className="note">Their contracts ended and they are on the market from the first wave – every team can bid. You hold their <b>Bird rights</b>: you may re-sign them even over the free-agent limit (up to the hard cap), and they like staying a little more. Make an offer before the wave ends, or they may sign elsewhere. Only a <b>restricted</b> free agent (RFA – his rookie deal ended and you tendered a qualifying offer) can be matched: another team's offer sheet comes to you first. An unrestricted one (UFA) simply signs where he likes best.</p>
     <ul className="news">{ps.map(p => { const o = offersOn(lg, p.id).find((x: any) => x.tid === u); return <li key={p.id}><span className="yr">{ovrOf(p.z, p.id)}</span><span>
       <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · asks {moneyOf(faDemand(lg, p, u, preferredYears(p, N)), N)}</span>
+      {p.rfa === u ? <span className="chip tiny rfa" title="Restricted free agent: other teams can give him an offer sheet, and you can match it">RFA – you can match</span> : <span className="chip tiny" title="Unrestricted: no matching – you bid like everyone else (over the limit, with an edge)">UFA</span>}
       {o ? <span className="chip tiny on-clock">your offer: {moneyOf(o.sal, N)} × {o.yrs}</span> : null}{' '}
       {onPick ? <button className="small" onClick={() => onPick(p.id)}>Negotiate</button> : goFA ? <button className="small" onClick={goFA}>Make an offer</button> : null}
     </span></li>; })}</ul>
