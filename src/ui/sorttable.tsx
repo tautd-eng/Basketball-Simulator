@@ -39,7 +39,7 @@ export function SortTable({ cols: cols0, rows, initial, initialAsc = false, foot
         {caption && <caption>{caption}</caption>}
         <thead><tr>
           {cols.map((c: Col) => (
-            <th key={c.key} className={`${c.left ? 'l' : ''} ${c.key === key ? 'sorted' : ''} ${c.grp ? 'grp' : ''}`} aria-sort={c.key === key ? (asc ? 'ascending' : 'descending') : 'none'}>
+            <th key={c.key} className={`${c.left ? 'l' : ''} ${c.key === key ? 'sorted' : ''} ${c.grp ? 'grp' : ''} ${c.key === 'name' ? 'stick' : ''}`} aria-sort={c.key === key ? (asc ? 'ascending' : 'descending') : 'none'}>
               <button className="th-btn" title={c.title ?? `Sort by: ${c.label}`} onClick={() => click(c)}>
                 {c.label}{c.key === key ? (asc ? ' ▲' : ' ▼') : ''}
               </button>
@@ -49,7 +49,7 @@ export function SortTable({ cols: cols0, rows, initial, initialAsc = false, foot
         <tbody>
           {sorted.map((r: any, i: number) => (
             <tr key={r.key ?? i} className={rowClass?.(r) ?? ''}>
-              {cols.map((c: Col) => <td key={c.key} className={`${c.left ? 'l' : ''} ${c.cls ?? ''} ${c.grp ? 'grp' : ''}`}>{c.fmt ? c.fmt(c.get(r), r) : c.get(r) ?? '–'}</td>)}
+              {cols.map((c: Col) => <td key={c.key} className={`${c.left ? 'l' : ''} ${c.cls ?? ''} ${c.grp ? 'grp' : ''} ${c.key === 'name' ? 'stick' : ''}`}>{c.fmt ? c.fmt(c.get(r), r) : c.get(r) ?? '–'}</td>)}
             </tr>
           ))}
         </tbody>

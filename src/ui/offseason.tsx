@@ -29,36 +29,14 @@ import { ExpansionRoom, LotteryRoom, LotteryReveal, AutoControls, useAutoPlay } 
 import { posNum } from '../engine/game';
 
 export const moneyOf = (frac: number, s: number) => money(frac, s);
-/** The real potential – hidden; nothing on screen shows it. */
-const truePot = (p: any, s: number) => shownFromBpm(peakBpm(p, s));
-/**
- * Potential as the scouts see it: the real one plus their error. The error is the player's own (the same every time
- * you look), large for a prospect – now and then wildly off, a Giannis nobody saw or a Darko everybody did – and it
- * shrinks as he plays in the league and they learn who he is.
- */
-export const potOf = (p: any, s: number) => {
-  const h = (k: string) => hash01(p.id.split('~')[0] + k);
-  let n = (h('a') + h('b') + h('c') + h('d') - 2) * 1.73;
-  if (h('e') < 0.08) n += (h('f') < 0.5 ? -1 : 1) * 1.8;   // the big misses
-  const yrs = p.prospect ? 0 : Math.max(0, s - (p.entered ?? s));
-  const sd = 5.5 * Math.max(0.25, 1 - 0.22 * yrs);
-  return Math.max(40, Math.min(99, Math.round(truePot(p, s) + n * sd)));
-};
+export { potOf } from '../league/scouting';
+import { potOf, scoutNow } from '../league/scouting';
 const POT_STEPS: [number, string][] = [[90, 'A+'], [86, 'A'], [83, 'A-'], [80, 'B+'], [77, 'B'], [74, 'B-'], [71, 'C+'], [68, 'C'], [65, 'C-'], [62, 'D+'], [59, 'D'], [0, 'D-']];
 export const potLetter = (v: number) => POT_STEPS.find(([t]) => v >= t)![1];
 /** A potential column: the scouts' estimate as a letter grade (the number on hover). */
 export const potCol = (pOf: (r: any) => any, S: number) => ({ key: 'pot', label: 'Pot.', title: "Potential as the scouts see it – they can be wrong, especially about prospects; the real potential stays hidden", get: (r: any) => potOf(pOf(r), S),
   fmt: (v: number) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; } });
-/**
- * The scouts' read on a prospect today: his current overall plus their error (his own, the same every time you
- * look; smaller than for potential – they can watch him play), and how athletic he is – a physical profile from his
- * game (drawing fouls, rebounds, steals, blocks, perimeter defense), which scouts see clearly.
- */
-export const scoutNow = (p: any) => {
-  const h = (k: string) => hash01(p.id.split('~')[0] + k);
-  const n = (h('na') + h('nb') + h('nc') - 1.5) * 2;
-  return Math.max(30, Math.min(99, Math.round(ovrOf(p.z, p.id) + n * 3.5)));
-};
+export { scoutNow } from '../league/scouting';
 export const athOf = (p: any) => {
   const z = p.z, c = (z[K.drw] + z[K.orb] + z[K.drb] + z[K.stl] + z[K.blk] + 1.5 * perD(z, p.ht)) / 6.5;
   return ratingOf(c * 2.5); // the composite varies little, so it is spread out to the usual 0–99 scale

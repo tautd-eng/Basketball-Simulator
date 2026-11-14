@@ -104,4 +104,5 @@ export function planOf(lg: League, tid: string | null | undefined): TeamPlan | n
 export const isCore = (lg: League, p: Player) => !!planOf(lg, p.tid ?? p.bird ?? p.rfa)?.core.includes(p.id);
 export const isRising = (lg: League, p: Player) => !!planOf(lg, p.tid ?? p.bird ?? p.rfa)?.rising.includes(p.id);
 /** Core or rising for this team: the players it keeps through cap trouble. */
-export const keeps = (lg: League, tid: string, p: Player) => { const pl = planOf(lg, tid); return !!pl && (pl.core.includes(p.id) || pl.rising.includes(p.id)); };
+// (a player who asked this team for a trade is not part of its plans any more)
+export const keeps = (lg: League, tid: string, p: Player) => { if ((p as any).treq?.tid === tid) return false; const pl = planOf(lg, tid); return !!pl && (pl.core.includes(p.id) || pl.rising.includes(p.id)); };

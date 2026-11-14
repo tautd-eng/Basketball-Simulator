@@ -1193,3 +1193,8 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .bid-dot.won { background: var(--accent); color: #fff; border-color: var(--accent); z-index: 1; }
 .bid-axis { position: absolute; bottom: -18px; font-size: .72rem; color: var(--muted); }
 .bid-axis.lo { left: 0; } .bid-axis.hi { right: 0; }
+/* phones: the player's name stays in view while a wide table scrolls sideways */
+@media (max-width: 700px) {
+  .tbl th.stick, .tbl td.stick { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
+  .tbl tr.mine td.stick { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+}

@@ -12,6 +12,7 @@ import { activeTeams, makeTeam, rngOf, standings, updateStrategies, updateModes,
 import { makeSchedule } from './schedule';
 import { develop, normalizeLeague, youngFloor } from './health';
 import { refuses, reviewTradeRequests } from './requests';
+import { scoutBoard } from './scouting';
 import { classFor, shiftFor, cloneBase } from './classes';
 import { resetFatigue } from './fatigue';
 import { carryInjuries } from './injuries';
@@ -79,6 +80,9 @@ function makeClass(lg: League, Y: number, rng: Rng): string[] {
     lg.players[pid] = p;
     pool.push(pid);
   }
+  // generated prospects have no real draft position: the scouts' own board is the consensus
+  const gen = pool.filter(pid => lg.fakeNames?.[pid]);
+  if (gen.length) scoutBoard(gen.map(pid => lg.players[pid]), Y + 1).forEach((p, i) => { p.draft!.realPick = i + 1; p.draft!.realTid = ''; });
   return pool;
 }
 
@@ -918,7 +922,7 @@ function bestBid(lg: League, p: Player, rng: Rng, skip?: string, clear = false):
     const want = ask * (1 - discount(lg, p, t.tid));
     let sal = Math.min(want, room), need = false;
     if (sal < Math.max(MIN_SAL * 2.5, 0.35 * ask)) { if (!clear) continue; sal = want; need = true; }
-    if (t.strategy === 'rebuild' && ageIn(p, N) > 30) continue;
+    if (t.strategy === 'rebuild' && ageIn(p, N) > 30 && !(p.bird === t.tid && keeps(lg, t.tid, p))) continue;
     const vals = t.roster.map(pid => playerValue(lg.players[pid], N, t.strategy)).sort((a, b) => b - a);
     const twelfth = vals[Math.min(vals.length, 12) - 1] ?? 0;
     if (t.roster.length >= ROSTER_MIN && playerValue(p, N, t.strategy) <= twelfth) continue;
@@ -1134,10 +1138,10 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     // (for a core player it offers anyway and makes the room if he picks it)
     else if (p.bird === t.tid && keeps(lg, t.tid, p)) { sal = askT; needRoom = true; }
     else if (ask <= MIN_SAL * 2.5) sal = room >= ask ? Math.max(MIN_SAL, ask) : MIN_SAL;   // over the free-agent limit: the minimum only
-    // later in the summer a good player left without a big offer takes what a team can still pay: most of its
-    // remaining room, or the mid-level exception
-    else if (stage >= 2 && room >= Math.max(MLE, 0.45 * askT)) sal = room;
-    else if (hardCap(lg) === Infinity && !pre && N >= 1995 && !fa.mle.includes(t.tid) && (askT <= MLE * 1.35 || stage >= 2)) { sal = Math.min(MLE, askT); mle = true; }
+    // later in the summer a team can offer what it still has – if that comes close to what he expects now (his market
+    // price already fell with the waves); far below it he would rather wait than sign for a fraction of his value
+    else if (stage >= 2 && room >= Math.max(MLE, 0.85 * askT)) sal = room;
+    else if (hardCap(lg) === Infinity && !pre && N >= 1995 && !fa.mle.includes(t.tid) && (askT <= MLE * 1.35 || (stage >= 2 && MLE >= askT * 0.75))) { sal = Math.min(MLE, askT); mle = true; }
     else continue;
     if (!needRoom && pay + sal > hardCap(lg) + 1e-9 && !(t.roster.length < ROSTER_MIN && sal <= MIN_SAL * 1.0001)) continue;
     // a player who fills a hole in the rotation (shooting, a ball-handler, rim protection) is worth more to this team

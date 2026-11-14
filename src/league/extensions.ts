@@ -3,6 +3,7 @@
 // depends on the money and on how things are going for him (role, winning,
 // age, ambition), see prefs.extensionNeed.
 import { Rng } from '../rng';
+import { keeps } from '../ai/plan';
 import { pastDeadline, deadlineDay } from '../ai/trades';
 import { refuses } from './requests';
 import { League, Player } from '../types';
@@ -85,7 +86,8 @@ export function aiExtensions(lg: League, rng: Rng, chance = 0.12) {
       if (!extendable(lg, p) || refuses(p, t.tid) || !rng.chance(chance)) continue;
       const rank = ranked.indexOf(p);
       if (rank >= 7) continue;
-      if (t.strategy === 'rebuild' && ageIn(p, N) >= 30) continue;
+      // a rebuilding team does not extend veterans – unless he is one of the players it builds around
+      if (t.strategy === 'rebuild' && ageIn(p, N) >= 30 && !keeps(lg, t.tid, p)) continue;
       const years = contractYears(p, N, () => rng.next());
       const { need } = extensionNeed(lg, p, t.tid, years);
       const worth = playerValue(p, N, t.strategy) / Math.max(MIN_SAL, need);

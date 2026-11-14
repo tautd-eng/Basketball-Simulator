@@ -110,7 +110,8 @@ function planKeeps(lg: League, t: Team) {
   const S = lg.season;
   // a rebuilding team still sells an older core player; everyone else keeps its core
   const core = pl.core.filter(pid => !(pl.stage === 'rebuild' && ageIn(lg.players[pid], S) >= 28));
-  return new Set([...core, ...(t.mode === 'allin' ? [] : pl.rising)]);
+  // (a player who asked for a trade is not kept)
+  return new Set([...core, ...(t.mode === 'allin' ? [] : pl.rising)].filter(pid => (lg.players[pid] as any)?.treq?.tid !== t.tid));
 }
 /** Did this team trade him away this season? (nobody buys back the player it just sold) */
 export function soldBy(lg: League, p: Player, tid: string) {
@@ -448,7 +449,7 @@ function coreReluctance(lg: League, tid: string, out: Player[]) {
   if (!out.length) return 0;
   const t = lg.teams[tid];
   const h = horizonOf(t);
-  const top = t.roster.map(pid => lg.players[pid]).sort((x, y) => pv(lg, y, h, tid) - pv(lg, x, h, tid)).slice(0, 3).map(p => p.id);
+  const top = t.roster.map(pid => lg.players[pid]).filter(p => (p as any).treq?.tid !== tid).sort((x, y) => pv(lg, y, h, tid) - pv(lg, x, h, tid)).slice(0, 3).map(p => p.id);
   const share = h === 'allin' || h === 'contend' ? 0.25 : h === 'middle' ? 0.15 : 0.05;
   // the plan's core and young pieces cost more to pry loose than just being among the top three
   const pl = !isHuman(lg, tid) ? planOf(lg, tid) : null;
