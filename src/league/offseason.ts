@@ -16,7 +16,7 @@ import { classFor, shiftFor, cloneBase } from './classes';
 import { resetFatigue } from './fatigue';
 import { carryInjuries } from './injuries';
 import { rookieContract, vetContract, rfaEligible, qoAmount, worthKeeping, optsOut, lockTrade } from './contracts';
-import { discount, offerUtility, lengthPrice, preferredYears } from './prefs';
+import { discount, offerUtility, lengthPrice, preferredYears, reasons } from './prefs';
 import { pickOwner, ensurePicks, aiTradeRound, isFreeAgent, complyHardCap, aiDraftTrade, boardScore, settlePickRights, clearRoom, worthTo } from '../ai/trades';
 import { keeps, refreshPlans } from '../ai/plan';
 import {
@@ -661,14 +661,18 @@ function dropDeadOffers(lg: League) {
   }
 }
 
+/** What a team meant to him besides money (his top reasons), kept with each offer for the explanation. */
+const whyOf = (lg: League, p: Player, tid: string) => reasons(lg, p, tid).slice(0, 3).map(x => x.t);
+
 /** In the season: each day, free agents answer the offers people made them. */
 export function resolveOffersInSeason(lg: League, rng: Rng) {
   if (!lg.offers?.length) return;
   for (const pid of [...new Set(lg.offers.map(o => o.pid))]) {
     const p = lg.players[pid];
     if (!p || p.tid || p.retired) continue;
-    const all = offersOn(lg, pid).map(o => ({ tid: o.tid, sal: o.sal, yrs: o.yrs, human: true }));
     const bids = humanBids(lg, p, rng, askingSalary(p, lg.season) * STAGE_MULT[4]);
+    const hs = new Map(bids.map(x => [x.o.tid, x.score]));
+    const all = offersOn(lg, pid).map(o => ({ tid: o.tid, sal: o.sal, yrs: o.yrs, human: true, score: hs.get(o.tid), why: whyOf(lg, p, o.tid), under: !hs.has(o.tid) }));
     if (bids.length) { (lg.bidLog ??= {})[pid] = { s: lg.season, bids: all }; signOffer(lg, bids[0].o, bids[0].mle); }
     else for (const o of offersOn(lg, pid)) {
       lg.news.push({ s: lg.season, t: `${lg.teams[o.tid].name}: ${tagOf(p, lg.season)} turned down your offer of ${(o.sal * 100).toFixed(1)}% of the cap for ${o.yrs} yr${o.yrs > 1 ? 's' : ''}.` });
@@ -1113,7 +1117,9 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
     const hb = humanBids(lg, p, rng, ask);
     // blind bidding: what everyone offered is revealed once he signs
     lg.bidLog ??= {};
-    lg.bidLog[p.id] = { s: N, bids: [...offers.map(o => ({ tid: o.t.tid, sal: o.sal, yrs: yrsOffer })), ...offersOn(lg, p.id).map(o => ({ tid: o.tid, sal: o.sal, yrs: o.yrs, human: true }))] };
+    // (with what each team meant to him, for the explanation once he signs)
+    const hs = new Map(hb.map(x => [x.o.tid, x.score]));
+    lg.bidLog[p.id] = { s: N, bids: [...offers.map(o => ({ tid: o.t.tid, sal: o.sal, yrs: yrsOffer, score: o.score, why: whyOf(lg, p, o.t.tid) })), ...offersOn(lg, p.id).map(o => ({ tid: o.tid, sal: o.sal, yrs: o.yrs, human: true, score: hs.get(o.tid), why: whyOf(lg, p, o.tid), under: !hs.has(o.tid) }))] };
     if (hb.length && hb[0].score >= Math.max(-Infinity, ...offers.map(o => o.score))) {
       const o = hb[0].o;
       signOffer(lg, o, hb[0].mle);

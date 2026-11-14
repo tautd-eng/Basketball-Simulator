@@ -553,8 +553,50 @@ export function BidsReveal({ lg, pid }: any) {
   const b = lg.bidLog?.[pid];
   const [open, setOpen] = useState(false);
   if (!b?.bids?.length) return null;
-  return <span className="bids-rev"><button className="small ghost" onClick={() => setOpen(!open)}>{open ? 'Hide offers' : `${b.bids.length} offer${b.bids.length > 1 ? 's' : ''}`}</button>
-    {open && <span className="bids-list">{[...b.bids].sort((x: any, y: any) => y.sal - x.sal).map((x: any, i: number) => <span key={i} className={lg.players[pid]?.tid === x.tid ? 'won' : ''}>{lg.teams[x.tid]?.abbr} {moneyOf(x.sal, b.s)}×{x.yrs}</span>)}</span>}</span>;
+  return <span className="bids-rev"><button className="small ghost" onClick={() => setOpen(true)}>{`${b.bids.length} offer${b.bids.length > 1 ? 's' : ''}`}</button>
+    {open && <BidsDialog lg={lg} pid={pid} close={() => setOpen(false)} />}</span>;
+}
+
+/** Every offer he had, on a scale (salary per season and the whole contract), and why he took the one he took. */
+function BidsDialog({ lg, pid, close }: any) {
+  const b = lg.bidLog[pid], p = lg.players[pid], S = b.s;
+  const signed = lg.fa?.log?.slice().reverse().find((x: any) => x.pid === pid && ['sign', 'resign', 'match', 'sheet'].includes(x.kind));
+  const won = signed?.tid ?? p.tid;
+  const bids = [...b.bids].sort((x: any, y: any) => y.sal - x.sal);
+  const hi = Math.max(...bids.map((x: any) => x.sal)), lo = Math.min(...bids.map((x: any) => x.sal));
+  const topTotal = Math.max(...bids.map((x: any) => x.sal * x.yrs));
+  const span = Math.max(0.02, hi - lo), pos = (v: number) => `${4 + ((v - lo) / span) * 92}%`;
+  const w = bids.find((x: any) => x.tid === won);
+  const top = bids[0];
+  const pc = (x: number) => `${(x * 100).toFixed(1)}%`;
+  let why: string;
+  if (!w) why = 'He signed elsewhere after these offers.';
+  else if (w.tid === top.tid || w.sal >= top.sal - 1e-4) why = `The ${lg.teams[w.tid].name} paid the most per season${w.why?.length ? ` – and ${w.why.join(', ')}` : ''}.`;
+  else {
+    const less = ((1 - w.sal / top.sal) * 100).toFixed(0);
+    why = `He took ${less}% less per season than the top offer (${lg.teams[top.tid].abbr}, ${pc(top.sal)})${w.sal * w.yrs >= topTotal - 1e-4 ? ' – but the most money overall (more years)' : ''}. ${w.why?.length ? `What tipped it: ${w.why.join('; ')}.` : 'He liked the overall package better (role, team, length).'}${top.why?.length ? ` About the ${lg.teams[top.tid].abbr}: ${top.why.join('; ')}.` : ''}`;
+  }
+  return (
+    <div className="overlay center" onClick={close}>
+      <div className="dialog bids-dlg" role="dialog" aria-label={`Offers for ${p.name}`} onClick={e => e.stopPropagation()}>
+        <div className="team-head"><h2>{p.name} – the offers</h2><button className="ghost small" onClick={close}>Close</button></div>
+        <p className="note">{bids.length} team{bids.length > 1 ? 's' : ''} made an offer in {S}. Salary per season as a share of the cap, and the whole contract (Total).</p>
+        <div className="bid-scale" aria-hidden="true">
+          {bids.map((x: any, i: number) => <span key={i} className={`bid-dot ${x.tid === won ? 'won' : ''}`} style={{ left: pos(x.sal), top: `${8 + (i % 3) * 16}px` }} title={`${lg.teams[x.tid]?.abbr} ${pc(x.sal)} × ${x.yrs}`}>{lg.teams[x.tid]?.abbr}</span>)}
+          <span className="bid-axis lo">{pc(lo)}</span><span className="bid-axis hi">{pc(hi)}</span>
+        </div>
+        <table className="tbl compact">
+          <thead><tr><th className="l">Team</th><th>Per season</th><th>Years</th><th>Total</th><th className="l">What else he saw</th></tr></thead>
+          <tbody>{bids.map((x: any, i: number) => <tr key={i} className={x.tid === won ? 'mine' : ''}>
+            <td className="l"><TL tid={x.tid} abbr />{x.tid === won ? <span className="chip tiny on-clock">signed</span> : null}{x.human ? <span className="chip tiny">person</span> : null}</td>
+            <td>{moneyOf(x.sal, S)}</td><td>{x.yrs}</td><td className="dim">{moneyOf(x.sal * x.yrs, S)}</td>
+            <td className="l dim small-t">{x.under ? 'under his asking price' : x.why?.length ? x.why.join('; ') : '–'}</td>
+          </tr>)}</tbody>
+        </table>
+        <p className="lead">{why}</p>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------- free agents list

@@ -1187,3 +1187,9 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .ext-exact { display: inline-flex; align-items: center; gap: 4px; }
 .ext-exact input { width: 5.5em; border: 1px solid var(--line); background: var(--sunk); color: inherit; border-radius: 6px; padding: 3px 6px; }
 .my-offers li { align-items: center; }
+.bids-dlg { max-width: 680px; }
+.bid-scale { position: relative; height: 74px; margin: 10px 0 18px; border-bottom: 2px solid var(--line); }
+.bid-dot { position: absolute; transform: translateX(-50%); font-size: .72rem; font-weight: 700; padding: 2px 5px; border-radius: 6px; background: var(--sunk); border: 1px solid var(--line); }
+.bid-dot.won { background: var(--accent); color: #fff; border-color: var(--accent); z-index: 1; }
+.bid-axis { position: absolute; bottom: -18px; font-size: .72rem; color: var(--muted); }
+.bid-axis.lo { left: 0; } .bid-axis.hi { right: 0; }
