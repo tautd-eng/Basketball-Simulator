@@ -1036,3 +1036,6 @@ button.on-board { background: var(--accent); color: #fff; border-color: var(--ac
 .boards-toggle.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 @media (max-width: 900px) { .draft-layout.open { grid-template-columns: minmax(0, 1fr); } .draft-layout.open .draft-side { position: static; } }
 @media (prefers-reduced-motion: reduce) { .draft-layout.open .draft-side { animation: none; } }
+.rules .rule { border-top: 1px solid var(--line); padding-top: 10px; }
+.rules .rule h3 { margin: 0 0 4px; font-size: 1rem; }
+.rules .rule p { margin: 0; line-height: 1.5; max-width: 80ch; }
