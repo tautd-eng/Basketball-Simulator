@@ -63,10 +63,9 @@ export const athOf = (p: any) => {
   const z = p.z, c = (z[K.drw] + z[K.orb] + z[K.drb] + z[K.stl] + z[K.blk] + 1.5 * perD(z, p.ht)) / 6.5;
   return ratingOf(c * 2.5); // the composite varies little, so it is spread out to the usual 0–99 scale
 };
-/** Columns for prospects: what the scouts think he is now, and his athleticism. */
+/** Columns for prospects: what the scouts think he is now. */
 export const scoutCols = (pOf: (r: any) => any) => [
   { key: 'now', label: 'Now', title: 'His overall today as the scouts see it – an estimate, it can be a few points off (the real one shows once he is drafted)', get: (r: any) => scoutNow(pOf(r)), fmt: (v: number) => <span className="dim" title="Scouts' estimate">~{v}</span> },
-  { key: 'ath', label: 'Ath.', title: 'Athleticism: his physical game – drawing fouls, rebounding, steals, blocks and perimeter defense', get: (r: any) => athOf(pOf(r)), fmt: fmtAttr },
 ];
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 /** Height and every rating, for lists where you choose players without opening their cards.
