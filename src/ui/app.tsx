@@ -23,7 +23,7 @@ import { OnlinePanel, OnlineBar, useOnline } from './online';
 import { openOnline, bindApp, slotOf } from '../online/sync';
 import { currentUser } from '../online/client';
 import { installTableExport } from './export';
-import { isHuman } from '../league/humans';
+import { isHuman, humans } from '../league/humans';
 import { roleOf } from '../archetypes';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -330,7 +330,7 @@ function App() {
       </div>}
       <main className={tab === 'laisvieji' || lg.phase === 'fantasy' || (tab === 'apzvalga' && (lg.phase === 'freeagency' || lg.phase === 'draft')) ? 'wide' : ''}>
         {lg.phase === 'fantasy' && <FantasyRoom lg={lg} openPlayer={openPlayer} onTick={bump} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'apzvalga' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={clutchStart} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('laisvieji')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'apzvalga' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={!lg.online && humans(lg).length <= 1 ? clutchStart : null} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('laisvieji')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'valdymas' && <TeamMgmt key={lg.userTid ?? ''} lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'reitingai' && <Rankings lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}
         {lg.phase !== 'fantasy' && tab === 'laisvieji' && <FreeAgentsView lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
@@ -1097,7 +1097,7 @@ function Today({ lg, watch, clutch, busy, playable = () => true, replay, openGam
               <button disabled={busy} onClick={() => watch(g.home, g.away)}>Watch live</button>
               <button disabled={busy} title="Play this game now and see the result" onClick={() => watch(g.home, g.away, 0, false)}>Sim game</button>
               <button disabled={busy} title="Watch from 5:00 left in the 4th quarter" onClick={() => watch(g.home, g.away, 2580)}>Go to last 5 min</button>
-              {g.label !== 'Play-in' && (g.home === lg.userTid || g.away === lg.userTid) &&
+              {clutch && g.label !== 'Play-in' && (g.home === lg.userTid || g.away === lg.userTid) &&
                 <button className="primary" disabled={busy} title="Coach the last five minutes yourself" onClick={() => clutch(g.home, g.away, g.home === lg.userTid ? 'h' : 'a')}>Coach last 5 min</button>}
               </> : <span className="dim small-t">{lg.online && (g.home === lg.userTid || g.away === lg.userTid) ? 'You can play it once the other side is done' : lg.online ? 'The host plays it – watch the replay after' : ''}</span>}
             </span>

@@ -185,7 +185,7 @@ export interface FreeAgency {
   /** stage 0: the user's contract decisions (team options, qualifying offers) with the GM's recommendation */
   decisions?: { pid: string; kind: 'team' | 'qo'; rec: boolean; choice?: boolean; sal: number; tid?: string }[];
   /** offer sheets to the user's restricted free agents, waiting for match / no match */
-  sheets?: { pid: string; tid: string; sal: number; exp: number }[];
+  sheets?: { pid: string; tid: string; sal: number; exp: number; st?: number }[];
   sumSeen?: boolean;                // the summary of the contract decisions was shown
   flushed?: number;                 // log entries already copied into the players' histories
 }

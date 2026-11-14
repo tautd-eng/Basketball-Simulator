@@ -443,8 +443,11 @@ const STAGE_MULT = [1, 1, 0.85, 0.7, 0.7];
 const STAGE_SIGN = [0, 0.4, 0.7, 1, 1];      // chance a player with an offer signs in this stage's wave
 const STAGE_TRADE = [0, 2.4, 2.0, 1.6, 1.0];  // AI trade-talk intensity
 const capLimit = (N: number) => (N < 1985 ? 1.3 : 1.0);
-/** The one limit that matters: every team may spend up to the hard cap (the old soft cap only without one). */
-const ceiling = (lg: League, N: number) => (hardCap(lg) < Infinity ? hardCap(lg) : capLimit(N));
+/** With a hard cap, other teams' free agents can be signed only while the payroll stays within this share of the cap;
+ * above it (up to the hard cap) only minimum deals and a team's own players (re-signing, matching, extensions). */
+export const FA_CAP = 1.1;
+/** How far a team may go signing someone else's free agent (the old soft cap when the league has no hard cap). */
+const ceiling = (lg: League, N: number) => (hardCap(lg) < Infinity ? Math.min(hardCap(lg), FA_CAP) : capLimit(N));
 /** Mid-level exception (from 1995): what a team over the cap may pay one free agent per summer. */
 const MLE = 0.1;
 /** Salary floor: teams below it spend more freely in free agency and fill the gap with one-year deals. */
@@ -546,9 +549,10 @@ function capCheck(lg: League, tid: string, p: Player, sal: number): { err: strin
   if (sal <= MIN_SAL * 1.0001) return { err: null };
   const birdMax = Math.min(hc, N < 1985 ? 1.6 : 1.45);
   if (p.bird === tid && pay + sal <= birdMax) return { err: null };
-  if (N >= 1995 && !(lg.fa?.mle ?? []).includes(tid) && sal <= MLE + 1e-9 && pay + sal <= hardCap(lg)) return { err: null, mle: true };
-  const parts = [`Cap space left: ${Math.max(0, Math.round(room * 1000) / 10)}% of the cap.`];
-  parts.push('Over the cap you can only offer a minimum contract' + (N >= 1995 ? `, the mid-level exception (up to ${Math.round(MLE * 100)}% of the cap, once per summer)` : '') + (p.bird === tid ? ` or re-sign your own player (up to ${Math.round(birdMax * 100)}% of the cap)` : '') + '.');
+  if (hc === Infinity && N >= 1995 && !(lg.fa?.mle ?? []).includes(tid) && sal <= MLE + 1e-9) return { err: null, mle: true };
+  const parts = hc < Infinity
+    ? [`Free agents from other teams can be signed only while your payroll stays within ${Math.round(FA_CAP * 100)}% of the cap (you have ${Math.max(0, Math.round(room * 1000) / 10)}% left).`, `Above it – up to the ${Math.round(hc * 100)}% hard cap – only minimum deals and your own players (re-signing, matching an offer sheet, extensions).`]
+    : [`Cap space left: ${Math.max(0, Math.round(room * 1000) / 10)}% of the cap.`, 'Over the cap you can only offer a minimum contract' + (N >= 1995 ? `, the mid-level exception (up to ${Math.round(MLE * 100)}% of the cap, once per summer)` : '') + (p.bird === tid ? ' or re-sign your own player (Bird rights)' : '') + '.'];
   return { err: parts.join(' ') };
 }
 
@@ -599,7 +603,7 @@ function signOffer(lg: League, o: FAOfferRec, mle: boolean): boolean {
   const st = lg.fa?.stage ?? 4;
   lg.offers = (lg.offers ?? []).filter(x => x.pid !== o.pid);
   if (p.rfa && p.rfa !== tid && isHuman(lg, p.rfa) && lg.fa) {
-    (lg.fa.sheets ??= []).push({ pid: p.id, tid, sal, exp: N - 1 + yrs });
+    (lg.fa.sheets ??= []).push({ pid: p.id, tid, sal, exp: N - 1 + yrs, st: lg.fa.stage });
     lg.news.push({ s: N, t: `${tagOf(p, N)} signed an offer sheet with the ${lg.teams[tid].name} – the ${lg.teams[p.rfa].name} can match.` });
     return true;
   }
@@ -868,9 +872,13 @@ export function faMatch(lg: League, pid: string, match: boolean): { ok: boolean;
   return { ok: true, msg: `${p.name} joins the ${lg.teams[sh.tid].name}.` };
 }
 
-/** Offer sheets the user left unanswered: the GM decides. */
-function resolveSheets(lg: League) {
+/**
+ * Offer sheets the user left unanswered: the GM decides. A sheet waits one full wave for its answer – one that
+ * arrived in this wave (`fresh`) stays open until the next wave ends (or until the season starts).
+ */
+function resolveSheets(lg: League, fresh = -1) {
   for (const sh of [...(lg.fa?.sheets ?? [])]) {
+    if (sh.st !== undefined && sh.st >= fresh && fresh >= 0) continue;
     const p = lg.players[sh.pid];
     const r = p.rfa ?? lg.userTid;
     faMatch(lg, sh.pid, !!r && aiMatches(lg, p, r, sh.sal));
@@ -896,7 +904,8 @@ export function faStage(lg: League) {
     lg.news.push({ s: lg.season, t: `${lg.teams[o.tid].name}: ${tagOf(p, lg.season)} has not taken your offer (${(o.sal * 100).toFixed(1)}% for ${o.yrs} yr${o.yrs > 1 ? 's' : ''})${o.sal + 1e-9 < need ? ` – he wants ${(need * 100).toFixed(1)}%` : ' yet – he is waiting to see the market'}. It stays on the table.` });
   }
   if (st === 3) reachFloor(lg, rng);
-  resolveSheets(lg);
+  // sheets from earlier waves are decided now; this wave's wait for their team (the last wave's: until the season)
+  resolveSheets(lg, st);
   complyHardCap(lg, rng);
   const before = lg.trades?.length ?? 0;
   aiTradeRound(lg, rng, STAGE_TRADE[st]);
@@ -1024,11 +1033,11 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
     else if (p.bird === t.tid && pay + askT <= Math.min(hardCap(lg), pre ? 1.6 : 1.45)) sal = askT;
     // (for a core player it offers anyway and makes the room if he picks it)
     else if (p.bird === t.tid && keeps(lg, t.tid, p)) { sal = askT; needRoom = true; }
-    else if (ask <= MIN_SAL * 2.5) sal = Math.max(MIN_SAL, ask);
+    else if (ask <= MIN_SAL * 2.5) sal = room >= ask ? Math.max(MIN_SAL, ask) : MIN_SAL;   // over the free-agent limit: the minimum only
     // later in the summer a good player left without a big offer takes what a team can still pay: most of its
     // remaining room, or the mid-level exception
     else if (stage >= 2 && room >= Math.max(MLE, 0.45 * askT)) sal = room;
-    else if (!pre && N >= 1995 && !fa.mle.includes(t.tid) && (askT <= MLE * 1.35 || stage >= 2) && pay + MLE <= hardCap(lg)) { sal = Math.min(MLE, askT); mle = true; }
+    else if (hardCap(lg) === Infinity && !pre && N >= 1995 && !fa.mle.includes(t.tid) && (askT <= MLE * 1.35 || stage >= 2)) { sal = Math.min(MLE, askT); mle = true; }
     else continue;
     if (!needRoom && pay + sal > hardCap(lg) + 1e-9 && !(t.roster.length < ROSTER_MIN && sal <= MIN_SAL * 1.0001)) continue;
     // a player who fills a hole in the rotation (shooting, a ball-handler, rim protection) is worth more to this team
@@ -1108,7 +1117,7 @@ function aiSignings(lg: League, rng: Rng, stage: number) {
       // restricted free agent: an offer sheet the rights team may match
       if (isHuman(lg, rights)) {
         if (!(fa.sheets ??= []).some(x => x.pid === p.id)) {
-          fa.sheets.push({ pid: p.id, tid: o.t.tid, sal: o.sal, exp: N - 1 + yrs });
+          fa.sheets.push({ pid: p.id, tid: o.t.tid, sal: o.sal, exp: N - 1 + yrs, st: stage });
           fa.log.push({ st: stage, kind: 'sheet', pid: p.id, tid: o.t.tid, sal: o.sal, desc: `offer sheet for your RFA – awaiting your decision` });
         }
         continue;
@@ -1136,6 +1145,7 @@ export function startSeason(lg: League) {
   const rng = rngOf(lg);
   const N = lg.season;
   if (lg.fa && lg.fa.stage <= 3) { while (lg.fa.stage <= 3) faStage(lg); }
+  resolveSheets(lg);   // anything still unanswered: the GM decides
   // unsigned restricted free agents play next season on their qualifying offer
   for (const p of Object.values(lg.players)) {
     if (!p.rfa || p.tid || p.retired) continue;
