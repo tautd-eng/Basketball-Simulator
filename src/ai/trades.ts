@@ -2,6 +2,7 @@
 // (player value by strategy, draft picks by expected slot), looks at the whole
 // roster rather than single players (two decent players do not equal one star),
 // pays attention to money, and only agrees when the deal helps its own team.
+import { expireAiOffers } from '../league/proposals';
 import { tradeLocked, lockLabel } from '../league/contracts';
 import { H, seasonInfo, LAST_SEASON, ovrOf, bpmOf } from '../data';
 import { Rng, hash01 } from '../rng';
@@ -576,6 +577,11 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
   const teams = Object.values(lg.teams).filter(t => t.active && !isHuman(lg, t.tid));
   rng.shuffle(teams);
   const busy = new Set<string>();
+  expireAiOffers(lg);
+  // people's teams are partners too: the computer offers them the same kind of deals it makes with anyone else,
+  // as offers in their inbox (a few at a time, each standing about a week)
+  const humansT = Object.values(lg.teams).filter(t => t.active && isHuman(lg, t.tid));
+  const pendingTo = (tid: string) => (lg.proposals ?? []).filter(pr => pr.ai && pr.to === tid).length;
   for (const A of teams) {
     if (busy.has(A.tid)) continue;
     const urge = A.mode === 'allin' ? 2.6 : A.mode === 'tank' ? 2.4 : A.mode === 'capclear' ? 2 : A.mode === 'retool' ? 1.9 : 1;
@@ -583,7 +589,7 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
     const pl = planOf(lg, A.tid);
     const plUrge = !pl || A.mode === 'tank' ? 1 : pl.act ? 1.3 : pl.stage === 'build' ? 0.7 : 1;
     if (!rng.chance(Math.min(0.95, (0.1 + 0.2 * A.gm.risk) * intensity * urge * plUrge))) continue;
-    const others = teams.filter(t => t !== A && !busy.has(t.tid));
+    const others = [...teams.filter(t => t !== A && !busy.has(t.tid)), ...humansT.filter(t => pendingTo(t.tid) < 3 && !(lg.proposals ?? []).some(pr => pr.ai && pr.from === A.tid && pr.to === t.tid))];
     // at the deadline every losing team is a seller
     const g = A.w + A.l, losing = lg.phase === 'regular' && g >= 20 && A.w / g < 0.42;
     const rush = lg.phase === 'regular' && lg.day >= deadlineDay(lg) - 14;
@@ -592,10 +598,56 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
       : findDeal(lg, A, others, rng);
     // every deal passes the market check, whatever path found it
     if (!deal || !looksFair(lg, deal.aGets, deal.bGets)) continue;
+    if (isHuman(lg, deal.b)) {
+      // an offer, not a trade: the person decides
+      const id = (lg.proposals ?? []).reduce((a, x) => Math.max(a, x.id), 0) + 1;
+      (lg.proposals ??= []).push({ id, from: A.tid, to: deal.b, fromGives: deal.bGets, toGives: deal.aGets, s: lg.season, day: lg.day, phase: lg.phase, ai: true,
+        exp: lg.phase === 'regular' ? lg.day + 7 : undefined, note: A.mode === 'tank' ? 'They are rebuilding.' : A.mode === 'allin' ? 'They are going all in.' : undefined });
+      busy.add(A.tid);
+      continue;
+    }
     const rec = executeTrade(lg, A.tid, deal.b, deal.aGets, deal.bGets);
     fillRoster(lg, A.tid); fillRoster(lg, deal.b);
     busy.add(A.tid); busy.add(deal.b);
     done.push(rec);
+  }
+  // front offices call people's teams too: a team that values one of a person's players more than the market does
+  // offers a package of about his market value – the same standard it holds deals with other teams to (its own usual
+  // threshold, the market check both ways), no premium and no discount
+  for (const H of humansT) {
+    if (pastDeadline(lg) || lg.phase === 'playoffs' || pendingTo(H.tid) >= 3 || !rng.chance(Math.min(0.9, 0.6 * intensity))) continue;
+    const callers = rng.shuffle(teams.filter(t => !busy.has(t.tid) && !(lg.proposals ?? []).some(pr => pr.ai && pr.from === t.tid && pr.to === H.tid))).slice(0, 8);
+    let made = false;
+    for (const A of callers) {
+      if (made) break;
+      const hA = horizonOf(A), S = lg.season;
+      const theirs = H.roster.map(pid => lg.players[pid]).filter(p => !tradeLocked(lg, p) && !justTraded(lg, p))
+        .map(p => ({ p, edge: pv(lg, p, hA, A.tid) - pv(lg, p, 'middle'), mv: neutralValue(lg, [{ pid: p.id }]) }))
+        .filter(x => x.edge > 0.5 && x.mv > 0.5 && !(hA === 'tank' && ageIn(x.p, S) > 25) && !(hA === 'rising' && ageIn(x.p, S) > 28))
+        .sort((x, y) => y.edge - x.edge).slice(0, 3);
+      const core = new Set([...A.roster.map(pid => lg.players[pid]).sort((x, y) => pv(lg, y, hA, A.tid) - pv(lg, x, hA, A.tid)).slice(0, 2).map(p => p.id), ...planKeeps(lg, A)]);
+      const mine = [
+        ...A.roster.map(pid => lg.players[pid]).filter(p => !core.has(p.id) && !tradeLocked(lg, p) && !justTraded(lg, p) && !protectedYoung(lg, p)).map(p => ({ x: { pid: p.id } as TradeAsset })),
+        ...(lg.picks ?? []).filter(p => p.owner === A.tid && !pickUsed(lg, p) && !pickTied(lg, p)).map(p => ({ x: { pick: { season: p.season, round: p.round, orig: p.orig } } as TradeAsset })),
+      ].map(o => ({ ...o, v: neutralValue(lg, [o.x]) })).filter(o => o.v > 0.05);
+      for (const tg of theirs) {
+        if (made) break;
+        const want: TradeAsset[] = [{ pid: tg.p.id }];
+        // packages of one or two of A's assets worth about as much on the market
+        const pk: TradeAsset[][] = [];
+        for (const o of mine) if (o.v >= tg.mv * 0.8 && o.v <= tg.mv * 1.2) pk.push([o.x]);
+        const top = [...mine].sort((x, y) => y.v - x.v).slice(0, 12);
+        for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) { const v = top[i].v + top[j].v; if (v >= tg.mv * 0.85 && v <= tg.mv * 1.15) pk.push([top[i].x, top[j].x]); }
+        for (const give of rng.shuffle(pk).slice(0, 10)) {
+          const e = evaluateTrade(lg, A.tid, H.tid, want, give);
+          if (!e.ok || e.gainA < threshold(lg, A.tid) || !looksFair(lg, want, give)) continue;
+          const id = (lg.proposals ?? []).reduce((a2, x) => Math.max(a2, x.id), 0) + 1;
+          (lg.proposals ??= []).push({ id, from: A.tid, to: H.tid, fromGives: give, toGives: want, s: lg.season, day: lg.day, phase: lg.phase, ai: true,
+            exp: lg.phase === 'regular' ? lg.day + 7 : undefined, note: A.mode === 'tank' ? 'They are rebuilding.' : A.mode === 'allin' ? 'They are going all in.' : hA === 'contend' ? 'A contender looking for help.' : undefined });
+          busy.add(A.tid); made = true; break;
+        }
+      }
+    }
   }
   return done;
 }
@@ -626,7 +678,7 @@ function marketValue(lg: League, xs: TradeAsset[]) {
   return v;
 }
 
-function findDeal(lg: League, A: Team, others: Team[], rng: Rng) {
+export function findDeal(lg: League, A: Team, others: Team[], rng: Rng) {
   const S = lg.season;
   fresh(lg);
   const hA = horizonOf(A);
@@ -731,7 +783,7 @@ function findDeal(lg: League, A: Team, others: Team[], rng: Rng) {
  * him most (usually a contender), for picks and young players it values at
  * least as much – it gets worse this season without losing value.
  */
-function findSale(lg: League, A: Team, others: Team[], rng: Rng) {
+export function findSale(lg: League, A: Team, others: Team[], rng: Rng) {
   const S = lg.season;
   fresh(lg);
   // a tanking team sells anyone who helps now and will not be part of the next good team (26+)

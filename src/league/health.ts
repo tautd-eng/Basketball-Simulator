@@ -46,8 +46,13 @@ export const AGE = {
   lgUp:   [1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.00, 0.80, 0.65, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50],
   young:  [0, 0, 0, 0, 0.5, 1, 2],
   //         19    20    21    22    23    24
-  play:   [0.25, 0.25, 0.25, 0.20, 0.15, 0.10],   // extra growth (BPM) for a full season of minutes (2000+)
+  play:   [0.33, 0.33, 0.33, 0.27, 0.20, 0.13],   // extra growth (BPM) for a starter's season (2500+ minutes) – see playShare
 };
+/**
+ * How much of the playing-time bonus a season earns: nothing for garbage time (under 500 minutes), a little for a
+ * bench role, most of it only for real rotation and starter minutes – 1000 min ≈ 16%, 1500 ≈ 39%, 2000 ≈ 69%, 2500+ all.
+ */
+export const playShare = (min: number) => Math.pow(Math.max(0, Math.min(1, (min - 500) / 2000)), 1.3);
 export const atAge = (t: number[], age: number) => t[Math.max(0, Math.min(t.length - 1, Math.round(age) - 19))];
 
 export function ensureDev(p: Player, rng: Rng) {
@@ -313,7 +318,7 @@ export function develop(lg: League, rng: Rng) {
     // playing time develops the young: minutes against NBA players count on top of growing up
     if (age <= 24) {
       const ln = seasonLine(p, Y);
-      const play = atAge(AGE.play, age) * Math.min(1, (ln?.min ?? 0) / 2000);
+      const play = atAge(AGE.play, age) * playShare(ln?.min ?? 0);
       if (play > 0) for (let i = 0; i < NK; i++) nat[i] += play * OVR_DIR[i];
     }
     // the age curve by the player's own clock (some peak early, some late): no natural decline before 28,

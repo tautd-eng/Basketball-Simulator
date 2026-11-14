@@ -309,6 +309,7 @@ function App() {
     if (octx.role === 'host') return !mine || oppReady;
     return mine && oppReady;
   };
+  const offersIn = (lg.proposals ?? []).filter((x: any) => x.to === lg.userTid).length;
   const go = (t: string) => { if (t !== tab) { remember(); window.scrollTo(0, 0); } setTab(t); try { history.replaceState(history.state, '', '#' + t); } catch { /* ignore */ } };
 
   return (
@@ -328,7 +329,7 @@ function App() {
       {octx && <OnlineBar lg={lg} openPanel={() => setShowOnline(true)} onLeave={() => { setSlot(newSlotId()); toMenu(); }} />}
       <nav className="tabs" aria-label="Sections">
         {tabsFor(lg).map(([k, l, main]) => (
-          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span></button>
+          <button key={k} className={`${tab === k ? 'on' : ''} ${main ? '' : 'sec'}`} onClick={() => { go(k); setMore(false); }} aria-label={l}><TabIcon k={k} /><span className="tl">{l}</span>{k === 'mainai' && offersIn > 0 ? <span className="tab-badge" title="Trade offers for you">{offersIn}</span> : null}</button>
         ))}
         <button className={`more-btn ${more || tabsFor(lg).some(([k, , m]) => !m && k === tab) ? 'on' : ''}`} onClick={() => setMore(m => !m)} aria-label="More" aria-expanded={more}><TabIcon k="more" /><span className="tl">More</span></button>
       </nav>

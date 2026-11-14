@@ -10,7 +10,7 @@ const owned = (lg: League, tid: string, xs: TradeAsset[]) => xs.every(x =>
 
 /** Why the offer can no longer go through (null = it still can). */
 export function proposalProblem(lg: League, pr: Proposal): string | null {
-  if (!isHuman(lg, pr.from) || !isHuman(lg, pr.to)) return 'One of the teams is no longer run by a person.';
+  if (pr.ai ? isHuman(lg, pr.from) || !isHuman(lg, pr.to) : !isHuman(lg, pr.from) || !isHuman(lg, pr.to)) return 'One of the teams is no longer run by a person.';
   if (!owned(lg, pr.from, pr.fromGives) || !owned(lg, pr.to, pr.toGives)) return 'Some of the players or picks have moved since.';
   return tradeRules(lg, pr.from, pr.to, pr.toGives, pr.fromGives);
 }
@@ -42,3 +42,9 @@ export const withdraw = (lg: League, id: number) => { lg.proposals = (lg.proposa
 export const inbox = (lg: League, tid: string | null) => (lg.proposals ?? []).filter(x => x.to === tid);
 export const outbox = (lg: League, tid: string | null) => (lg.proposals ?? []).filter(x => x.from === tid);
 export const describeSide = (lg: League, xs: TradeAsset[]) => (xs.length ? describeAssets(lg, xs) : 'nothing');
+
+/** Computer teams' offers that have run out: a few days in the season, or the end of the stage it was made in. */
+export function expireAiOffers(lg: League) {
+  if (!lg.proposals?.length) return;
+  lg.proposals = lg.proposals.filter(pr => !pr.ai || (pr.s === lg.season && pr.phase === lg.phase && (pr.exp === undefined || lg.day <= pr.exp) && !proposalProblem(lg, pr)));
+}

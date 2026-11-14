@@ -170,6 +170,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
           const bad = proposalProblem(lg, pr);
           return <li key={pr.id}><span className="yr"><TL tid={pr.from} abbr /></span><span>
             The {lg.teams[pr.from].name} offer <b>{describeSide(lg, pr.fromGives)}</b> for <b>{describeSide(lg, pr.toGives)}</b>.
+            {pr.note ? <span className="dim"> {pr.note}</span> : null}{pr.ai ? <span className="dim small-t"> {pr.exp !== undefined ? `Stands until day ${pr.exp}.` : 'Stands until this stage ends.'}</span> : null}
             {bad ? <span className="dim"> {bad}</span> : null}{' '}
             <button className="small primary" disabled={!!bad || closed} onClick={() => reply2(pr.id, true)}>Accept</button>{' '}
             <button className="small" onClick={() => reply2(pr.id, false)}>Decline</button></span></li>;
