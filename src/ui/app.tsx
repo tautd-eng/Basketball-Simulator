@@ -334,7 +334,7 @@ function App() {
           <span className="ball" aria-hidden="true"></span>
           <div>
             <div className="name"><span className="name-full">Basketball Simulator</span><span className="name-sect">{tabsFor(lg).find(([k]) => k === tab)?.[1] ?? 'Basketball Simulator'}</span></div>
-            <div className="meta">{seasonLabel(lg.season)} · {phaseLabel(lg)} · destiny {Math.round(lg.destiny * 100)}%</div>
+            <div className="meta">{seasonLabel(lg.season)} · {phaseLabel(lg)} · {destinyName(Math.round(lg.destiny * 100))}</div>
           </div>
           <PlayingAs lg={lg} onChange={async () => { if (lg.userTid) setTeam(lg.userTid); bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />
         </div>
@@ -398,6 +398,19 @@ function App() {
     </div>
   );
 }
+
+/** How closely the league follows real careers (the "destiny" pull, %): eight steps from a free alternate history to a replay. */
+const DESTINY: [number, string, string][] = [
+  [0, 'Alternate history', 'Only the draft-day profile is known – Jordan might not become Jordan.'],
+  [10, 'Free', 'Real careers are a faint hint; most players find their own path.'],
+  [20, 'Loose', 'History nudges a little: stars often grow, but upsets are common.'],
+  [35, 'Inspired by history', 'The real career is hidden potential – stars usually grow, plenty of surprises.'],
+  [50, 'Balanced', 'Half reality, half your league: most careers resemble the real ones.'],
+  [65, 'Close to history', 'Real careers pull strongly, but not everyone reaches his real level.'],
+  [80, 'Faithful', 'Players develop much as they really did; only small deviations.'],
+  [95, 'Replay', 'Players develop almost exactly as in reality – only teams, roles and results differ.'],
+];
+const destinyName = (pct: number) => DESTINY.reduce((b, x) => (Math.abs(x[0] - pct) < Math.abs(b[0] - pct) ? x : b))[1];
 
 /** Sections: [key, label, shown in the phone's bottom bar (the rest go under "More")] */
 const TABS: [string, string, boolean][] = [
@@ -784,7 +797,8 @@ function Setup({ onStart, onBack, host }: any) {
   const [form, setForm] = useState(() => formOf(null));
   const [fantasy, setFantasy] = useState(false);
   const [rr, setRr] = useState<number | null>(null);
-  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
+  // every league gets its own hidden random seed
+  const [seed] = useState(() => Math.floor(Math.random() * 1e9));
   const [user, setUser] = useState('');
   const [start, setStart] = useState(1980);
   const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed'>('real');
@@ -795,10 +809,6 @@ function Setup({ onStart, onBack, host }: any) {
   for (let y = 1980; y <= LAST_SEASON + 1; y++) years.push(y);
   const future = start > LAST_SEASON;
   const label = `${start - 1}–${String(start).slice(2)}`;
-  const desc = d >= 90 ? 'Players develop almost exactly as in reality. Only teams, roles and results differ.'
-    : d >= 60 ? 'Real careers pull strongly, but not everyone will reach their real level.'
-    : d >= 30 ? 'The real career is hidden potential. Stars usually grow, but there are plenty of surprises.'
-    : 'Alternate history: only the draft-day profile is known. Jordan might not become Jordan.';
   const pickYear = (y: number) => { setStart(y); if (user && !seasonInfo(y).teams[user]) setUser(''); };
   return (
     <div className="setup">
@@ -823,11 +833,16 @@ function Setup({ onStart, onBack, host }: any) {
           </select>
         </label>
         <div className="opt-list">
-          <Opt title="Destiny" value={`${d}%`}>
-            <label className="field" htmlFor="destiny">
-              <input id="destiny" type="range" min="0" max="100" step="5" value={d} onChange={e => setD(+e.target.value)} aria-label="Destiny" />
-              <small>{desc}{mode !== 'real' ? ' With mixed classes, destiny works by career year: a rookie develops like the real player did in the same year of his career.' : ''}</small>
-            </label>
+          <Opt title="How closely to follow reality" value={destinyName(d)}>
+            <fieldset className="field radio-set">
+              {DESTINY.map(([v, l, txt]) => (
+                <label key={v} className={`radio ${d === v ? 'on' : ''}`}>
+                  <input type="radio" name="destiny" value={v} checked={d === v} onChange={() => setD(v)} />
+                  <span><b>{l}</b><small>{txt}</small></span>
+                </label>
+              ))}
+              {mode !== 'real' && <small>With mixed classes this works by career year: a rookie develops like the real player did in the same year of his career.</small>}
+            </fieldset>
           </Opt>
           <Opt title={future ? `Draft classes from ${LAST_SEASON + 1}` : 'Draft classes'} value={(future ? FUTURE_MODES.find(x => x[0] === fmode) : CLASS_MODES.find(x => x[0] === mode))?.[1]}>
             {future ? <fieldset className="field radio-set">
@@ -863,12 +878,6 @@ function Setup({ onStart, onBack, host }: any) {
           <Opt title="Injuries" value={form.inj === 'off' ? 'Off' : 'On'}>
             <div className="seg" role="group" aria-label="Injuries">{([['', 'On – players get hurt, as in real seasons'], ['off', 'Off – nobody gets hurt']] as const).map(([k, t]) => <button key={k} className={(form.inj ?? '') === k ? 'on' : ''} onClick={() => setForm({ ...form, inj: k })}>{t}</button>)}</div>
             <small className="dim">Can be changed later inside the league under “Season format”.</small>
-          </Opt>
-          <Opt title="Random seed" value={String(seed)}>
-            <label className="field" htmlFor="seed">
-              <input id="seed" type="number" value={seed} onChange={e => setSeed(+e.target.value)} aria-label="Random seed" />
-              <small>The same seed and settings produce the same history.</small>
-            </label>
           </Opt>
         </div>
         <button className="primary big" onClick={() => onStart(d / 100, seed, user || null, settingsOf(form), fantasy ? { rr } : false, start, mode, fmode)}>{fantasy ? 'To the fantasy draft' : 'Start the league'}</button>
