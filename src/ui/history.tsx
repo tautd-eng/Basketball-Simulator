@@ -1,5 +1,6 @@
 // @ts-nocheck
 // Franchise history (season by season), franchise and league record books.
+import { gmOf, gmRecords } from '../league/gms';
 import { TL } from './nav';
 import { posLabel, natural } from './positions';
 import { useNavState } from './nav';
@@ -96,15 +97,17 @@ export function TeamHistory({ lg, tid, openPlayer }: any) {
       <div className="kv">
         <div><span className="dim">All-time record</span> {W}–{L} ({(W / Math.max(1, W + L)).toFixed(3).replace(/^0/, '')})</div>
         <div><span className="dim">Titles</span> {titles ? `🏆 ${titles}` : 0} · Finals {finals} · Playoff seasons {poApps}/{seasons.length}</div>
+        <div><span className="dim">GM now</span> {gmOf(lg, tid)}</div>
       </div>
       <div className="tbl-wrap"><table className="tbl">
-        <thead><tr><th>Season</th><th className="l">Team</th><th>W</th><th>L</th><th>%</th><th>Conf.</th><th className="l">Playoffs</th><th className="l">Best player</th></tr></thead>
+        <thead><tr><th>Season</th><th className="l">Team</th><th>W</th><th>L</th><th>%</th><th>Conf.</th><th className="l">Playoffs</th><th className="l">GM</th><th className="l">Best player</th></tr></thead>
         <tbody>{seasons.map(({ h, st, rank }: any) => {
           const b = best(h.season);
           return <tr key={h.season} className={h.champion === tid ? 'mine' : ''}>
             <td><button className="link" title="Roster that season" onClick={() => setOpen(h.season)}>{sl(h.season)}</button></td><td className="l">{st.name}</td><td>{st.w}</td><td>{st.l}</td><td>{(st.w / Math.max(1, st.w + st.l)).toFixed(3).replace(/^0/, '')}</td>
             <td>{rank || '–'}</td>
             <td className="l">{h.po ? finishLabel(h.po[tid], h.poRounds) : h.champion === tid ? '🏆 Champion' : h.runnerUp === tid ? 'Finals' : '–'}</td>
+            <td className="l">{(lg.gmHist?.[h.season]?.[tid] ?? []).join(' → ') || <span className="dim" title="GMs are recorded from this version on">–</span>}{h.gmoy?.tid === tid ? <span className="chip tiny" title={`GM of the Year: projected ${h.gmoy.baseW} wins after the lottery`}>GM of the Year</span> : null}</td>
             <td className="l">{b ? <><PName lg={lg} pid={b.p.id} openPlayer={openPlayer} /> <span className="dim">{f1(b.l.pts / b.l.gp)} ppg</span></> : '–'}</td>
           </tr>;
         })}</tbody>
@@ -363,6 +366,29 @@ export function SeasonArchive({ lg, openPlayer, initSeason, initTid }: any) {
           <SeasonRoster lg={lg} season={h.season} tid={tid} openPlayer={openPlayer} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** History → GMs: every general manager's record in this league, and the GM of the Year by season. */
+export function GmHistory({ lg, openTeam }: any) {
+  const recs = gmRecords(lg).sort((a, b) => b.titles.length - a.titles.length || b.gmoy.length - a.gmoy.length || b.seasons - a.seasons);
+  const years = (lg.history as any[]).filter(h => h.gmoy).reverse();
+  const TA = (t: string) => <button className="link" onClick={() => openTeam?.(t)}>{lg.teams[t]?.abbr ?? t}</button>;
+  return (
+    <div className="panel">
+      <h2>General managers</h2>
+      <p className="note">Who ran which team: a person by his nick, the computer as CPU. A GM gets a title when he ran the champion at the end of the season. GM of the Year goes to the GM whose team beat its outlook the most – projected right after the draft lottery against where it stood going into the playoffs (its record and its title chances).</p>
+      {!recs.length ? <p className="note">GMs are recorded from the moment games are played with this version.</p> : <div className="tbl-wrap"><table className="tbl">
+        <thead><tr><th className="l">GM</th><th>Seasons</th><th className="l">Teams</th><th>Titles</th><th>GM of the Year</th></tr></thead>
+        <tbody>{recs.map(r => <tr key={r.gm} className={r.gm === 'CPU' ? 'dim' : ''}>
+          <td className="l"><b>{r.gm === 'CPU' ? 'CPU (all computer GMs)' : r.gm}</b></td><td>{r.seasons}</td>
+          <td className="l">{[...r.teams].slice(0, 12).map((t, i) => <span key={t}>{i ? ', ' : ''}{TA(t)}</span>)}{r.teams.size > 12 ? ` +${r.teams.size - 12}` : ''}</td>
+          <td title={r.titles.map(x => `${sl(x.s)} ${lg.teams[x.tid]?.abbr}`).join(', ')}>{r.titles.length ? `🏆 ${r.titles.length}` : 0}</td>
+          <td title={r.gmoy.map(x => `${sl(x.s)} ${lg.teams[x.tid]?.abbr}`).join(', ')}>{r.gmoy.length}</td>
+        </tr>)}</tbody>
+      </table></div>}
+      {years.length > 0 && <><h3>GM of the Year</h3><ul className="news">{years.map(h => <li key={h.season}><span className="yr">{sl(h.season)}</span><span><b>{h.gmoy.gm}</b> – {TA(h.gmoy.tid)} · projected {h.gmoy.baseW} wins after the lottery, finished {h.gmoy.w}–{h.gmoy.l} · title chances {Math.round(h.gmoy.baseOdds * 100)}% → {Math.round(h.gmoy.poOdds * 100)}%</span></li>)}</ul></>}
     </div>
   );
 }

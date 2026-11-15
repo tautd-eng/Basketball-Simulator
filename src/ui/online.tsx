@@ -1,4 +1,5 @@
 // Online leagues: sign in, create / join / open a shared league, the bar with who is done, the host's tools.
+import { useHostPickClock, PickClockNote, CLOCK_OPTS } from './pickclock';
 import { useEffect, useState } from 'react';
 import { currentUser, signIn, signUp, signOut, select, unpack } from '../online/client';
 import { onlineCtx, subscribe, myLeagues, createOnline, joinOnline, claimTeam, openOnline, closeOnline, setDone, publish, hostSetMember, deleteOnline, resendFailed, tick, cancelTeamRequest, teamLockOn } from '../online/sync';
@@ -91,6 +92,7 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
   const ctx = useOnline();
   const [manage, setManage] = useState(false);
   const [switching, setSwitching] = useState(false);
+  useHostPickClock(lg, ctx?.role === 'host');
   const [msg, setMsg] = useState('');
   if (!ctx) return null;
   const lock = teamLockOn();
@@ -110,6 +112,7 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
         <span className="dim">{host ? 'you host' : `host: ${ctx.members.find(m => m.role === 'host')?.name || '–'}`} · code <button className="link" onClick={copy} title="Copy the invite link">{ctx.league.code}</button></span>
         {!draft && <span className="ob-done">{doneN}/{players.length} done</span>}
         {draft && <span className="ob-done">Draft – the league waits for whoever is on the clock</span>}
+        <PickClockNote lg={lg} />
         <span className="ob-sp" />
         {!host && !draft && <button className={`small ${ctx.me.done ? '' : 'primary'}`} onClick={() => act(() => setDone(!ctx.me.done))}>{ctx.me.done ? '✓ Done – undo' : 'I\'m done'}</button>}
         {host && <span className="dim small-t">{ctx.publishing ? 'sending…' : ctx.lastPublish ? 'sent' : ''}</span>}
@@ -120,7 +123,7 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
         <button className="small ghost" onClick={openPanel}>Leagues</button>
         <button className="small ghost" onClick={() => { closeOnline(); onLeave(); }}>Leave</button>
       </div>
-      <div className="ob-people">{players.map(m => <span key={m.user_id} className={`ob-p ${m.done || m.role === 'host' ? 'done' : ''}`} title={`${m.name || 'player'} – ${lg.teams[m.tid!]?.name ?? m.tid}${online(m) ? ' · online' : ''}`}>
+      <div className="ob-people">{players.map(m => <span key={m.user_id} className={`ob-p ${m.done || m.role === 'host' ? 'done' : ''}`} title={`${m.name || 'player'} – ${lg.teams[m.tid!]?.name ?? m.tid} · ${seenText(m.seen_at)}`}>
         {online(m) ? <i className="ob-on" /> : null}{lg.teams[m.tid!]?.abbr ?? m.tid} <span className="dim">{m.name}</span>{m.role === 'host' ? ' ★' : m.done ? ' ✓' : ''}
       </span>)}</div>
       {host && <p className="note">You move the league on (the controls above) – when everyone is done, or when you decide. Each step you take goes out to the others; people who did nothing get their GM's choices.</p>}
@@ -143,8 +146,11 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
       {host && manage && <div className="ob-manage">
         <h3>People</h3>
         <p className="note">{lock ? 'Players pick their first team themselves; any later switch waits for your approval. You can move people between teams here at any time. Tick “trade committee” for the people who vote on one-sided trades (the right goes with the team they run).' : 'Team switches are not locked on the server yet: run online/team-lock.sql once in Supabase (SQL Editor) so players need your approval to change teams.'}</p>
+        <div className="def-row"><label>Draft pick clock <select value={lg.pickTimer ?? 0} onChange={e => { lg.pickTimer = +e.target.value || 0; lg.pickClock = null; act(publish); }} aria-label="Draft pick clock">
+          {CLOCK_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+          <span className="note">A person on the clock (draft or fantasy draft) who does not pick in time gets his GM's pick. Your browser keeps the clock, so keep the league open.</span></div>
         <ul className="news">{ctx.members.map(m => <li key={m.user_id}><span className="yr">{m.role === 'host' ? 'host' : ''}</span><span>
-          <b>{m.name || 'player'}</b> – {m.tid ? lg.teams[m.tid]?.name : 'no team'}{' '}
+          <b>{m.name || 'player'}</b> – {m.tid ? lg.teams[m.tid]?.name : 'no team'} <span className={online(m) ? 'pos' : 'dim'} title={m.seen_at ? new Date(m.seen_at).toLocaleString() : ''}>· {seenText(m.seen_at)}</span>{' '}
           {m.role !== 'host' && <>
             <select value={m.tid ?? ''} onChange={e => act(() => hostSetMember(m.user_id, e.target.value || null))} aria-label={`Team for ${m.name}`}>
               <option value="">No team (GM runs it)</option>
@@ -157,4 +163,16 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
       </div>}
     </div>
   );
+}
+
+/** "online now", "5 min ago", "yesterday 21:14" – when he last had the league open. */
+function seenText(at?: string) {
+  if (!at) return 'never seen';
+  const ms = Date.now() - new Date(at).getTime(), m = Math.round(ms / 60000);
+  if (ms < 3 * 60000) return 'online now';
+  if (m < 60) return `seen ${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `seen ${h} h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'seen yesterday' : `seen ${d} days ago`;
 }

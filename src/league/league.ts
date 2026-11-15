@@ -1,4 +1,5 @@
 import { H, seasonInfo, LAST_SEASON, bpmOf, ovrOf, K, OVR_VOLUME, agingIndex } from '../data';
+import { noteGms, gmBaseline, gmPlayoffs, gmOfYear } from './gms';
 import { trackGame, playoffFinish } from './records';
 import { Rng } from '../rng';
 import { simGame, planPreview, gameGen, PbpEv, GameState, Decision } from '../engine/game';
@@ -774,6 +775,7 @@ export function simDay(lg: League): boolean {
   const rng = rngOf(lg);
   let played = false;
   if (lg.phase === 'regular' || lg.phase === 'playoffs') offDayInjuries(lg, nextCal(lg, todayIndex(lg)), rng);
+  if (lg.phase === 'regular' || lg.phase === 'playoffs') { noteGms(lg); if ((lg as any).gmBase?.s !== lg.season && lg.phase === 'regular') gmBaseline(lg, lg.season); }
   if (lg.phase === 'regular') {
     const d = todayIndex(lg);
     lg.day = d;
@@ -878,6 +880,7 @@ function startPlayoffs(lg: League, rng: Rng) {
   lg.series = [];
   lg.playIn = [];
   const f = playoffFormat(lg.season, lg);
+  gmPlayoffs(lg, ['E', 'W'].flatMap(c => standings(lg, c).slice(0, f.perConf + (f.playIn ? 2 : 0)).map(t => t.tid)));
   if (f.playIn) {
     const N = f.perConf;
     for (const c of ['E', 'W']) {
@@ -1039,6 +1042,10 @@ function finishSeason(lg: League, rng: Rng) {
     bracket: { series: lg.series.map(x => ({ round: x.round, conf: x.conf, hi: x.hi!, lo: x.lo!, hiSeed: x.hiSeed, loSeed: x.loSeed, hw: x.hw, lw: x.lw, winner: x.winner, bestOf: x.bestOf })), playIn: (lg.playIn ?? []).map((g: any) => ({ label: g.label, txt: g.txt, a: g.a, b: g.b, winner: g.winner })) },
     teamStats: Object.fromEntries(activeTeams(lg).filter(t => t.st).map(t => [t.tid, { st: t.st!, opp: t.opp!, gp: t.gp ?? 0, w: t.w, l: t.l, stPo: t.stPo, oppPo: t.oppPo, gpPo: t.gpPo }])),
   };
+  noteGms(lg, S);
+  const gmoy = gmOfYear(lg, seasonGames(lg));
+  if (gmoy) (sum as any).gmoy = gmoy;
+  if (gmoy) lg.news.push({ s: S, t: `GM of the Year: ${gmoy.gm === 'CPU' ? 'the CPU front office' : gmoy.gm} of the ${lg.teams[gmoy.tid].name} – projected ${gmoy.baseW} wins after the lottery, finished ${gmoy.w}–${gmoy.l}; title chances ${Math.round(gmoy.baseOdds * 100)}% → ${Math.round(gmoy.poOdds * 100)}% going into the playoffs.` });
   lg.history.push(sum);
   // archive stats into careers
   for (const p of Object.values(lg.players)) {

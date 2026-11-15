@@ -1,6 +1,7 @@
 import { isHuman, handTo, humans } from './humans';
 // Off-season: expansion, lottery and draft, retirements, development, contracts,
 // arrivals and free agency.
+import { gmBaseline } from './gms';
 import { nextPayroll } from './extensions';
 import { H, seasonInfo, LAST_SEASON, bpmOf, ovrOf, agingIndex, NK, shownOvr, shownFromRaw, histShown } from '../data';
 import { rosterFit, GMFIT } from '../archetypes';
@@ -286,6 +287,7 @@ export function lotteryDraw(lg: League) {
   const lottery = L.teams.map(t => t.tid);
   const res = drawOrder(lottery, L.entrants, L.weights, L.draws, rng);
   L.drawn = true; L.result = res;
+  gmBaseline(lg);                      // GM of the Year: the outlook right after the lottery
   const sum = lg.history[lg.history.length - 1];
   const r1 = [...res, ...L.rest];
   const r2 = [...lottery, ...L.rest];

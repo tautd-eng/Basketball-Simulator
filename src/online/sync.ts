@@ -120,6 +120,8 @@ async function pullCommands() {
 let lastKey = '';
 let pubTimer: any = null;
 /** Host: send the league out (after his own moves and every simulation step). */
+/** The host changed the league outside a command (e.g. the pick clock): redraw and send it out. */
+export function hostChanged() { refreshUi(); schedulePublish(1000); }
 export function schedulePublish(delay = 1500) {
   if (!ctx || ctx.role !== 'host') return;
   clearTimeout(pubTimer);
@@ -169,6 +171,7 @@ export async function tick(force = false) {
     c.me = me;
     if (c.role === 'host') {
       c.lg.humans = members.map(m => m.tid).filter(Boolean) as string[];
+      (c.lg as any).gmNames = Object.fromEntries(members.filter(m => m.tid).map(m => [m.tid, m.name || 'player']));   // GM history and awards use the nicks
       const n = await pullCommands();
       if (n) { refreshUi(); schedulePublish(4000); }
     } else if (league.version > c.version || teamChanged) {

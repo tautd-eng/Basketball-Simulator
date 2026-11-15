@@ -16,7 +16,7 @@ import { MyBoard, BoardToggle, boardOf } from './myboard';
 import { run } from '../league/commands';
 import { money, usd, showDollars, setShowDollars } from './money';
 import { Linkify, PL, TL, nav } from './nav';
-import { TeamHistory, TeamRecords, LeagueRecords, Retirements, SeasonArchive } from './history';
+import { TeamHistory, TeamRecords, LeagueRecords, Retirements, SeasonArchive, GmHistory } from './history';
 import { StandingsHistory, TeamStatsExplorer, FaMoves } from './leaguehist';
 import { Logo, TLogo, PFace } from './art';
 import { RoleBadge } from './roles';
@@ -1601,12 +1601,13 @@ function AwardsExplorer({ lg, openPlayer }: any) {
 }
 
 function HistoryView({ lg, openPlayer, openTeam, onSaved }: any) {
-  const [tab, setTab] = useNavState<'main' | 'stand' | 'tstats' | 'fa' | 'hof' | 'edits'>('history.tab', 'main');
+  const [tab, setTab] = useNavState<'main' | 'stand' | 'tstats' | 'fa' | 'hof' | 'gms' | 'edits'>('history.tab', 'main');
   const tabs = (
     <div className="seg hist-tabs" role="group" aria-label="History section">
-      {([['main', 'Champions & records'], ['stand', 'Standings'], ['tstats', 'Team stats'], ['fa', 'Free agency'], ['hof', 'Hall of Fame'], ['edits', 'Edit log']] as const).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
+      {([['main', 'Champions & records'], ['stand', 'Standings'], ['tstats', 'Team stats'], ['fa', 'Free agency'], ['hof', 'Hall of Fame'], ['gms', 'GMs'], ['edits', 'Edit log']] as const).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
     </div>
   );
+  if (tab === 'gms') return <div className="col">{tabs}<GmHistory lg={lg} openTeam={openTeam} /></div>;
   if (tab === 'edits') return <div className="col">{tabs}<EditLog lg={lg} openPlayer={openPlayer} /></div>;
   if (tab === 'hof') return <div className="col">{tabs}<HallOfFameView lg={lg} openPlayer={openPlayer} onChange={onSaved} /></div>;
   if (tab !== 'main') return <div className="col">{tabs}{tab === 'stand' ? <StandingsHistory lg={lg} openTeam={openTeam} /> : tab === 'tstats' ? <TeamStatsExplorer lg={lg} openTeam={openTeam} /> : <FaMoves lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}</div>;

@@ -95,6 +95,15 @@ export function fantasyStep(lg: League) {
   return true;
 }
 
+/** The team on the clock picks what its GM would (the pick clock ran out). Returns that team. */
+export function fantasyAutoPick(lg: League) {
+  const on = fantasyOnClock(lg);
+  if (!on) return null;
+  take(lg, on.tid, aiChoice(lg, on.tid));
+  if (!fantasyOnClock(lg)) fantasyFinish(lg);
+  return on.tid;
+}
+
 /** AI picks until it is the user's turn (or everything is done when `all`). */
 export function fantasyAdvance(lg: League, all = false) {
   let on = fantasyOnClock(lg);
