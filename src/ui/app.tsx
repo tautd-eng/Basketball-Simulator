@@ -52,7 +52,7 @@ import { StatsView } from './stats';
 import { Reporter } from './reporter';
 import { fantasyAdvance } from '../league/fantasy';
 import { Trades } from './trades';
-import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode, potCol, scoutCols } from './offseason';
+import { DraftRoom, FAHub, FreeAgentsView, potOf, attrCols, AttrMode, potCol, scoutCols, PotGrade } from './offseason';
 import { recallStash } from '../league/offseason';
 import { Rankings, offRating, defRating } from './rankings';
 import { fatigueAt, nextCal, fatigueExcess, fatigueLabel } from '../league/fatigue';
@@ -1415,7 +1415,7 @@ function OverseasRights({ lg, tid, openPlayer }: any) {
         <tbody>{ps.map(p => (
           <tr key={p.id}>
             <td className="l"><PFace lg={lg} p={p} /><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button></td>
-            <td>{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td>{potOf(p, lg.season)}</td>
+            <td>{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td><PotGrade v={potOf(p, lg.season)} /></td>
             <td className="l dim">{p.draft ? `${p.draft.year}, No. ${p.draft.pick}` : '–'}</td>
             <td className="l dim">{p.stash - 1}–{String(p.stash).slice(2)}</td>
             {mine && <td><button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setMsg(r.msg); bump(x => x + 1); if (r.ok) saveLeague(lg); }}>Bring over now</button></td>}

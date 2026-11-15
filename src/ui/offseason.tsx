@@ -34,6 +34,8 @@ export { potOf } from '../league/scouting';
 import { potOf, scoutNow } from '../league/scouting';
 const POT_STEPS: [number, string][] = [[90, 'A+'], [86, 'A'], [83, 'A-'], [80, 'B+'], [77, 'B'], [74, 'B-'], [71, 'C+'], [68, 'C'], [65, 'C-'], [62, 'D+'], [59, 'D'], [0, 'D-']];
 export const potLetter = (v: number) => POT_STEPS.find(([t]) => v >= t)![1];
+/** The scouts' potential as a letter grade (the number on hover). */
+export const PotGrade = ({ v }: { v: number }) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; };
 /** A potential column: the scouts' estimate as a letter grade (the number on hover). */
 export const potCol = (pOf: (r: any) => any, S: number) => ({ key: 'pot', label: 'Pot.', title: "Potential as the scouts see it – they can be wrong, especially about prospects; the real potential stays hidden", get: (r: any) => potOf(pOf(r), S),
   fmt: (v: number) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; } });
@@ -318,7 +320,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
     { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, N) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
-    { key: 'pot', label: 'Pot.', get: (r: any) => potOf(r.p, N) },
+    potCol((r: any) => r.p, N),
     { key: 'from', label: 'Last team', left: true, get: (r: any) => lg.teams[r.from]?.abbr ?? '', fmt: (_: any, r: any) => tm(r.from) },
     { key: 'int', label: 'Interest', title: 'Teams interested in him (offers stay secret until he signs)', left: true, get: (r: any) => market.get(r.p.id)?.length ?? -1,
       fmt: (_: any, r: any) => { const o = market.get(r.p.id); if (!o) return <span className="dim">–</span>; if (!o.length) return <span className="dim">no offers</span>;
@@ -413,7 +415,7 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
                 const need = faDemand(lg, p, u.tid, preferredYears(p, N));
                 return <tr key={p.id}>
                   <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> <span className="dim">{posLabel(p)}</span></td>
-                  <td>{ageIn(p, N)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td>{potOf(p, N)}</td>
+                  <td>{ageIn(p, N)}</td><td><Ovr v={ovrOf(p.z, p.id)} /></td><td><PotGrade v={potOf(p, N)} /></td>
                   <td>{moneyOf(need, N)}</td>
                   <td className="l"><button className={`small ${neg === p.id ? '' : 'primary'}`} onClick={() => setNeg(neg === p.id ? null : p.id)}>{neg === p.id ? 'Close' : 'Negotiate'}</button> <button className="small" onClick={() => act(() => run(lg, { t: 'faRenounce', pid: p.id }))}>Let go</button></td>
                 </tr>;
@@ -630,7 +632,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
     { key: 'pos', label: 'Pos', get: (r: any) => natural(r.p), fmt: (_: any, r: any) => <span className="dim">{posLabel(r.p)}</span> },
     { key: 'age', label: 'Age', asc: true, get: (r: any) => ageIn(r.p, N) },
     { key: 'ovr', label: 'OVR', get: (r: any) => ovrOf(r.p.z, r.p.id), fmt: (v: any) => <Ovr v={v} /> },
-    { key: 'pot', label: 'Pot.', get: (r: any) => potOf(r.p, N) },
+    potCol((r: any) => r.p, N),
     ...attrCols((r: any) => r.p, N),
     { key: 'ls', label: 'Last season', title: 'Last season played', get: (r: any) => r.l?.s ?? null, fmt: (v: any) => v ?? '–' },
     { key: 'pts', label: 'Pts', get: (r: any) => (r.l?.gp ? r.l.pts / r.l.gp : null), fmt: f1 },
