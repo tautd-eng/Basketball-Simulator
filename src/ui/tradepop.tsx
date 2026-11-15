@@ -32,7 +32,8 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
   if (busy || !lg?.userTid || lg.phase === 'fantasy') return null;
   const closed = lg.phase === 'playoffs' || (lg.phase === 'regular' && pastDeadline(lg));
   const offers = inbox(lg, lg.userTid).filter((pr: any) => !seen.has(offerKey(pr)));
-  const votes = reviews(lg).filter((r: any) => canVote(lg, r, lg.userTid) && r.votes[lg.userTid] === undefined && !seen.has(reviewKey(lg, r)));
+  const host = (lg as any).online?.role === 'host';
+  const votes = reviews(lg).filter((r: any) => (canVote(lg, r, lg.userTid) && r.votes[lg.userTid] === undefined || (host && !voters(lg, r).length)) && !seen.has(reviewKey(lg, r)));
   const items = [...offers.map((pr: any) => ({ k: 'o', pr })), ...votes.map((r: any) => ({ k: 'r', r }))];
   if (!items.length && !msg) return null;
   const later = (key: string) => { seen.add(key); keep(); setMsg(''); bump(x => x + 1); };
@@ -65,10 +66,11 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
     );
   }
   const r = it.r;
-  const doVote = (yes: boolean) => { const res = run(lg, { t: 'tcVote', id: r.id, yes }); seen.add(reviewKey(lg, r)); keep(); setMsg(res.msg); onChange(); };
+  const asCommish = !canVote(lg, r, lg.userTid);
+  const doVote = (yes: boolean) => { const res = asCommish ? commissionerDecide(lg, r.id, yes) : run(lg, { t: 'tcVote', id: r.id, yes }); seen.add(reviewKey(lg, r)); keep(); setMsg(res.msg); onChange(); };
   return (
     <div className="overlay center"><div className="dialog trade-pop" role="dialog" aria-label="Trade committee">
-      <div className="team-head"><h2>Trade committee vote</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
+      <div className="team-head"><h2>{asCommish ? 'Trade committee – your decision' : 'Trade committee vote'}</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
       <ReviewBody lg={lg} r={r} openPlayer={openPlayer} />
       <div className="dialog-actions">
         <button className="ghost" onClick={() => later(reviewKey(lg, r))}>Later</button>
@@ -87,7 +89,7 @@ function ReviewBody({ lg, r, openPlayer }: any) {
       <div><h4><TL tid={r.pr.from} abbr /> get <span className="dim">· market value {r.mv[0]}</span></h4><Side lg={lg} xs={r.pr.toGives} openPlayer={openPlayer} /></div>
       <div><h4><TL tid={r.pr.to} abbr /> get <span className="dim">· market value {r.mv[1]}</span></h4><Side lg={lg} xs={r.pr.fromGives} openPlayer={openPlayer} /></div>
     </div>
-    <p className="dim small-t">Votes: {yesN} for, {noN} against · {vs.length ? `${Math.floor(vs.length / 2) + 1} of ${vs.length} decide` : 'no committee members can vote – the commissioner decides'}. If time runs out ({lg.phase === 'regular' ? '3 days' : 'the end of this stage'}), the votes cast decide and a tie lets it through.</p>
+    <p className="dim small-t">Votes: {yesN} for, {noN} against · {vs.length ? `${Math.floor(vs.length / 2) + 1} of ${vs.length} decide` : 'no committee member outside the deal can vote – the commissioner decides'}. If time runs out ({lg.phase === 'regular' ? '3 days' : 'the end of this stage'}), the votes cast decide and a tie lets it through.</p>
   </>;
 }
 
@@ -106,6 +108,7 @@ export function CommitteePanel({ lg, openPlayer, onDone }: any) {
       {list.length ? list.map((r: any) => <div key={r.id} className="review-card">
         <ReviewBody lg={lg} r={r} openPlayer={openPlayer} />
         <div className="def-row">
+          {(r.pr.from === lg.userTid || r.pr.to === lg.userTid) && <span className="dim">{committee(lg).includes(lg.userTid) ? "You're on the committee, but you're in this deal, so you don't vote on it." : "Your trade – it waits for the committee's decision."}{!voters(lg, r).length ? ' Nobody else on the committee can vote on it, so the commissioner decides.' : ''}</span>}
           {canVote(lg, r, lg.userTid) && <>
             <span className="dim">{r.votes[lg.userTid] === undefined ? 'Your vote:' : `You voted ${r.votes[lg.userTid] ? 'to approve' : 'to veto'} – change it:`}</span>
             <button className="small primary" onClick={() => { setMsg(run(lg, { t: 'tcVote', id: r.id, yes: true }).msg); onDone(); }}>Approve</button>
