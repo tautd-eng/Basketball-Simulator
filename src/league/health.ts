@@ -36,14 +36,14 @@ export const YOUNG = { maxAge: 25, deadZone: 2.5, flop: -3, negFactor: 0.5, maxD
  *  lgDown / lgUp: share of the league-wide recalibration he carries when the league runs too strong / too weak
  *  young:   most a young player who did not flop can lose in one summer (OVR, sim scale)
  */
-/** Share of the data's (survivor-biased) aging growth young players get – see develop(). */
-export const YOUNG_TREND = 0.7;
+/** Share of the data's (survivor-biased) aging growth young players get, by age 19 … 25 (see develop()). */
+export const YOUNG_TREND = [0.8, 0.8, 0.65, 0.35, 0.25, 0.25, 0.3];
 export const AGE = {
   //         19    20    21    22    23    24    25    26    27    28    29    30    31    32    33    34    35    36    37    38    39
-  grow:   [0.40, 0.38, 0.33, 0.24, 0.10, 0.08, 0.08, 0.05, 0.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  grow:   [0.40, 0.38, 0.26, 0.08, 0.05, 0.03, 0.03, 0.02, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   minDrop:[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.25, 0.35, 0.45, 0.55, 0.80, 1.05, 1.30, 1.55, 1.80, 2.05, 2.20],
   neg:    [0, 0, 0, 0, 0.20, 0.40, 0.55, 0.60, 0.65, 0.85, 0.90, 1.00, 1.05, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10],
-  pos:    [1.50, 1.50, 1.50, 1.50, 1.35, 1.25, 1.15, 1.00, 0.90, 0.85, 0.85, 0.80, 0.75, 0.65, 0.60, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
+  pos:    [1.50, 1.50, 1.50, 1.40, 1.15, 1.05, 1.00, 1.00, 0.90, 0.85, 0.85, 0.80, 0.75, 0.65, 0.60, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
   lgDown: [0.50, 0.50, 0.50, 0.50, 0.45, 0.40, 0.35, 0.35, 0.40, 0.70, 1.00, 1.20, 1.30, 1.30, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80],
   lgUp:   [1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.00, 0.80, 0.65, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50],
   young:  [0, 0, 0, 0, 0.5, 1, 2],
@@ -325,7 +325,7 @@ export function develop(lg: League, rng: Rng) {
       // trend moves with the aging curve; the noise component is replaced, not added on top
       // the data's aging curve is measured on players who stayed in the league (the ones who got better): for the young
       // it runs too steep, so their average growth is taken at YOUNG_TREND of it
-      const m = a.mean[ai] > 0 && age <= 25 ? a.mean[ai] * YOUNG_TREND : a.mean[ai];
+      const m = a.mean[ai] > 0 && age <= 25 ? a.mean[ai] * atAge(YOUNG_TREND, age) : a.mean[ai];
       nat[i] = m + pot + (eNew[i] - dev.e[i]);
     }
     // the young grow by themselves until about 23 – the more talented (hidden potential, and already good for his

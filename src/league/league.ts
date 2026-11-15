@@ -392,13 +392,13 @@ export function rotationPreview(lg: League, tid: string, m: NonNullable<Team['mg
 /** How much an AI team plays its young players, by what it is playing for. */
 export const aiYouth = (t: Team) => {
   const m = (t as any).mode;
-  if (m === 'tank') return 0.3;
+  if (m === 'tank') return 0.2;
   if (m === 'allin') return 0;
-  if (t.strategy === 'rebuild') return m === 'rising' ? 0.15 : 0.22;
-  if (m === 'rising') return 0.15;
-  return t.strategy === 'contend' ? 0.02 : 0.07;
+  if (t.strategy === 'rebuild') return m === 'rising' ? 0.1 : 0.15;
+  if (m === 'rising') return 0.1;
+  return t.strategy === 'contend' ? 0.01 : 0.04;
 };
-export const youthQ = (age: number, youth: number) => 1 + youth * 2.5 * (age <= 21 ? 1 : age <= 23 ? 0.75 : age <= 25 ? 0.35 : 0);
+export const youthQ = (age: number, youth: number) => 1 + youth * 2.5 * (age <= 21 ? 1 : age <= 22 ? 0.75 : age <= 23 ? 0.5 : age <= 25 ? 0.2 : 0);
 export function teamIn(lg: League, t: Team, rng: Rng, opp?: string) {
   const players = availablePlayers(lg, t.tid, rng);
   // a person's team – or an AI team whose rotation was imported from a sheet
