@@ -1,5 +1,5 @@
 // Visitor counter (online/visits.sql in Supabase): this browser says "I'm here" on opening and every 2 minutes.
-import { SB_URL, SB_KEY } from './client';
+import { SB_URL, SB_KEY, maybeToken } from './client';
 
 export interface VisitStats { visitors: number; visits: number; online: number; today: number; week: number }
 let stats: VisitStats | null = null;
@@ -15,18 +15,19 @@ function visitorId() {
   } catch { return crypto.randomUUID(); }
 }
 async function ping() {
-  if (typeof document !== 'undefined' && document.hidden && stats) return;   // a hidden tab still counts at the next look
+  if (typeof document !== 'undefined' && document.hidden && started > 1) return;
+  started = 2;   // a hidden tab still counts at the next look
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/rpc/site_visit`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: visitorId() }) });
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/site_visit`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${(await maybeToken()) ?? SB_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: visitorId() }) });
     if (!r.ok) return;                                                    // not set up in Supabase yet: nothing shown
-    stats = await r.json();
+    stats = await r.json();                                              // null unless this account may see the numbers
     for (const f of subs) f();
   } catch { /* offline */ }
 }
-let started = false;
+let started = 0;
 export function startVisits() {
   if (started || typeof window === 'undefined' || !/^https?:/.test(location.protocol)) return;
-  started = true;
+  started = 1;
   ping();
   setInterval(ping, 120000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });

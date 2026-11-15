@@ -35,6 +35,9 @@ async function token() {
   return session!.access;
 }
 
+/** The signed-in token if there is a valid one – never throws (for calls anyone may make). */
+export async function maybeToken() { if (!session) return null; try { return await token(); } catch { return null; } }
+
 async function call(method: string, path: string, body?: any, prefer?: string) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
     method,
