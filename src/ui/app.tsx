@@ -573,7 +573,7 @@ function SavesPanel({ lg, close, onLoad, onNew }: any) {
           <li key={sv.id} className={sv.id === cur ? 'mine' : ''}>
             {edit === sv.id
               ? <span className="save-edit"><input value={name} onChange={e => setName(e.target.value)} aria-label="Save name" /><button className="small primary" onClick={async () => { const nm = name.trim() || sv.name; if (sv.id === cur) { lg.saveName = nm; await saveLeague(lg); } else await renameSave(sv.id, nm); setEdit(null); refresh(); }}>OK</button></span>
-              : <span><b>{sv.name}</b>{sv.id === cur ? <span className="chip tiny">playing</span> : null}<br /><span className="dim">{sv.label} · saved {new Date(sv.updated).toLocaleString()}</span></span>}
+              : <span><b>{sv.name}</b>{sv.id === cur ? <span className="chip tiny">playing</span> : null}{sv.backup ? <span className="chip tiny" title="Made automatically when a season starts – the last 3 of each league are kept. Opening it plays on from that point as an ordinary league in this browser.">auto backup</span> : null}<br /><span className="dim">{sv.label} · saved {new Date(sv.updated).toLocaleString()}</span></span>}
             <span className="save-actions">
               {sv.id !== cur && <button className="small primary" onClick={() => onLoad(sv.id)}>Load</button>}
               <button className="small" onClick={() => { setEdit(sv.id); setName(sv.name); }}>Rename</button>

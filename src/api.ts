@@ -74,7 +74,7 @@ export async function advance(lg: League, target: Target, onProgress: () => void
 // ------------------------------------------------------------ persistence
 // Several saved leagues ("slots") in one IndexedDB store; a small index lists them.
 const DB = 'nba-istorija', STORE = 'lyga', META = 'slots';
-export interface SaveInfo { id: string; name: string; updated: number; label: string }
+export interface SaveInfo { id: string; name: string; updated: number; label: string; backup?: string }
 let slot = (() => { try { return localStorage.getItem('nba-slot') || 'current'; } catch { return 'current'; } })();
 export const currentSlot = () => slot;
 export function setSlot(id: string) { slot = id; try { localStorage.setItem('nba-slot', id); } catch { /* per-tab only */ } }
@@ -138,12 +138,33 @@ export const saveHooks: ((lg: League, id: string) => void)[] = [];
 export async function saveLeague(lg: League, id = slot): Promise<boolean> {
   try {
     (lg as any).saveName ??= defaultName(lg);
+    const bk = needsBackup(lg, id);
+    if (bk) (lg as any).backupS = lg.season;
     await put(id, JSON.parse(JSON.stringify(lg)));
+    if (bk) await backup(lg, id);
     await upsertMeta({ id, name: (lg as any).saveName, updated: Date.now(), label: labelOf(lg) });
     for (const h of saveHooks) try { h(lg, id); } catch { /* never block saving */ }
     return true;
   } catch { return false; }
 }
+// ---- automatic backups: a copy of every league once a season (when the regular season starts); the last 3 are kept
+const BK_KEEP = 3;
+const isBackup = (id: string) => id.startsWith('bk-');
+const needsBackup = (lg: League, id: string) => !isBackup(id) && lg.phase === 'regular' && (lg as any).backupS !== lg.season && lg.history.length > 0;
+async function backup(lg: League, id: string) {
+  try {
+    const copy = JSON.parse(JSON.stringify(lg));
+    delete copy.online;                                   // a backup always opens as an ordinary league in this browser
+    const sl = `${lg.season - 1}–${String(lg.season).slice(2)}`;
+    copy.saveName = `${(lg as any).saveName} – backup ${sl}`;
+    const bid = `bk-${lg.season}-${id}`;
+    await put(bid, copy);
+    await upsertMeta({ id: bid, name: copy.saveName, updated: Date.now(), label: labelOf(lg), backup: id });
+    const mine = (await listSaves()).filter(x => x.backup === id).sort((a, b) => b.updated - a.updated);
+    for (const old of mine.slice(BK_KEEP)) await deleteSave(old.id);
+  } catch { /* a failed backup never blocks saving */ }
+}
+
 import { awardLabel } from './ui/player';
 /** Older saves: award names from the Lithuanian version. */
 const AWARD_EN: Record<string, string> = { 'čempionas': 'Champion', 'Finalo MVP': 'Finals MVP', '6-as žaidėjas': '6MOY' };
