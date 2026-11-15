@@ -13,6 +13,7 @@ import { Linkify } from './nav';
 import { propose as sendOffer, answer, withdraw, inbox, outbox, proposalProblem, describeSide } from '../league/proposals';
 import { tradeRules, findTrades } from '../ai/trades';
 import { CommitteePanel } from './tradepop';
+import { TradeBlock } from './tradeblock';
 
 const pkKey = (p: any) => `${p.season}-${p.round}-${p.orig}`;
 const valCls = (v: number) => (v >= 15 ? 'hi' : v >= 5 ? 'mid' : v < 0 ? 'neg' : '');
@@ -235,6 +236,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         </div>
         {msg && <p className="ok-msg">{msg}</p>}
       </div>
+      {lg.phase !== 'fantasy' && <TradeBlock lg={lg} openPlayer={openPlayer} onDone={onDone} offer={(tid: string, pid: string) => { setA(me0); setB(tid); setSelA(new Set()); setSelB(new Set(['p:' + pid])); setMsg(null); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* */ } }} />}
       <div className="panel">
         <h2>Trade history</h2>
         {trades.length ? (

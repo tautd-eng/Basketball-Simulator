@@ -1,4 +1,5 @@
 import { H, seasonInfo, LAST_SEASON, bpmOf, ovrOf, K, OVR_VOLUME, agingIndex } from '../data';
+import { regMatrix } from './h2h';
 import { noteGms, gmBaseline, gmPlayoffs, gmOfYear } from './gms';
 import { trackGame, playoffFinish } from './records';
 import { Rng } from '../rng';
@@ -1043,6 +1044,7 @@ function finishSeason(lg: League, rng: Rng) {
     teamStats: Object.fromEntries(activeTeams(lg).filter(t => t.st).map(t => [t.tid, { st: t.st!, opp: t.opp!, gp: t.gp ?? 0, w: t.w, l: t.l, stPo: t.stPo, oppPo: t.oppPo, gpPo: t.gpPo }])),
   };
   noteGms(lg, S);
+  (sum as any).h2h = regMatrix(lg);            // regular-season head-to-head, for the team pages
   const gmoy = gmOfYear(lg, seasonGames(lg));
   if (gmoy) (sum as any).gmoy = gmoy;
   if (gmoy) lg.news.push({ s: S, t: `GM of the Year: ${gmoy.gm === 'CPU' ? 'the CPU front office' : gmoy.gm} of the ${lg.teams[gmoy.tid].name} – projected ${gmoy.baseW} wins after the lottery, finished ${gmoy.w}–${gmoy.l}; title chances ${Math.round(gmoy.baseOdds * 100)}% → ${Math.round(gmoy.poOdds * 100)}% going into the playoffs.` });

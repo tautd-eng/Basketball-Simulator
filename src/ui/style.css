@@ -1220,3 +1220,7 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .review-card { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; }
 @media (max-width: 560px) { .pop-sides { grid-template-columns: 1fr; } .trade-pop .dialog-actions { flex-wrap: wrap; } }
 .adv-legend { columns: 2 280px; margin: 6px 0; padding-left: 1.1em; } .adv-legend li { break-inside: avoid; margin: 2px 0; }
+.block-card { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px; margin-bottom: 10px; }
+.block-card.mine { border-color: var(--accent); }
+.block-card h3 { margin: 0; }
+.block-pick { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0 8px; }

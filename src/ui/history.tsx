@@ -1,5 +1,6 @@
 // @ts-nocheck
 // Franchise history (season by season), franchise and league record books.
+import { h2h as h2hOf } from '../league/h2h';
 import { gmOf, gmRecords } from '../league/gms';
 import { TL } from './nav';
 import { posLabel, natural } from './positions';
@@ -390,5 +391,56 @@ export function GmHistory({ lg, openTeam }: any) {
       </table></div>}
       {years.length > 0 && <><h3>GM of the Year</h3><ul className="news">{years.map(h => <li key={h.season}><span className="yr">{sl(h.season)}</span><span><b>{h.gmoy.gm}</b> – {TA(h.gmoy.tid)} · projected {h.gmoy.baseW} wins after the lottery, finished {h.gmoy.w}–{h.gmoy.l} · title chances {Math.round(h.gmoy.baseOdds * 100)}% → {Math.round(h.gmoy.poOdds * 100)}%</span></li>)}</ul></>}
     </div>
+  );
+}
+
+/** Team page → Head-to-head: the record against every other team, and season by season against one. */
+export function TeamH2H({ lg, tid, openTeam }: any) {
+  const [opp, setOpp] = useState<string>('');
+  const others = (Object.values(lg.teams) as any[]).filter(t => t.tid !== tid && (t.active || lg.history.some((h: any) => h.standings.some((x: any) => x.tid === t.tid))));
+  const all = useMemo(() => others.map(t => ({ t, r: h2hOf(lg, tid, t.tid) })), [lg, tid, lg.history.length, lg.day, lg.phase]);
+  const wl = (x: [number, number]) => (x[0] + x[1] ? `${x[0]}–${x[1]}` : '–');
+  const tot = (r: any): [number, number] => [r.reg[0] + r.po[0] + r.playIn[0], r.reg[1] + r.po[1] + r.playIn[1]];
+  const since = all.find(x => x.r.since != null)?.r.since;
+  const rows = all.map(({ t, r }) => ({ key: t.tid, t, r, tot: tot(r) }));
+  const cols = [
+    { key: 'team', label: 'Opponent', left: true, asc: true, get: (x: any) => x.t.name, fmt: (v: any, x: any) => <button className="link" onClick={() => setOpp(x.t.tid)}>{v}</button> },
+    { key: 'tot', label: 'Total', title: 'All games: regular season, play-in and playoffs', get: (x: any) => x.tot[0] - x.tot[1], fmt: (_: any, x: any) => wl(x.tot) },
+    { key: 'pct', label: '%', get: (x: any) => (x.tot[0] + x.tot[1] ? x.tot[0] / (x.tot[0] + x.tot[1]) : null), fmt: (v: any) => (v == null ? '–' : v.toFixed(3).replace(/^0/, '')) },
+    { key: 'reg', label: 'Regular season', get: (x: any) => x.r.reg[0] - x.r.reg[1], fmt: (_: any, x: any) => wl(x.r.reg) },
+    { key: 'po', label: 'Playoff games', get: (x: any) => x.r.po[0] - x.r.po[1], fmt: (_: any, x: any) => wl(x.r.po) },
+    { key: 'ser', label: 'Series', get: (x: any) => x.r.series[0] - x.r.series[1], fmt: (_: any, x: any) => wl(x.r.series) },
+    { key: 'pi', label: 'Play-in', get: (x: any) => x.r.playIn[0] - x.r.playIn[1], fmt: (_: any, x: any) => wl(x.r.playIn) },
+  ];
+  const one = opp ? all.find(x => x.t.tid === opp) : null;
+  const RN = (n: number, r: number) => (n - r === 0 ? 'Finals' : n - r === 1 ? 'Conference finals' : `Round ${r}`);
+  const n = (s: number) => lg.history.find((h: any) => h.season === s)?.poRounds ?? 4;
+  return (
+    <>
+      <div className="def-row">
+        <select value={opp} onChange={e => setOpp(e.target.value)} aria-label="Opponent">
+          <option value="">Against every team</option>
+          {[...others].sort((a, b) => a.name.localeCompare(b.name)).map(t => <option key={t.tid} value={t.tid}>vs {t.name}</option>)}
+        </select>
+        {opp && <button className="small ghost" onClick={() => openTeam?.(opp)}>Open {lg.teams[opp]?.abbr}</button>}
+      </div>
+      {!one ? <>
+        <SortTable cols={cols} rows={rows} initial="tot" />
+        <p className="note">Playoff and play-in games count from the league's first season; regular-season games from {since ? sl(since) : 'the next season played'} on (they were not kept before). Pick an opponent for the season-by-season story.</p>
+      </> : <>
+        <div className="kv">
+          <div><span className="dim">Total</span> <b>{wl(tot(one.r))}</b></div>
+          <div><span className="dim">Regular season</span> {wl(one.r.reg)}</div>
+          <div><span className="dim">Playoffs</span> games {wl(one.r.po)} · series {wl(one.r.series)}{one.r.playIn[0] + one.r.playIn[1] ? ` · play-in ${wl(one.r.playIn)}` : ''}</div>
+        </div>
+        {one.r.seasons.length ? <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>Season</th><th>Regular season</th><th className="l">Playoffs</th></tr></thead>
+          <tbody>{one.r.seasons.map((x: any) => <tr key={x.s}>
+            <td>{sl(x.s)}</td><td>{x.reg ? `${x.reg[0]}–${x.reg[1]}` : '–'}</td>
+            <td className="l">{[...x.playIn.map((g: any) => `Play-in: ${g.won ? 'won' : 'lost'}`), ...x.series.map((q: any) => `${RN(n(x.s), q.round)}: ${!q.done ? 'in progress' : q.won ? 'won' : 'lost'} ${q.w}–${q.l}`)].join(' · ') || '–'}</td>
+          </tr>)}</tbody>
+        </table></div> : <p className="note">They have not met yet.</p>}
+      </>}
+    </>
   );
 }

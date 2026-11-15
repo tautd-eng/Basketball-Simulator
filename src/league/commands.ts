@@ -27,6 +27,7 @@ export type Cmd =
   | { t: 'answer'; id: number; yes: boolean }
   | { t: 'withdrawProposal'; id: number }
   | { t: 'tcVote'; id: number; yes: boolean }                         // trade committee vote
+  | { t: 'setBlock'; pids: string[]; want: string[]; note: string }    // trade block
   | { t: 'extend'; pid: string; sal: number; yrs: number }
   | { t: 'recall'; pid: string }
   | { t: 'gameResult'; home: string; away: string; res: { home: any; away: any; ot?: number } };  // his own game, played on his screen
@@ -78,6 +79,11 @@ export function apply(lg: League, env: Envelope): Result {
       case 'answer': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.to !== tid) return no('Not your offer to answer.'); return answer(lg, cmd.id, cmd.yes); }
       case 'withdrawProposal': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.from !== tid) return no('Not your offer.'); withdraw(lg, cmd.id); return { ok: true, msg: 'Offer withdrawn.' }; }
       case 'tcVote': return vote(lg, cmd.id, tid, cmd.yes);
+      case 'setBlock': {
+        const pids = (cmd.pids ?? []).filter(id => lg.players[id]?.tid === tid).slice(0, 15);
+        ((lg as any).tradeBlock ??= {})[tid] = { pids, want: (cmd.want ?? []).slice(0, 10).map(String), note: String(cmd.note ?? '').slice(0, 200) };
+        return { ok: true, msg: pids.length ? `Your trade block: ${pids.length} player${pids.length > 1 ? 's' : ''}.` : 'Your trade block is empty.' };
+      }
       case 'extend': if (p?.tid !== tid) return no('Not your player.'); return userExtend(lg, cmd.pid, cmd.sal, cmd.yrs);
       case 'gameResult': {
         if (cmd.home !== tid && cmd.away !== tid) return no('Not your game.');
