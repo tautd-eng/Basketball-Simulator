@@ -15,7 +15,8 @@ export function addLine(a: StatLine, b: StatLine) {
   for (const k of STAT_KEYS) a[k] = (a[k] ?? 0) + (b[k] ?? 0);   // older saves have no defence counts
 }
 
-export interface CareerSeason extends StatLine { s: number; tid: string; po: boolean; ovr: number; age: number }
+/** by: the same season split by team – only for a player who played for more than one team that season */
+export interface CareerSeason extends StatLine { s: number; tid: string; po: boolean; ovr: number; age: number; by?: Record<string, StatLine> }
 
 /** sal = fraction of the season's cap; exp = last season; opts = option years still to be decided; rookie = first contract (restricted free agency when it ends) */
 export interface Contract { sal: number; exp: number; opts?: { s: number; k: 'team' | 'player' }[]; rookie?: boolean }
@@ -36,6 +37,8 @@ export interface Player {
   endur: number;         // endurance z
   cur: StatLine;         // current regular season
   curPo: StatLine;       // current playoffs
+  /** this season's lines split by team (for advanced stats; cur/curPo stay the full-season totals) */
+  curBy?: Record<string, StatLine>; curPoBy?: Record<string, StatLine>;
   career: CareerSeason[];
   ovrHist: [number, number][]; // [season, ovr]
   awards: string[];

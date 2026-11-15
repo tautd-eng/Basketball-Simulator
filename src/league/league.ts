@@ -447,6 +447,8 @@ function applyBox(lg: League, res: GameResult) {
   for (const b of [res.home, res.away]) for (const pl of b.players) {
     const p = lg.players[pl.pid];
     addLine(res.po ? p.curPo : p.cur, pl.st);
+    const by = res.po ? (p.curPoBy ??= {}) : (p.curBy ??= {});
+    addLine(by[b.tid] ??= emptyLine(), pl.st);
   }
   // team totals (own and opponents')
   for (const [b, o] of [[res.home, res.away], [res.away, res.home]] as const) {
@@ -1042,10 +1044,11 @@ function finishSeason(lg: League, rng: Rng) {
   for (const p of Object.values(lg.players)) {
     if (p.cur.gp > 0 || p.curPo.gp > 0) {
       const base = { s: S, tid: p.tid ?? '', age: ageIn(p, S), ovr: ovrOf(p.z) };
-      if (p.cur.gp > 0) p.career.push({ ...p.cur, ...base, po: false } as CareerSeason);
-      if (p.curPo.gp > 0) p.career.push({ ...p.curPo, ...base, po: true } as CareerSeason);
+      const split = (by?: Record<string, any>) => (by && Object.keys(by).length > 1 ? { by } : {});
+      if (p.cur.gp > 0) p.career.push({ ...p.cur, ...base, po: false, ...split(p.curBy) } as CareerSeason);
+      if (p.curPo.gp > 0) p.career.push({ ...p.curPo, ...base, po: true, ...split(p.curPoBy) } as CareerSeason);
     }
-    p.cur = emptyLine(); p.curPo = emptyLine();
+    p.cur = emptyLine(); p.curPo = emptyLine(); delete p.curBy; delete p.curPoBy;
   }
   lg.news.push({ s: S, t: `${lg.teams[champ].name} are the ${S} champions! They beat the ${lg.teams[runner].name} in the Finals (${Math.max(finals.hw, finals.lw)}–${Math.min(finals.hw, finals.lw)}).` });
   lg.phase = 'draft';

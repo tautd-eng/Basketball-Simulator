@@ -49,6 +49,7 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
   const [team, setTeam] = useState('');
   const [minGp, setMinGp] = useState(0);
   const [minMpg, setMinMpg] = useState(10);
+  const [showSplits, setShowSplits] = useState(false);
   const S = seasons.includes(season) ? season : seasons[0] ?? lg.season;
 
   const P = useMemo(() => playerLines(lg, S, po), [lg, S, po, lg.day, lg.phase]);
@@ -113,15 +114,34 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
   if (view === 'adv') {
     const byTid = new Map(T.map((t: any) => [t.tid, { st: t.st, opp: t.opp, gp: t.gp }]));
     const L = byTid.size ? leagueCtx([...byTid.values()] as any) : null;
-    const all = L ? P.filter(r => byTid.has(r.tid) && r.l.min > 0).map(r => ({ ...r, a: advanced(r.l, byTid.get(r.tid) as any, L) })) : [];
-    const k = perScale(all.map(r => ({ min: r.l.min, aper: r.a.aper })));
+    // a player who played for more than one team: one row per team (against that team's totals) and a TOT row
+    const all: any[] = [];
+    if (L) for (const r of P) {
+      const cur = S === lg.season && (lg.phase === 'regular' || lg.phase === 'playoffs');
+      const by = cur ? (po ? r.p.curPoBy : r.p.curBy) : r.p.career.find((x: any) => x.s === S && x.po === po)?.by;
+      const parts = by && Object.keys(by).length > 1 ? Object.entries(by).filter(([t, l]: any) => byTid.has(t) && l.min > 0) : [];
+      if (parts.length > 1) {
+        const sub = parts.map(([t, l]: any) => ({ ...r, key: `${r.p.id}|${t}`, tid: t, l, split: true, a: advanced(l, byTid.get(t) as any, L) }));
+        all.push(...sub);
+        const m = sub.reduce((x, y) => x + y.l.min, 0), a: any = {};
+        for (const key of Object.keys(sub[0].a)) {
+          if (['ows', 'dws', 'ws'].includes(key)) a[key] = sub.reduce((x, y) => x + y.a[key], 0);
+          else if (key === 'dfg') { const ga = sub.reduce((x, y) => x + (y.l.dfga ?? 0), 0); a.dfg = ga ? 100 * sub.reduce((x, y) => x + (y.l.dfgm ?? 0), 0) / ga : null; }
+          else a[key] = sub.reduce((x, y) => x + y.a[key] * y.l.min, 0) / m;
+        }
+        a.ws48 = a.ws * 48 / m;
+        all.push({ ...r, key: `${r.p.id}|TOT`, tid: 'TOT', tot: parts.map(([t]) => t), a });
+      } else if (byTid.has(r.tid) && r.l.min > 0) all.push({ ...r, a: advanced(r.l, byTid.get(r.tid) as any, L) });
+    }
+    const k = perScale(all.filter(r => r.tid !== 'TOT').map(r => ({ min: r.l.min, aper: r.a.aper })));
     for (const r of all) r.a.per = r.a.aper * k;
-    const rows = all.filter(r => (!team || r.tid === team) && r.l.gp >= minGp && r.l.min / r.l.gp >= minMpg);
+    // all teams: TOT rows for traded players (their team rows on request); one team: that team's part only
+    const rows = all.filter(r => (team ? r.tid === team : (showSplits || !r.split)) && r.l.gp >= minGp && r.l.min / r.l.gp >= minMpg);
     const a = (key: string, label: string, title: string, fmt: any = f1, asc = false) => ({ key, label, title, asc, get: (r: any) => r.a[key], fmt });
     const sg = (x: any) => (x > 0 ? '+' : '') + f1(x);
     const cols = [
       { key: 'name', label: 'Player', left: true, asc: true, get: (r: any) => r.p.name, fmt: (_: any, r: any) => name(r) },
-      { key: 'tid', label: 'Team', left: true, asc: true, get: (r: any) => tAbbr(r.tid) },
+      { key: 'tid', label: 'Team', left: true, asc: true, get: (r: any) => (r.tid === 'TOT' ? 'TOT' : tAbbr(r.tid)), fmt: (v: any, r: any) => (r.tid === 'TOT' ? <span title={`Played for ${r.tot.map(tAbbr).join(', ')} this season`}>TOT</span> : r.split ? <span className="dim">{v}</span> : v) },
       { key: 'gp', label: 'GP', get: (r: any) => r.l.gp },
       { key: 'mpg', label: 'MPG', title: 'Minutes per game', get: (r: any) => r.l.min / r.l.gp, fmt: f1 },
       a('per', 'PER', 'Player efficiency rating – per-minute production, league average 15'),
@@ -149,7 +169,7 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
       a('onOff', 'On−Off', 'Net rating with him on court minus with him off it', sg),
       { key: 'dfg', label: 'DFG%', title: 'Field goal % of the shots he defended as the primary defender (lower is better)', asc: true, get: (r: any) => r.a.dfg, fmt: (x: any) => (x == null ? '–' : f1(x)) },
     ];
-    const teams = [...new Set(all.map(r => r.tid))].filter(Boolean).sort((x, y) => tAbbr(x).localeCompare(tAbbr(y)));
+    const teams = [...new Set(all.map(r => r.tid))].filter(t => t && t !== 'TOT').sort((x, y) => tAbbr(x).localeCompare(tAbbr(y)));
     return (
       <div className="panel">
         {header}
@@ -161,12 +181,13 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
             </select>
             <label className="chk" htmlFor="mingp2">Min <input id="mingp2" type="number" min="0" max="100" value={minGp} onChange={e => setMinGp(+e.target.value || 0)} /> GP</label>
             <label className="chk" htmlFor="minmpg">Min <input id="minmpg" type="number" min="0" max="48" value={minMpg} onChange={e => setMinMpg(+e.target.value || 0)} /> MPG</label>
-            <span className="dim">{rows.length} players · hover a column for what it means</span>
+            {!team && all.some(r => r.split) && <label className="chk"><input type="checkbox" checked={showSplits} onChange={e => setShowSplits(e.target.checked)} /> Team-by-team rows for traded players</label>}
+            <span className="dim">{rows.length} rows · hover a column for what it means</span>
           </div>
           <SortTable cols={cols} rows={rows} initial="per" limit={300} rowClass={(r: any) => (r.tid === lg.userTid ? 'mine' : '')} />
           <details className="more"><summary>What these mean</summary>
             <ul className="adv-legend">{cols.filter((c: any) => c.title).map((c: any) => <li key={c.key}><b>{c.label}</b> – {c.title}</li>)}</ul>
-            <p className="note">Worked out with the Basketball-Reference formulas (PER by Hollinger, ratings and win shares by Dean Oliver) from this league's own box scores. On-court numbers and on−off come from the plus-minus the engine keeps. A player traded during the season is measured against his current team.</p>
+            <p className="note">Worked out with the Basketball-Reference formulas (PER by Hollinger, ratings and win shares by Dean Oliver) from this league's own box scores. On-court numbers and on−off come from the plus-minus the engine keeps. A player who changed teams is measured against each team's numbers for his time there; his TOT row adds up the win shares and averages the rest by minutes. Team-by-team lines are kept from this version on – a trade made earlier shows as one line against his current team.</p>
           </details>
         </>}
       </div>
