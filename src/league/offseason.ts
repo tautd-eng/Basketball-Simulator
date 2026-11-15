@@ -942,10 +942,23 @@ function bestBid(lg: League, p: Player, rng: Rng, skip?: string, clear = false):
 function aiMatches(lg: League, p: Player, tid: string, sal: number) {
   const t = lg.teams[tid];
   const lim = Math.min(hardCap(lg), lg.season < 1985 ? 1.6 : 1.5);
-  if (t.roster.length >= ROSTER_MAX || !worthKeeping(lg, p, sal, lg.season, t.strategy)) return false;
+  // a young star (a max player, or a 88+ OVR at 25 or younger) is always matched when it can be done at all:
+  // no team lets a franchise player walk for nothing – it cuts a bench player and clears whatever salary it takes
+  const star = !isHuman(lg, tid) && (maxPlayer(p, lg.season) || (shownOvr(p.z, p.id) >= 88 && ageIn(p, lg.season) <= 25));
+  if (!star && !worthKeeping(lg, p, sal, lg.season, t.strategy)) return false;
+  if (t.roster.length >= ROSTER_MAX) {
+    if (!star) return false;
+    const cut = t.roster.map(id => lg.players[id]).filter(x => x.id !== p.id && !keeps(lg, tid, x)).sort((x, y) => shownOvr(x.z, x.id) - shownOvr(y.z, y.id))[0];
+    if (!cut) return false;
+    t.roster = t.roster.filter(x => x !== cut.id);
+    releaseDead(lg, tid, cut);
+    cut.tid = null; cut.cut = { tid, s: lg.season };
+    cut.contract = { sal: MIN_SAL, exp: lg.season };
+  }
   if (payroll(lg, tid) + sal <= lim) return true;
   // his team builds around him: it makes room rather than lose him
-  return !isHuman(lg, tid) && keeps(lg, tid, p) && clearRoom(lg, t, () => lim - payroll(lg, tid) - sal, worthTo(lg, p, tid) * 1.5, lg.season, `to match the offer sheet for ${p.name}`);
+  if (isHuman(lg, tid) || !(star || keeps(lg, tid, p))) return false;
+  return clearRoom(lg, t, () => lim - payroll(lg, tid) - sal, star ? Infinity : worthTo(lg, p, tid) * 1.5, lg.season, `to match the offer sheet for ${p.name}`);
 }
 
 /** The user answers an offer sheet for his restricted free agent. */
