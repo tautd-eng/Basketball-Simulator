@@ -6,7 +6,7 @@ import { faOffer, withdrawOffer, setOfferOrder, faRenounce, faRelease, faDecide,
 import { userExtend } from './extensions';
 import { fantasyOnClock, fantasyUserPick } from './fantasy';
 import { aiResponse, executeTrade, fillRoster, tradeRules, pickUsed } from '../ai/trades';
-import { propose, answer, withdraw } from './proposals';
+import { propose, answer, withdraw, vote } from './proposals';
 import { isHuman } from './humans';
 import { submitResult } from './league';
 
@@ -26,6 +26,7 @@ export type Cmd =
   | { t: 'propose'; to: string; gives: TradeAsset[]; gets: TradeAsset[] }      // to another person's team
   | { t: 'answer'; id: number; yes: boolean }
   | { t: 'withdrawProposal'; id: number }
+  | { t: 'tcVote'; id: number; yes: boolean }                         // trade committee vote
   | { t: 'extend'; pid: string; sal: number; yrs: number }
   | { t: 'recall'; pid: string }
   | { t: 'gameResult'; home: string; away: string; res: { home: any; away: any; ot?: number } };  // his own game, played on his screen
@@ -76,6 +77,7 @@ export function apply(lg: League, env: Envelope): Result {
       case 'propose': if (!own(lg, tid, cmd.gives)) return no('Not yours to trade.'); return propose(lg, tid, cmd.to, cmd.gives, cmd.gets);
       case 'answer': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.to !== tid) return no('Not your offer to answer.'); return answer(lg, cmd.id, cmd.yes); }
       case 'withdrawProposal': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.from !== tid) return no('Not your offer.'); withdraw(lg, cmd.id); return { ok: true, msg: 'Offer withdrawn.' }; }
+      case 'tcVote': return vote(lg, cmd.id, tid, cmd.yes);
       case 'extend': if (p?.tid !== tid) return no('Not your player.'); return userExtend(lg, cmd.pid, cmd.sal, cmd.yrs);
       case 'gameResult': {
         if (cmd.home !== tid && cmd.away !== tid) return no('Not your game.');

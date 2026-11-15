@@ -2,6 +2,7 @@
 // Draft-day shows: autoplay for watching picks, the expansion draft
 // (protection lists, then the new teams picking) and the lottery (odds, then
 // the draw revealed slot by slot).
+import { guardMove } from './guard';
 import { Linkify, PL, TL, nav } from './nav';
 import { posLabel, natural } from './positions';
 import { run } from '../league/commands';
@@ -98,8 +99,8 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
               </div>
             ) : <p className="hint">All teams have set their protected lists.</p>}
             <div className="def-row">
-              <button className="primary host-only" onClick={() => act(() => expConfirm(lg))}>Confirm lists and start</button>
-              <button className="host-only" onClick={() => act(() => expAdvance(lg, 'all'))}>To the end</button>
+              <button className="primary host-only" onClick={() => guardMove(lg, () => act(() => expConfirm(lg)))}>Confirm lists and start</button>
+              <button className="host-only" onClick={() => guardMove(lg, () => act(() => expAdvance(lg, 'all')))}>To the end</button>
             </div>
             {userOld && (
               <div className="tbl-wrap"><table className="tbl">
@@ -125,7 +126,7 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
                 : canRun(lg) ? <button className="primary host-only" disabled={!on || playing} onClick={() => act(() => expAdvance(lg, 'one'))}>Next pick</button> : <span className="hint">Waiting for the host.</span>}
               {canRun(lg) && <AutoControls playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} disabled={!on || myTurn} />}
               {canRun(lg) && !myTurn && on && humanLeft && <button className="host-only" disabled={playing} onClick={() => act(() => expAdvance(lg, 'user'))}>{(lg.humans?.length ?? 0) > 1 ? 'To the next user pick' : 'To my pick'}</button>}
-              {canRun(lg) && <button className="host-only" onClick={() => { setPlaying(false); act(() => expAdvance(lg, 'all')); }}>To the end</button>}
+              {canRun(lg) && <button className="host-only" onClick={() => { setPlaying(false); guardMove(lg, () => act(() => expAdvance(lg, 'all'))); }}>To the end</button>}
             </div>
             <h3>Available players ({avail.length}) <span className="dim">– from {new Set(avail.map((a: any) => a.from)).size} teams that haven't lost anyone yet</span></h3>
             <SortTable cols={cols} rows={avail.map((r: any) => ({ ...r, key: r.p.id }))} initial="ovr" limit={60} />

@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
+import { guardMove } from './guard';
 import { hash01 } from '../rng';
 import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { fmtAttr, defCols, grouped } from './grades';
@@ -190,7 +191,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
           </> : canRun(lg) ? <button className="primary host-only" disabled={playing} onClick={() => act(() => draftAdvance(lg, 'one'))}>Next pick</button> : <span className="hint">Waiting for the host to move the draft on.</span>}
           {canRun(lg) && <AutoControls playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} disabled={!on || myTurn} />}
           {canRun(lg) && !myTurn && myLeft && <button className="host-only" disabled={playing} onClick={() => act(() => draftAdvance(lg, 'user'))}>{(lg.humans?.length ?? 0) > 1 ? 'To the next user pick' : 'To my pick'}</button>}
-          {canRun(lg) && <button className="host-only" onClick={() => { setPlaying(false); act(() => { draftAdvance(lg, 'all'); finishDraft(lg); }); }}>{lg.userTid ? 'To the end (GM picks for me)' : 'To the end'}</button>}
+          {canRun(lg) && <button className="host-only" onClick={() => { setPlaying(false); guardMove(lg, () => act(() => { draftAdvance(lg, 'all'); finishDraft(lg); }), 'draft'); }}>{lg.userTid ? 'To the end (GM picks for me)' : 'To the end'}</button>}
           {!myTurn && on && lg.online && isHuman(lg, on.tid) && <button className="host-only" title="He is not here – his GM makes the pick" onClick={() => act(() => draftPick(lg))}>GM picks for {lg.teams[on.tid].abbr}</button>}
           {d.lotto?.result && <button className="ghost" onClick={() => setReveal(true)}>Lottery</button>}
         </div>
@@ -351,8 +352,8 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
           </div>}
           <div className="def-row">
             {fa.stage <= 3
-              ? <button className="primary host-only" onClick={() => act(() => faStage(lg))}>{fa.stage === 0 ? 'Confirm decisions →' : `Finish wave ${fa.stage} →`}</button>
-              : <button className="primary host-only" onClick={() => act(() => startSeason(lg))}>To the season preview →</button>}
+              ? <button className="primary host-only" onClick={() => guardMove(lg, () => act(() => faStage(lg)))}>{fa.stage === 0 ? 'Confirm decisions →' : `Finish wave ${fa.stage} →`}</button>
+              : <button className="primary host-only" onClick={() => guardMove(lg, () => act(() => startSeason(lg)))}>To the season preview →</button>}
             <button onClick={goFA}>All free agents</button>
           </div>
           {msg && <p className="hint" role="status">{msg}</p>}

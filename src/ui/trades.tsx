@@ -12,6 +12,7 @@ import { isHuman } from '../league/humans';
 import { Linkify } from './nav';
 import { propose as sendOffer, answer, withdraw, inbox, outbox, proposalProblem, describeSide } from '../league/proposals';
 import { tradeRules, findTrades } from '../ai/trades';
+import { CommitteePanel } from './tradepop';
 
 const pkKey = (p: any) => `${p.season}-${p.round}-${p.orig}`;
 const valCls = (v: number) => (v >= 15 ? 'hi' : v >= 5 ? 'mid' : v < 0 ? 'neg' : '');
@@ -180,6 +181,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
           You offer <Linkify text={describeSide(lg, pr.fromGives)} /> for <Linkify text={describeSide(lg, pr.toGives)} />.{' '}
           <button className="small" onClick={() => { run(lg, { t: 'withdrawProposal', id: pr.id }); setMsg('Offer withdrawn.'); onDone(); }}>Withdraw</button></span></li>)}</ul></>}
       </div>}
+      <CommitteePanel lg={lg} openPlayer={openPlayer} onDone={onDone} />
       <div className="panel">
         <h2>Trade proposal</h2>
         <p className="note">{closed ? (lg.phase === 'playoffs' ? 'Trading is closed during the playoffs.' : 'This season\'s trade deadline has passed. Trading reopens on draft day.') : lg.phase === 'regular' ? `Trade deadline: day ${deadlineDay(lg) + 1} of the season (today is day ${lg.day + 1}).` : lg.phase === 'draft' ? 'Draft day: picks can be traded until they are used – move up or down the board.' : 'Offseason: trading is open.'} AI teams trade among themselves; with your team they only trade when you propose.{lg.humans?.length > 1 ? ' Offers to another person\'s team wait for their answer.' : ''}</p>

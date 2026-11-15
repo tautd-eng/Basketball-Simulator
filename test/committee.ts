@@ -1,0 +1,21 @@
+import { boot } from './harness';
+import { newLeague } from '../src/league/league';
+import { apply } from '../src/league/commands';
+import { reviews, commissionerDecide } from '../src/league/proposals';
+boot();
+const lg: any = newLeague(0, 7, undefined, { start: 2025, classMode: 'real', futureMode: 'shuffle' });
+lg.humans = ['BOS', 'LAL', 'NYK', 'CHI']; lg.online = { role: 'host' }; lg.committee = ['NYK', 'CHI', 'BOS'];
+const best = (t: string) => lg.teams[t].roster.map((id: string) => lg.players[id]).sort((a: any, b: any) => b.contract.sal - a.contract.sal);
+const star = best('BOS')[0]; const scrub = best('LAL').filter((p: any) => p.contract.sal < star.contract.sal * 1.1).sort((a: any, b: any) => a.z.reduce((s: number, x: number) => s + x, 0) - b.z.reduce((s: number, x: number) => s + x, 0)).find((p: any) => p.contract.sal > star.contract.sal * 0.6) ?? best('LAL')[1];
+console.log('star', star.name, 'scrub', scrub.name);
+let r = apply(lg, { tid: 'LAL', at: 0, cmd: { t: 'propose', to: 'BOS', gives: [{ pid: scrub.id }], gets: [{ pid: star.id }] } }); console.log(r);
+const id = lg.proposals.at(-1).id;
+r = apply(lg, { tid: 'BOS', at: 0, cmd: { t: 'answer', id, yes: true } }); console.log(r, reviews(lg).length, star.tid);
+const rid = reviews(lg)[0].id;
+console.log(apply(lg, { tid: 'BOS', at: 0, cmd: { t: 'tcVote', id: rid, yes: true } }));
+console.log(apply(lg, { tid: 'NYK', at: 0, cmd: { t: 'tcVote', id: rid, yes: false } }));
+console.log(apply(lg, { tid: 'CHI', at: 0, cmd: { t: 'tcVote', id: rid, yes: false } }), star.tid);
+// again, commissioner approves
+apply(lg, { tid: 'LAL', at: 0, cmd: { t: 'propose', to: 'BOS', gives: [{ pid: scrub.id }], gets: [{ pid: star.id }] } });
+apply(lg, { tid: 'BOS', at: 0, cmd: { t: 'answer', id: lg.proposals.at(-1).id, yes: true } });
+console.log(commissionerDecide(lg, reviews(lg)[0].id, true), star.tid);

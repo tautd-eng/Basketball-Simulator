@@ -1,5 +1,7 @@
 // @ts-nocheck
+import { GuardDialog, guardMove } from './guard';
 import { EditLog } from './editplayer';
+import { TradePopups } from './tradepop';
 import { LotteryReveal } from './draftday';
 import { posLabel, natural } from './positions';
 import { DraftSummary } from './offseason';
@@ -237,7 +239,11 @@ function App() {
   }, [lg, lg?.userTid, rev]);
   const bump = () => setRev(r => r + 1);
 
-  async function run(target: Target, label: string) {
+  function run(target: Target, label: string) {
+    if (!lg || busy) return;
+    guardMove(lg, () => doRun(target, label), lg.phase === 'draft' ? 'draft' : 'step');
+  }
+  async function doRun(target: Target, label: string) {
     if (!lg || busy) return;
     stop.current = false;
     setBusy(label);
@@ -405,6 +411,8 @@ function App() {
         onFinish={async () => { const res = finishClutch(lg, clutch); sendResult(clutch.home, clutch.away, res); bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
       {gameView && <GameModal lg={lg} res={gameView} close={() => setGameView(null)} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
       {live && <LiveGame lg={lg} data={live} close={closeLive} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
+      <GuardDialog />
+      {lg.phase !== 'fantasy' && <TradePopups lg={lg} busy={!!busy || !!live || !!clutch || !!gameView} openPlayer={openPlayer} goTrades={() => go('trades')} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
       {player && <PlayerPanel lg={lg} pid={player} findTrades={(pid: string) => { setPlayer(null); setTradeSeed({ pid, n: Date.now() }); go('trades'); }} close={closePlayer} openTeam={(t) => { openTeam(t); }} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
     </div>
   );

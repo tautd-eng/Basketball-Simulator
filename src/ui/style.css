@@ -1211,3 +1211,11 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .ovr-mini { font-weight: 800; font-size: 1.1rem; }
 .edit-log .chip { margin: 2px 4px 2px 0; }
 .ob-req { display: flex; flex-direction: column; gap: 2px; }
+/* trade pop-ups + committee */
+.dialog.trade-pop { width: min(620px, 100%); }
+.pop-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pop-sides h4 { margin: 0 0 4px; }
+.pop-assets { margin: 0; padding-left: 1.1em; }
+.pop-assets li { margin: 2px 0; }
+.review-card { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; }
+@media (max-width: 560px) { .pop-sides { grid-template-columns: 1fr; } .trade-pop .dialog-actions { flex-wrap: wrap; } }

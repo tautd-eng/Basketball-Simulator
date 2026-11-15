@@ -142,7 +142,7 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
       {(ctx.error || msg) && <p className="hint neg">{ctx.error || msg} {ctx.failed.length > 0 && <button className="small" onClick={() => resendFailed()}>Send again</button>}</p>}
       {host && manage && <div className="ob-manage">
         <h3>People</h3>
-        <p className="note">{lock ? 'Players pick their first team themselves; any later switch waits for your approval. You can move people between teams here at any time.' : 'Team switches are not locked on the server yet: run online/team-lock.sql once in Supabase (SQL Editor) so players need your approval to change teams.'}</p>
+        <p className="note">{lock ? 'Players pick their first team themselves; any later switch waits for your approval. You can move people between teams here at any time. Tick “trade committee” for the people who vote on one-sided trades (the right goes with the team they run).' : 'Team switches are not locked on the server yet: run online/team-lock.sql once in Supabase (SQL Editor) so players need your approval to change teams.'}</p>
         <ul className="news">{ctx.members.map(m => <li key={m.user_id}><span className="yr">{m.role === 'host' ? 'host' : ''}</span><span>
           <b>{m.name || 'player'}</b> – {m.tid ? lg.teams[m.tid]?.name : 'no team'}{' '}
           {m.role !== 'host' && <>
@@ -152,6 +152,7 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
             </select>{' '}
             <button className="small ghost" onClick={() => { if (confirm(`Remove ${m.name || 'this player'} from the league?`)) act(() => hostSetMember(m.user_id, null, true)); }}>Remove</button>
           </>}
+          {m.tid && <label className="small-t" title="May vote on one-sided trades between people"> <input type="checkbox" checked={(lg.committee ?? []).includes(m.tid)} onChange={e => { const c = new Set(lg.committee ?? []); e.target.checked ? c.add(m.tid!) : c.delete(m.tid!); lg.committee = [...c]; act(publish); }} /> trade committee</label>}
         </span></li>)}</ul>
       </div>}
     </div>

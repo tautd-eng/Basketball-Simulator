@@ -679,6 +679,17 @@ export function looksFair(lg: League, aGets: TradeAsset[], bGets: TradeAsset[], 
   }
   return true;
 }
+/**
+ * A trade between two people that looks illogical: one side gives clearly more neutral market value than it gets
+ * (half again as much, and at least a role player's worth). Returns both sides' values, or null when it looks fine.
+ */
+export function lopsided(lg: League, aGets: TradeAsset[], bGets: TradeAsset[]): [number, number] | null {
+  fresh(lg);
+  const va = marketValue(lg, aGets), vb = marketValue(lg, bGets);
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  for (const [give, get] of [[vb, va], [va, vb]]) if (give > Math.max(0, get) * 1.5 + 1) return [r1(va), r1(vb)];
+  return null;
+}
 /** Neutral market value of one player (the same number the fairness check and the trade market use). */
 export function marketPlayerValue(lg: League, p: Player) { fresh(lg); return pv(lg, p, 'middle'); }
 /** Neutral market value of a package, bad contracts below zero. */
