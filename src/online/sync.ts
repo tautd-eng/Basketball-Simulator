@@ -16,6 +16,9 @@ const emit = () => { for (const f of listeners) try { f(); } catch { /* ignore *
 /** The app shows this league (a new version arrived) – set by the app. */
 let replaceLeague: (lg: League) => void = () => {};
 let refreshUi: () => void = () => {};
+/** Host: when the commands queue was last read (the pick clock waits for a read after its deadline). */
+let pulledAt = 0;
+export const lastPull = () => pulledAt;
 let statusOf: (lg: League) => string = () => '';
 export function bindApp(o: { replace: (lg: League) => void; refresh: () => void; status: (lg: League) => string }) { replaceLeague = o.replace; refreshUi = o.refresh; statusOf = o.status; }
 
@@ -173,6 +176,7 @@ export async function tick(force = false) {
       c.lg.humans = members.map(m => m.tid).filter(Boolean) as string[];
       (c.lg as any).gmNames = Object.fromEntries(members.filter(m => m.tid).map(m => [m.tid, m.name || 'player']));   // GM history and awards use the nicks
       const n = await pullCommands();
+      pulledAt = Date.now();
       if (n) { refreshUi(); schedulePublish(4000); }
     } else if (league.version > c.version || teamChanged) {
       const [st] = await select('league_state', `league_id=eq.${c.league.id}&select=version,data`);

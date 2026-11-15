@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { draftOnClock, draftPick } from '../league/offseason';
 import { fantasyOnClock, fantasyAutoPick } from '../league/fantasy';
 import { isHuman } from '../league/humans';
-import { hostChanged } from '../online/sync';
+import { hostChanged, lastPull } from '../online/sync';
 
 export const CLOCK_OPTS: [number, string][] = [[0, 'Off'], [1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [30, '30 min'], [60, '1 hour'], [240, '4 hours'], [720, '12 hours'], [1440, '24 hours']];
 
@@ -33,6 +33,8 @@ export function useHostPickClock(lg: any, host: boolean) {
       if (lg.pickClock?.k !== on.key) { lg.pickClock = { k: on.key, at: Date.now() }; if (lg.pickTimer && isHuman(lg, on.tid)) hostChanged(); return; }
       const left = timeLeft(lg);
       if (left == null || left > 0) return;
+      // a pick someone sent in time may still sit in the queue (the host was away): read it first
+      if (lastPull() < Date.now() + left + 1000) return;
       const name = lg.teams[on.tid].name;
       if (lg.phase === 'fantasy') fantasyAutoPick(lg); else draftPick(lg);
       lg.news.push({ s: lg.season, t: `The ${name} ran out of time on the clock – their GM made the pick.` });
