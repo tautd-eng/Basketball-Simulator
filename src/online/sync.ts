@@ -5,7 +5,7 @@ import { apply, setCommandSink, Envelope } from '../league/commands';
 import { saveHooks } from '../api';
 
 export interface OLeague { id: string; name: string; code: string; host: string; version: number; applied_upto: number; status: string; updated_at?: string }
-export interface OMember { user_id: string; name: string; tid: string | null; role: 'host' | 'player'; done: boolean; seen_at: string }
+export interface OMember { user_id: string; name: string; tid: string | null; role: 'host' | 'player'; done: boolean; seen_at: string; want_tid?: string | null }
 export interface Ctx { league: OLeague; members: OMember[]; me: OMember; role: 'host' | 'player'; version: number; lastCmd: number; lg: League; error?: string; sent: number; failed: Envelope[]; publishing?: boolean; lastPublish?: number }
 
 let ctx: Ctx | null = null;
@@ -36,11 +36,20 @@ export async function createOnline(lg: League, name: string, memberName: string)
   return (Array.isArray(l) ? l[0] : l) as OLeague;
 }
 export async function joinOnline(code: string, memberName: string) { return (await rpc('join_league', { p_code: code, p_member_name: memberName })) as string; }
-export async function claimTeam(id: string, tid: string) { await rpc('claim_team', { p_league: id, p_tid: tid }); }
+/** 'set' – the team is his now; 'requested' – a switch waiting for the commissioner (host). */
+export async function claimTeam(id: string, tid: string): Promise<'set' | 'requested'> { const r = await rpc('claim_team', { p_league: id, p_tid: tid }); return r === 'requested' ? 'requested' : 'set'; }
+export async function cancelTeamRequest() { if (!ctx) return; await rpc('cancel_team_request', { p_league: ctx.league.id }); await tick(true); }
+/** The server has the approval rules (online/team-lock.sql run in Supabase): switches wait for the host. */
+let lockOn: boolean | null = null;
+export const teamLockOn = () => !!lockOn;
 export async function deleteOnline(id: string) { await rpc('delete_league', { p_league: id }); }
 export async function leagueInfo(id: string) {
   const [l] = await select('leagues', `id=eq.${id}&select=*`);
-  const members = (await select('members', `league_id=eq.${id}&select=user_id,name,tid,role,done,seen_at&order=role.asc,name.asc`)) as OMember[];
+  const q = (cols: string) => select('members', `league_id=eq.${id}&select=${cols}&order=role.asc,name.asc`);
+  let members: OMember[];
+  if (lockOn === false) members = await q('user_id,name,tid,role,done,seen_at');
+  else try { members = await q('user_id,name,tid,role,done,seen_at,want_tid'); lockOn = true; }
+  catch { members = await q('user_id,name,tid,role,done,seen_at'); lockOn = false; }
   return { league: l as OLeague, members };
 }
 

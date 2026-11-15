@@ -4,7 +4,7 @@ import { K } from '../data';
 import REAL from './realpos.json';
 
 /** Where he really played most of his career (Basketball-Reference positions, by minutes), e.g. "SF/PF". */
-const realOf = (p: any): string | undefined => (REAL as any)[String(p.id).split('~')[0]];
+const realOf = (p: any): string | undefined => p.posX || (REAL as any)[String(p.id).split('~')[0]];  // posX: set by hand in the player editor
 
 export const SLOTS = ['PG', 'SG', 'SF', 'PF', 'C'];
 /** Natural slot (1 … 5) from his listed position. */

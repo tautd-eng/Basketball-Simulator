@@ -239,6 +239,8 @@ export function Guide({ onBack }: any) {
         <ul>
           <li><b>One device (hot seat):</b> “Players & teams” at the bottom of a league – tick the teams people run and give them names; the game stops for each of them; switch with “Playing as”.</li>
           <li><b>Online:</b> Host online game puts a league online; friends join with its code and pick teams. The host moves the league on; everyone marks “done”; the draft waits only for whoever is on the clock. Free-agent bids are blind until the player signs. You can play your own games when the other side is the computer or done, and watch replays of the others.</li>
+          <li><b>Commissioner:</b> in an online league the host is the commissioner. Players pick their first team themselves; any later switch is a request the commissioner approves or declines (People in the online bar).</li>
+          <li><b>Editing players:</b> “✎ Edit player” on a player card changes his name, age, height, position, visible ratings, contract or injury – never his hidden potential. Anyone can edit in an offline league, only the commissioner online. Every edit goes to History → Edit log, which everyone in the league can see.</li>
         </ul>
       </Sec>
     </div>

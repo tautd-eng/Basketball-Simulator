@@ -22,6 +22,7 @@ import { describeLog, recallStash } from '../league/offseason';
 import { PFace, SKINS, HAIR_STYLES, FACIAL_STYLES, faceOf } from './art';
 import { RoleCard } from './roles';
 import { ExactPct } from './offseason';
+import { EditButton, EditedChip } from './editplayer';
 
 /** Small editor for the generated portrait (saved with the league). */
 function FaceEditor({ p, season, onChange }: any) {
@@ -314,6 +315,7 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
             <p className="dim">{posLabel(p)} · {htStr(p.ht)} · age {ageIn(p, lg.season)} · {p.tid ? <button className="link" onClick={() => openTeam(p.tid)}>{status}</button> : status}</p>
             {p.tid && (lg.phase === 'regular' || lg.phase === 'playoffs') && <p className="dim">Status: {p.injury > 0 ? `injured – ${p.inj ? injName(p.inj.k) : 'injury'}, out ~${p.injury} more games` : fatigueLabel(fatigueAt(lg, p, nextCal(lg, todayIndex(lg)))).toLowerCase()}</p>}
             {p.tid && !p.retired && !p.prospect && p.contract && <ContractLine lg={lg} p={p} />}
+            <p className="edit-row"><EditButton lg={lg} p={p} onSaved={() => { bump(x => x + 1); onChange?.(); }} /> <EditedChip lg={lg} p={p} /></p>
             {(p as any).treq && (p as any).treq.tid === p.tid && <p><span className="chip neg-chip" title="He will not extend or re-sign with this team">Has asked for a trade</span></p>}
             {p.draft?.tid && <p className="dim">Draft {p.draft.year}: No. {p.draft.pick} ({lg.teams[p.draft.tid]?.abbr ?? p.draft.tid})</p>}
             {(p as any).stash && <p className="dim">Playing overseas – expected to come over for {(p as any).stash - 1}–{String((p as any).stash).slice(2)}.{(p as any).rights === lg.userTid && <> <button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setRecallMsg(r.msg); onChange?.(); bump(x => x + 1); }}>Bring him over now</button></>}</p>}

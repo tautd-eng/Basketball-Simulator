@@ -1198,3 +1198,16 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
   .tbl th.stick, .tbl td.stick { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
   .tbl tr.mine td.stick { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 }
+
+/* player editor + edit log */
+.edit-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+.edit-row:empty { display: none; }
+.dialog.edit-dlg { width: min(760px, 100%); }
+.edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.edit-ratings .rating.edit { grid-template-columns: minmax(0, 11.5em) 1fr 3.6em; }
+.edit-ratings .rating.edit input[type=range] { width: 100%; }
+.edit-ratings .rv-in { width: 3.4em; padding: 2px 4px; text-align: right; }
+.edit-ratings .rating.derived { opacity: 0.75; }
+.ovr-mini { font-weight: 800; font-size: 1.1rem; }
+.edit-log .chip { margin: 2px 4px 2px 0; }
+.ob-req { display: flex; flex-direction: column; gap: 2px; }

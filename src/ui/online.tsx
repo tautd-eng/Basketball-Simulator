@@ -1,7 +1,7 @@
 // Online leagues: sign in, create / join / open a shared league, the bar with who is done, the host's tools.
 import { useEffect, useState } from 'react';
 import { currentUser, signIn, signUp, signOut, select, unpack } from '../online/client';
-import { onlineCtx, subscribe, myLeagues, createOnline, joinOnline, claimTeam, openOnline, closeOnline, setDone, publish, hostSetMember, deleteOnline, resendFailed, tick } from '../online/sync';
+import { onlineCtx, subscribe, myLeagues, createOnline, joinOnline, claimTeam, openOnline, closeOnline, setDone, publish, hostSetMember, deleteOnline, resendFailed, tick, cancelTeamRequest, teamLockOn } from '../online/sync';
 
 export function useOnline() {
   const [, set] = useState(0);
@@ -55,7 +55,7 @@ export function OnlinePanel({ lg, close, onOpen, joinCode }: any) {
 
           {pick ? <div className="panel-lite">
             <h3>Pick your team</h3>
-            <div className="team-pick">{pick.teams.map((t: any) => <button key={t.tid} disabled={busy || pick.taken.has(t.tid)} className="small" onClick={() => act(async () => { await claimTeam(pick.id, t.tid); setPick(null); await open(pick.id); })}>{t.name}{pick.taken.has(t.tid) ? ' – taken' : ''}</button>)}</div>
+            <div className="team-pick">{pick.teams.map((t: any) => <button key={t.tid} disabled={busy || pick.taken.has(t.tid)} className="small" onClick={() => act(async () => { const r = await claimTeam(pick.id, t.tid); setPick(null); if (r === 'requested') { await refresh(); setMsg(`You asked for the ${t.name}. You were in this league before, so the commissioner has to approve it – then open the league.`); } else await open(pick.id); })}>{t.name}{pick.taken.has(t.tid) ? ' – taken' : ''}</button>)}</div>
             <button className="small ghost" onClick={() => setPick(null)}>Back</button>
           </div> : <>
             <h3>Your leagues</h3>
@@ -90,8 +90,12 @@ export function OnlinePanel({ lg, close, onOpen, joinCode }: any) {
 export function OnlineBar({ lg, openPanel, onLeave }: any) {
   const ctx = useOnline();
   const [manage, setManage] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [msg, setMsg] = useState('');
   if (!ctx) return null;
+  const lock = teamLockOn();
+  const requests = ctx.members.filter(m => m.want_tid);
+  const freeTeams = Object.values(lg.teams).filter((t: any) => t.active && !ctx.members.some(x => x.tid === t.tid)).sort((a: any, b: any) => a.name.localeCompare(b.name)) as any[];
   const host = ctx.role === 'host';
   const draft = lg.phase === 'draft' && lg.draftDay && !lg.draftDay.done && (lg.draftDay.stage ?? 'draft') === 'draft';
   const players = ctx.members.filter(m => m.tid);
@@ -110,7 +114,8 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
         {!host && !draft && <button className={`small ${ctx.me.done ? '' : 'primary'}`} onClick={() => act(() => setDone(!ctx.me.done))}>{ctx.me.done ? '✓ Done – undo' : 'I\'m done'}</button>}
         {host && <span className="dim small-t">{ctx.publishing ? 'sending…' : ctx.lastPublish ? 'sent' : ''}</span>}
         {host && <button className="small ghost" onClick={() => act(publish)}>Send now</button>}
-        {host && <button className="small ghost" onClick={() => setManage(!manage)}>People</button>}
+        {host && <button className="small ghost" onClick={() => setManage(!manage)}>People{requests.length ? <span className="tab-badge" title="Team switch requests">{requests.length}</span> : null}</button>}
+        {!host && lock && !ctx.me.want_tid && <button className="small ghost" onClick={() => setSwitching(!switching)} title="Ask the commissioner to let you run another team">Switch team</button>}
         {!host && <button className="small ghost" onClick={() => act(() => tick(true))}>Refresh</button>}
         <button className="small ghost" onClick={openPanel}>Leagues</button>
         <button className="small ghost" onClick={() => { closeOnline(); onLeave(); }}>Leave</button>
@@ -120,9 +125,24 @@ export function OnlineBar({ lg, openPanel, onLeave }: any) {
       </span>)}</div>
       {host && <p className="note">You move the league on (the controls above) – when everyone is done, or when you decide. Each step you take goes out to the others; people who did nothing get their GM's choices.</p>}
       {!host && <p className="note">Make your moves – they go to the host. Press “I'm done” when you are; the host moves the league on.</p>}
+      {!host && ctx.me.want_tid && <p className="note">You asked to switch to the <b>{lg.teams[ctx.me.want_tid]?.name ?? ctx.me.want_tid}</b> – waiting for the commissioner. <button className="small ghost" onClick={() => act(cancelTeamRequest)}>Cancel request</button></p>}
+      {!host && switching && !ctx.me.want_tid && <div className="def-row">
+        <span>Ask to run:</span>
+        <select defaultValue="" aria-label="Team to switch to" onChange={e => { const t = e.target.value; if (!t) return; act(async () => { await claimTeam(ctx.league.id, t); setSwitching(false); await tick(true); setMsg('Request sent – the commissioner decides.'); }); }}>
+          <option value="">Pick a free team…</option>
+          {freeTeams.map(t => <option key={t.tid} value={t.tid}>{t.name}</option>)}
+        </select>
+        <button className="small ghost" onClick={() => setSwitching(false)}>Cancel</button>
+      </div>}
+      {host && requests.length > 0 && <div className="ob-req">
+        {requests.map(m => <p key={m.user_id} className="note"><b>{m.name || 'A player'}</b> ({m.tid ? lg.teams[m.tid]?.abbr : 'no team'}) asks to run the <b>{lg.teams[m.want_tid!]?.name ?? m.want_tid}</b>.{' '}
+          <button className="small primary" disabled={ctx.members.some(x => x.tid === m.want_tid && x.user_id !== m.user_id)} onClick={() => act(() => hostSetMember(m.user_id, m.want_tid!))}>Approve</button>{' '}
+          <button className="small ghost" onClick={() => act(() => hostSetMember(m.user_id, m.tid))}>Decline</button></p>)}
+      </div>}
       {(ctx.error || msg) && <p className="hint neg">{ctx.error || msg} {ctx.failed.length > 0 && <button className="small" onClick={() => resendFailed()}>Send again</button>}</p>}
       {host && manage && <div className="ob-manage">
         <h3>People</h3>
+        <p className="note">{lock ? 'Players pick their first team themselves; any later switch waits for your approval. You can move people between teams here at any time.' : 'Team switches are not locked on the server yet: run online/team-lock.sql once in Supabase (SQL Editor) so players need your approval to change teams.'}</p>
         <ul className="news">{ctx.members.map(m => <li key={m.user_id}><span className="yr">{m.role === 'host' ? 'host' : ''}</span><span>
           <b>{m.name || 'player'}</b> – {m.tid ? lg.teams[m.tid]?.name : 'no team'}{' '}
           {m.role !== 'host' && <>
