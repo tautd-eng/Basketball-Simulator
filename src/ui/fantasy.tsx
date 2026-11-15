@@ -13,7 +13,7 @@ import { AutoControls, useAutoPlay } from './draftday';
 import { posNum } from '../engine/game';
 import { PickBoard, OnClock, useBoards, BoardsToggle } from './pickboard';
 import { SortTable } from './sorttable';
-import { attrCols, SortBy } from './offseason';
+import { attrCols, SortBy, potCol } from './offseason';
 
 const POS = POS_FILTER;
 
@@ -42,6 +42,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
     { key: 'pos', label: 'Pos', title: 'Position', get: (p: any) => natural(p), fmt: (_: any, p: any) => <span className="dim">{posLabel(p)}</span> },
     { key: 'age', label: 'Age', title: 'Age', asc: true, get: (p: any) => ageIn(p, lg.season) },
     { key: 'ovr', label: 'OVR', title: 'Overall', get: (p: any) => ovrOf(p.z, p.id), fmt: (v: any) => <b>{v}</b> },
+    potCol((p: any) => lg.players[p.id] ?? p, lg.season),
     { key: 'sal', label: 'Contract', title: 'The contract he signs with the team that drafts him: share of the cap per season, and the years', get: (p: any) => fantasyContract(p, lg.season).sal,
       fmt: (v: any, p: any) => { const c = fantasyContract(p, lg.season), y = c.exp - lg.season + 1; return <span title={`${money(v, lg.season)} a season through ${c.exp - 1}–${String(c.exp).slice(2)}`}>{money(v, lg.season)} <span className="dim">· {y} yr{y > 1 ? 's' : ''}</span></span>; } },
     ...attrCols((p: any) => p, lg.season),
