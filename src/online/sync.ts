@@ -86,6 +86,19 @@ function prepare(lg: League) {
   ctx.lg = lg;
 }
 
+/** Host on several devices: load the newest published state and continue from it. */
+async function hostResync(league: any) {
+  if (!ctx) return;
+  const c = ctx;
+  const [st] = await select('league_state', `league_id=eq.${c.league.id}&select=version,data`);
+  if (!st || st.version <= c.version) return;
+  const lg = await unpack(st.data) as League;
+  c.version = st.version; c.lastCmd = league.applied_upto ?? c.lastCmd; c.league = league;   // moves after that are pulled again
+  prepare(lg);
+  lastKey = stepKey(lg);
+  replaceLeague(lg);
+}
+
 /** A player's own moves the host has not taken in yet: shown on his screen until they are. */
 async function reapplyMine(lg: League) {
   if (!ctx) return;
@@ -137,7 +150,16 @@ export async function publish() {
   try {
     const key = stepKey(c.lg);
     const reset = key !== lastKey;
-    const v = await rpc('publish_state', { p_league: c.league.id, p_from: c.version, p_data: await pack(clean(c.lg)), p_applied: c.lastCmd, p_status: statusOf(c.lg), p_reset_done: reset });
+    let v: any;
+    try { v = await rpc('publish_state', { p_league: c.league.id, p_from: c.version, p_data: await pack(clean(c.lg)), p_applied: c.lastCmd, p_status: statusOf(c.lg), p_reset_done: reset }); }
+    catch (e: any) {
+      if (!/moved on/.test(e.message ?? '')) throw e;
+      // another device of the host published first: load its state instead of getting stuck
+      const { league } = await leagueInfo(c.league.id);
+      if (league) await hostResync(league);
+      c.error = 'The league was moved on from another device of yours – this screen now shows that state.';
+      return;
+    }
     c.version = typeof v === 'number' ? v : +v;
     lastKey = key; c.lastPublish = Date.now(); c.error = undefined;
     if (reset) for (const m of c.members) m.done = false;
@@ -173,6 +195,8 @@ export async function tick(force = false) {
     const teamChanged = me.tid !== c.me.tid;
     c.me = me;
     if (c.role === 'host') {
+      // the same host account moved the league on from another device (a phone, another browser): take its state
+      if (league.version > c.version && !c.publishing) await hostResync(league);
       c.lg.humans = members.map(m => m.tid).filter(Boolean) as string[];
       (c.lg as any).gmNames = Object.fromEntries(members.filter(m => m.tid).map(m => [m.tid, m.name || 'player']));   // GM history and awards use the nicks
       const n = await pullCommands();
