@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { startVisits, visitStats, onVisitStats } from '../online/visits';
 import { GuardDialog, guardMove } from './guard';
 import { EditLog } from './editplayer';
 import { TradePopups } from './tradepop';
@@ -595,6 +596,16 @@ function SavesPanel({ lg, close, onLoad, onNew }: any) {
 }
 
 // ---------------------------------------------------------------- main menu
+startVisits();
+/** How many people have opened the game (online/visits.sql in Supabase); nothing shows until that is set up. */
+function VisitCounter() {
+  const [, set] = useState(0);
+  useEffect(() => onVisitStats(() => set(x => x + 1)), []);
+  const v = visitStats();
+  if (!v) return null;
+  const n = (x: number) => x.toLocaleString('en-US');
+  return <p className="dim small-t visit-count" title={`${n(v.visits)} visits in all · ${n(v.today)} people today`}>👥 {n(v.visitors)} people have played · {n(v.week)} this week · <span className="pos">{n(v.online)} online now</span></p>;
+}
 function MainMenu({ go }: any) {
   const items: [string, string, string][] = [
     ['new', 'New game', 'Start a league from any season since 1979–80, or today\'s NBA'],
@@ -612,6 +623,7 @@ function MainMenu({ go }: any) {
         <nav className="main-menu" aria-label="Main menu">
           {items.map(([k, t, d]) => <button key={k} className={k === 'new' ? 'primary' : ''} onClick={() => go(k)}><b>{t}</b><span>{d}</span></button>)}
         </nav>
+        <VisitCounter />
         <p className="dim small-t">Version {BUILD}</p>
       </div>
     </div>
