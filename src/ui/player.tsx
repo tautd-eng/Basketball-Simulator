@@ -6,7 +6,7 @@ import { Linkify } from './nav';
 import { run } from '../league/commands';
 import { showDollars, dollarsOf, money } from './money';
 import { ATTR_ORDER, grouped } from './grades';
-import { useEffect, useMemo, useState } from 'react';
+import { Component, useEffect, useMemo, useState } from 'react';
 import { fatigueAt, nextCal, fatigueLabel } from '../league/fatigue';
 import { injName } from '../league/injuries';
 import { todayIndex } from '../league/league';
@@ -71,7 +71,7 @@ const AWARD_ORDER = ['Champion', 'MVP', 'Finals MVP', 'Defensive Player of the Y
 export function AwardChips({ p }: any) {
   const [open, setOpen] = useState<string | null>(null);
   const groups: Record<string, number[]> = {};
-  for (const a of p.awards) { const m = /^(\d{4}) (.*)$/.exec(a); if (m) (groups[awardLabel(m[2])] ??= []).push(+m[1]); }
+  for (const a of p.awards ?? []) { const m = /^(\d{4}) (.*)$/.exec(a); if (m) (groups[awardLabel(m[2])] ??= []).push(+m[1]); }
   const keys = Object.keys(groups).sort((a, b) => ((AWARD_ORDER.indexOf(a) + 1 || 99) - (AWARD_ORDER.indexOf(b) + 1 || 99)) || a.localeCompare(b));
   if (!keys.length) return null;
   const yrs = (k: string) => [...new Set(groups[k])].sort((a, b) => a - b).map(sl).join(', ');
@@ -88,24 +88,32 @@ export function AwardChips({ p }: any) {
 }
 const sl = (s: number) => `${s - 1}–${String(s).slice(2)}`;
 /** Career story: draft, teams, trades, signings, awards, serious injuries. */
+/** One part of the card failing shows a note (with the error, to report) instead of a blank panel. */
+class Safe extends Component<any, { err: string | null }> {
+  state = { err: null as string | null };
+  static getDerivedStateFromError(e: any) { return { err: String(e?.message ?? e) }; }
+  render() { return this.state.err ? <p className="hint neg">This part could not be shown ({this.state.err}). Please report it.</p> : this.props.children; }
+}
+
 function HistoryTab({ lg, p, openTeam }: any) {
   const ev: { s: number; o: number; t: any; k: string }[] = []; // o: order within the season (-1 summer before, game day, 999 after)
   const T = (tid: string) => lg.teams[tid]?.name ?? tid;
-  const hasDraftTx = (p.tx ?? []).some((x: any) => x.t.startsWith('Drafted') || x.t.startsWith('Išrinktas') || x.t.startsWith('Fantasy'));
+  const hasDraftTx = (p.tx ?? []).some((x: any) => typeof x?.t === 'string' && (x.t.startsWith('Drafted') || x.t.startsWith('Išrinktas') || x.t.startsWith('Fantasy')));
   if (p.draft && !hasDraftTx) ev.push({ s: p.draft.year, o: 999, k: 'draft', t: `Drafted in ${p.draft.year}: No. ${p.draft.pick} (round ${p.draft.round}), ${T(p.draft.tid)}` });
   const first = p.career.find((c: any) => !c.po);
   if (lg.start && p.entered <= lg.start && first) ev.push({ s: lg.start, o: -5, k: 'start', t: `At the league's start – ${T(first.tid)}` });
-  for (const x of p.tx ?? []) ev.push({ s: x.s, o: x.d ?? 500, k: 'tx', t: <Linkify text={x.t} /> });
+  for (const x of p.tx ?? []) if (x && typeof x.t === 'string') ev.push({ s: x.s, o: x.d ?? 500, k: 'tx', t: <Linkify text={x.t} /> });
   // free-agency lines not yet copied into the history
-  if (lg.fa) for (const x of lg.fa.log.slice(lg.fa.flushed ?? 0)) if (x.pid === p.id) ev.push({ s: lg.season, o: lg.phase === 'freeagency' ? -1 : 500, k: 'tx', t: <Linkify text={describeLog(lg, x)} /> });
+  if (lg.fa) for (const x of (lg.fa.log ?? []).slice(lg.fa.flushed ?? 0)) if (x.pid === p.id) { let t = ''; try { t = describeLog(lg, x); } catch { continue; } ev.push({ s: lg.season, o: lg.phase === 'freeagency' ? -1 : 500, k: 'tx', t: <Linkify text={t} /> }); }
   for (const r of lg.trades ?? []) {
-    const inA = r.aGets.some((x: any) => x.pid === p.id), inB = r.bGets.some((x: any) => x.pid === p.id);
+    const inA = (r.aGets ?? []).some((x: any) => x.pid === p.id), inB = (r.bGets ?? []).some((x: any) => x.pid === p.id);
     if (!inA && !inB) continue;
     const to = inA ? r.a : r.b, from = inA ? r.b : r.a;
-    const back = (inA ? r.bGets : r.aGets).map((x: any) => x.pid ? lg.players[x.pid]?.name : `${x.pick.season} ${x.pick.round === 1 ? '1st' : '2nd'}-round pick`).join(', ');
+    // what came back: players, picks, pick-swap rights (older code read every non-player as a pick and crashed on a swap right)
+    const back = (inA ? r.bGets : r.aGets).map((x: any) => x.pid ? lg.players[x.pid]?.name : x.pick ? `${x.pick.season} ${x.pick.round === 1 ? '1st' : '2nd'}-round pick` : x.right ? `${x.right.season} pick swap` : '').filter(Boolean).join(', ');
     ev.push({ s: r.s, o: r.phase === 'regular' ? r.day : -1, k: 'trade', t: <>Traded: <button className="link" onClick={() => openTeam(from)}>{T(from)}</button> → <button className="link" onClick={() => openTeam(to)}>{T(to)}</button>{back ? <span className="dim"> (for {back})</span> : null}{r.phase === 'freeagency' || r.phase === 'offseason' ? <span className="dim"> · offseason</span> : r.phase === 'draft' ? <span className="dim"> · during the draft</span> : null}</> });
   }
-  for (const a of p.awards) { const m = /^(\d{4}) (.*)$/.exec(a); if (m) ev.push({ s: +m[1], o: 900, k: 'award', t: isChamp(m[2]) ? '🏆 Champion' : `Award: ${awardLabel(m[2])}` }); }
+  for (const a of p.awards ?? []) { const m = /^(\d{4}) (.*)$/.exec(a); if (m) ev.push({ s: +m[1], o: 900, k: 'award', t: isChamp(m[2]) ? '🏆 Champion' : `Award: ${awardLabel(m[2])}` }); }
   for (const h of p.injHist ?? []) if (h.g >= 10) ev.push({ s: h.s, o: 600, k: 'inj', t: `Injury: ${injName(h.k)}, missed ~${h.g} games${h.lasting ? ' (lasting effect)' : ''}` });
   ev.sort((a, b) => b.s - a.s || b.o - a.o); // newest first
   const [all, setAll] = useState(false);
@@ -357,7 +365,7 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
           <button className={tab === 'inj' ? 'on' : ''} onClick={() => setTab('inj')}>Injuries{p.injHist?.length ? ` (${p.injHist.length})` : ''}</button>
         </div>
 
-        {tab === 'hist' ? <HistoryTab lg={lg} p={p} openTeam={openTeam} /> : tab === 'inj' ? <>
+        {tab === 'hist' ? <Safe key={p.id}><HistoryTab lg={lg} p={p} openTeam={openTeam} /></Safe> : tab === 'inj' ? <>
           {p.injHist?.length ? (
             <div className="tbl-wrap"><table className="tbl">
               <thead><tr><th>Season</th><th className="l">Injury</th><th>Games missed</th><th className="l">Where</th><th className="l">Effects</th></tr></thead>
