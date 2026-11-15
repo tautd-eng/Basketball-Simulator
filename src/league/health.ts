@@ -36,9 +36,11 @@ export const YOUNG = { maxAge: 25, deadZone: 2.5, flop: -3, negFactor: 0.5, maxD
  *  lgDown / lgUp: share of the league-wide recalibration he carries when the league runs too strong / too weak
  *  young:   most a young player who did not flop can lose in one summer (OVR, sim scale)
  */
+/** Share of the data's (survivor-biased) aging growth young players get – see develop(). */
+export const YOUNG_TREND = 0.7;
 export const AGE = {
   //         19    20    21    22    23    24    25    26    27    28    29    30    31    32    33    34    35    36    37    38    39
-  grow:   [0.40, 0.38, 0.35, 0.28, 0.12, 0.12, 0.18, 0.18, 0.10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  grow:   [0.40, 0.38, 0.33, 0.24, 0.10, 0.08, 0.08, 0.05, 0.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   minDrop:[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.25, 0.35, 0.45, 0.55, 0.80, 1.05, 1.30, 1.55, 1.80, 2.05, 2.20],
   neg:    [0, 0, 0, 0, 0.20, 0.40, 0.55, 0.60, 0.65, 0.85, 0.90, 1.00, 1.05, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10],
   pos:    [1.50, 1.50, 1.50, 1.50, 1.35, 1.25, 1.15, 1.00, 0.90, 0.85, 0.85, 0.80, 0.75, 0.65, 0.60, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
@@ -46,7 +48,7 @@ export const AGE = {
   lgUp:   [1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.00, 0.80, 0.65, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50],
   young:  [0, 0, 0, 0, 0.5, 1, 2],
   //         19    20    21    22    23    24
-  play:   [0.33, 0.33, 0.33, 0.27, 0.20, 0.13],   // extra growth (BPM) for a starter's season (2500+ minutes) – see playShare
+  play:   [0.28, 0.28, 0.26, 0.21, 0.15, 0.10],   // extra growth (BPM) for a starter's season (2500+ minutes) – see playShare
 };
 /**
  * How much of the playing-time bonus a season earns: nothing for garbage time (under 500 minutes), a little for a
@@ -321,7 +323,10 @@ export function develop(lg: League, rng: Rng) {
       const pot = (TENDENCY.has(i) ? 0.4 : 1) * potBoost * dev.pot * (i === K.tov || i === K.pf ? -1 : 1);
       eNew[i] = DEV.ar * dev.e[i] + rng.normal() * sdOf(i) * DEV.idio + g * OVR_DIR[i];
       // trend moves with the aging curve; the noise component is replaced, not added on top
-      nat[i] = a.mean[ai] + pot + (eNew[i] - dev.e[i]);
+      // the data's aging curve is measured on players who stayed in the league (the ones who got better): for the young
+      // it runs too steep, so their average growth is taken at YOUNG_TREND of it
+      const m = a.mean[ai] > 0 && age <= 25 ? a.mean[ai] * YOUNG_TREND : a.mean[ai];
+      nat[i] = m + pot + (eNew[i] - dev.e[i]);
     }
     // the young grow by themselves until about 23 – the more talented (hidden potential, and already good for his
     // age) the faster; no box score needed for that
@@ -493,7 +498,7 @@ export function youngFloor(lg: League, S = lg.season) {
 
 /** League calibration: how hard it pulls toward the real league (share per summer), and how many more 80+ players
  *  than the real league of that season it tolerates before pulling the top down. */
-export const CAL = { str: 0.4, room: 50, top: 1.5 };
+export const CAL = { str: 0.4, room: 25, top: 1.5 };
 export function normalizeLeague(lg: League, S = lg.season, maxStep = Infinity) {
   const real = realProfile(S);
   const before = simProfile(lg);
