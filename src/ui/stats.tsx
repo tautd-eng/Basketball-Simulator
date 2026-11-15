@@ -6,6 +6,7 @@ import { shownOvr as ovrOf, shownFromRaw, shownFromBpm } from '../data';
 import { ageIn } from '../players';
 import { seasonGames } from '../league/league';
 import { SortTable, f1, f0, pctf, div } from './sorttable';
+import { advanced, leagueCtx, perScale } from '../league/advanced';
 
 const seasonLabel = (s: number) => `${s - 1}–${String(s).slice(2)}`;
 
@@ -41,12 +42,13 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
     if (lg.phase === 'regular' || lg.phase === 'playoffs') s.add(lg.season);
     return [...s].sort((a, b) => b - a);
   }, [lg.history.length, lg.season, lg.phase]);
-  const [view, setView] = useNavState<'leaders' | 'players' | 'teams'>('stats.view', 'leaders');
+  const [view, setView] = useNavState<'leaders' | 'players' | 'adv' | 'teams'>('stats.view', 'leaders');
   const [season, setSeason] = useState<number>(seasons[0] ?? lg.season);
   const [po, setPo] = useState(false);
   const [mode, setMode] = useState<'pg' | 'tot'>('pg');
   const [team, setTeam] = useState('');
   const [minGp, setMinGp] = useState(0);
+  const [minMpg, setMinMpg] = useState(10);
   const S = seasons.includes(season) ? season : seasons[0] ?? lg.season;
 
   const P = useMemo(() => playerLines(lg, S, po), [lg, S, po, lg.day, lg.phase]);
@@ -59,7 +61,7 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
   const header = (
     <div className="stats-head">
       <div className="seg" role="group" aria-label="Section">
-        {[['leaders', 'Leaders'], ['players', 'Players'], ['teams', 'Teams']].map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k as any)}>{l}</button>)}
+        {[['leaders', 'Leaders'], ['players', 'Players'], ['adv', 'Advanced'], ['teams', 'Teams']].map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k as any)}>{l}</button>)}
       </div>
       <select aria-label="Season" value={S} onChange={e => setSeason(+e.target.value)}>
         {seasons.map(s => <option key={s} value={s}>{seasonLabel(s)}{s === lg.season && (lg.phase === 'regular' || lg.phase === 'playoffs') ? ' (current)' : ''}</option>)}
@@ -68,7 +70,7 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
         <button className={!po ? 'on' : ''} onClick={() => setPo(false)}>Regular season</button>
         <button className={po ? 'on' : ''} onClick={() => setPo(true)}>Playoffs</button>
       </div>
-      {view !== 'leaders' && (
+      {view !== 'leaders' && view !== 'adv' && (
         <div className="seg" role="group" aria-label="Show">
           <button className={mode === 'pg' ? 'on' : ''} onClick={() => setMode('pg')}>Per game</button>
           <button className={mode === 'tot' ? 'on' : ''} onClick={() => setMode('tot')}>Totals</button>
@@ -104,6 +106,69 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (view === 'adv') {
+    const byTid = new Map(T.map((t: any) => [t.tid, { st: t.st, opp: t.opp, gp: t.gp }]));
+    const L = byTid.size ? leagueCtx([...byTid.values()] as any) : null;
+    const all = L ? P.filter(r => byTid.has(r.tid) && r.l.min > 0).map(r => ({ ...r, a: advanced(r.l, byTid.get(r.tid) as any, L) })) : [];
+    const k = perScale(all.map(r => ({ min: r.l.min, aper: r.a.aper })));
+    for (const r of all) r.a.per = r.a.aper * k;
+    const rows = all.filter(r => (!team || r.tid === team) && r.l.gp >= minGp && r.l.min / r.l.gp >= minMpg);
+    const a = (key: string, label: string, title: string, fmt: any = f1, asc = false) => ({ key, label, title, asc, get: (r: any) => r.a[key], fmt });
+    const sg = (x: any) => (x > 0 ? '+' : '') + f1(x);
+    const cols = [
+      { key: 'name', label: 'Player', left: true, asc: true, get: (r: any) => r.p.name, fmt: (_: any, r: any) => name(r) },
+      { key: 'tid', label: 'Team', left: true, asc: true, get: (r: any) => tAbbr(r.tid) },
+      { key: 'gp', label: 'GP', get: (r: any) => r.l.gp },
+      { key: 'mpg', label: 'MPG', title: 'Minutes per game', get: (r: any) => r.l.min / r.l.gp, fmt: f1 },
+      a('per', 'PER', 'Player efficiency rating – per-minute production, league average 15'),
+      a('ts', 'TS%', 'True shooting % – points per shot, free throws included'),
+      a('efg', 'eFG%', 'Effective field goal % – a three counts 1.5 makes'),
+      a('tpar', '3PAr', 'Share of his shots that are threes'),
+      a('ftr', 'FTr', 'Free throw attempts per 100 field goal attempts'),
+      a('orbp', 'ORB%', 'Share of available offensive rebounds he grabbed while on court'),
+      a('drbp', 'DRB%', 'Share of available defensive rebounds he grabbed while on court'),
+      a('trbp', 'TRB%', 'Share of all available rebounds he grabbed while on court'),
+      a('astp', 'AST%', "Share of teammates' baskets he assisted while on court"),
+      a('stlp', 'STL%', "Steals per 100 of the opponent's possessions while on court"),
+      a('blkp', 'BLK%', "Share of the opponent's two-point shots he blocked while on court"),
+      a('tovp', 'TOV%', 'Turnovers per 100 of his plays (shots, free-throw trips, turnovers)', f1, true),
+      a('usg', 'USG%', "Share of the team's plays he used while on court"),
+      a('ortg', 'ORtg', 'Offensive rating – points he produced per 100 of his possessions (Dean Oliver)', f0),
+      a('drtg', 'DRtg', 'Defensive rating – points allowed per 100 possessions with his stops counted (Dean Oliver)', f0, true),
+      a('ows', 'OWS', 'Offensive win shares'),
+      a('dws', 'DWS', 'Defensive win shares'),
+      a('ws', 'WS', 'Win shares – wins his offence and defence were worth'),
+      a('ws48', 'WS/48', 'Win shares per 48 minutes (league average about .100)', (x: any) => x.toFixed(3).replace(/^(-?)0\./, '$1.')),
+      a('onOrtg', 'On ORtg', "His team's points per 100 possessions while he was on court", f1),
+      a('onDrtg', 'On DRtg', "Opponents' points per 100 possessions while he was on court", f1, true),
+      a('onNet', 'On Net', 'Net rating while he was on court', sg),
+      a('onOff', 'On−Off', 'Net rating with him on court minus with him off it', sg),
+      { key: 'dfg', label: 'DFG%', title: 'Field goal % of the shots he defended as the primary defender (lower is better)', asc: true, get: (r: any) => r.a.dfg, fmt: (x: any) => (x == null ? '–' : f1(x)) },
+    ];
+    const teams = [...new Set(all.map(r => r.tid))].filter(Boolean).sort((x, y) => tAbbr(x).localeCompare(tAbbr(y)));
+    return (
+      <div className="panel">
+        {header}
+        {!L ? <p className="note">Advanced stats are worked out from the games simulated in this league – for seasons before the league started there are no box scores to work from.</p> : <>
+          <div className="stats-head">
+            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)}>
+              <option value="">All teams</option>
+              {teams.map(t => <option key={t} value={t}>{lg.teams[t]?.name ?? t}</option>)}
+            </select>
+            <label className="chk" htmlFor="mingp2">Min <input id="mingp2" type="number" min="0" max="100" value={minGp} onChange={e => setMinGp(+e.target.value || 0)} /> GP</label>
+            <label className="chk" htmlFor="minmpg">Min <input id="minmpg" type="number" min="0" max="48" value={minMpg} onChange={e => setMinMpg(+e.target.value || 0)} /> MPG</label>
+            <span className="dim">{rows.length} players · hover a column for what it means</span>
+          </div>
+          <SortTable cols={cols} rows={rows} initial="per" limit={300} rowClass={(r: any) => (r.tid === lg.userTid ? 'mine' : '')} />
+          <details className="more"><summary>What these mean</summary>
+            <ul className="adv-legend">{cols.filter((c: any) => c.title).map((c: any) => <li key={c.key}><b>{c.label}</b> – {c.title}</li>)}</ul>
+            <p className="note">Worked out with the Basketball-Reference formulas (PER by Hollinger, ratings and win shares by Dean Oliver) from this league's own box scores. On-court numbers and on−off come from the plus-minus the engine keeps. A player traded during the season is measured against his current team.</p>
+          </details>
+        </>}
       </div>
     );
   }
