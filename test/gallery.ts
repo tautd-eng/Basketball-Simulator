@@ -10,7 +10,7 @@ const bodies = [
   { skin: '#3d2618', hair: 'dreads', hairColor: '#120d0a', facial: 'goatee', band: false, num: 23, ht: 81, build: 0.6, shoe: '#f4f4f4', sleeve: 1 },
   { skin: '#a8754f', hair: 'afro', hairColor: '#1a1410', facial: 'mustache', band: true, num: 33, ht: 80, build: 0.5, socks: '#f2f2f2', sockH: 14 },
 ];
-const poses: [AthPose, string, number][] = [['windmill', 'side', 0.9], ['windmill', 'side', 0.55], ['windmill', 'side', 0.2], ['tomahawk', 'side', 0.8], ['tomahawk', 'side', 0.15], ['fadekick', 'side', 0], ['shh', 'side', 0], ['nightnight', 'front', 0], ['shimmy', 'front', 0], ['stance', 'side', 0]];
+const poses: [AthPose, string, number][] = [['land', 'side', 0], ['bpass', 'side', 0], ['windmill', 'side', 0.2], ['tomahawk', 'side', 0.8], ['tomahawk', 'side', 0.15], ['fadekick', 'side', 0], ['shh', 'side', 0], ['nightnight', 'front', 0], ['shimmy', 'front', 0], ['stance', 'side', 0]];
 poses.forEach(([pose, view, tt], i) => {
   const b: any = bodies[i % 4], k = kits[i % 3];
   const X = 90 + (i % 5) * 270, Y = 400 + Math.floor(i / 5) * 440;

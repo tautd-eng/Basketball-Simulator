@@ -53,7 +53,7 @@ export interface CourtOpts {
 export interface Look extends Body { ovr?: number; ath?: number; tz?: number; az?: number; def?: number; arch?: string; zs?: Record<string, number> }
 
 type Side = 'h' | 'a';
-type Pose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy';
+type Pose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass';
 type Beh =
   | { k: 'spot' }
   | { k: 'guard'; man: string; tight: number }
@@ -97,6 +97,8 @@ interface How { how: 'inbound' | 'rebound' | 'orb' | 'steal' | 'side' | 'period'
 
 // running speeds, feet per second
 const WALK = 5, JOG = 11, RUN = 16, SPRINT = 22, ACC = 32;
+/** after these, a jump ends in a landing (knees bent a moment) */
+const LANDS = new Set<string>(['jump', 'shoot', 'dunk', 'windmill', 'tomahawk', 'layup', 'block', 'reb', 'contest', 'fade', 'fadekick', 'hook']);
 /** the free-throw line, feet from the centre of the rim (19 ft from the baseline, the rim 5.25 ft in) – he stands just behind it */
 const FT_REL = 14.1;
 // half-court spots (feet from the basket along the court, depth across): top, wings, corners, elbows, blocks, slots
@@ -518,7 +520,9 @@ export class PixelCourt {
       }
     }
     // a crisp chest pass travels flat and fast; bounce passes skip off the floor; lobs float
-    if (passer) { this.setPose(passer, 'pass', 0.28); passer.face = Math.sign(r.x - passer.x) || passer.face; }
+    // an elite passer now and then whips it behind his back to a man close by
+    const flash = !!passer && !lob && dist > 6 && dist < 24 && !this.ff && passer.pid !== this.inbPid && this.sk(passer.pid, 'pass') >= 0.82 && hash01(`${passer.pid}|bp|${Math.round(this.v * 4)}`) < 0.22;
+    if (passer) { this.setPose(passer, flash ? 'bpass' : 'pass', flash ? 0.36 : 0.28); passer.face = Math.sign(r.x - passer.x) || passer.face; if (flash) { passer.face = -passer.face; if (hash01(`${passer.pid}|bpl|${Math.round(this.v * 4)}`) < 0.5) this.sayAt(passer.pid, 'BEHIND THE BACK', '#9fd3ff', 0.9); } }
     this.flyBall(r.x, r.d, 4.6, lob ? 9 + dist * 0.08 : bounce ? 0 : 4.9 + dist * 0.012, lob ? 0.35 + dist / 34 : Math.max(0.16, 0.08 + dist / (bounce ? 40 : 50)), () => this.give(to), to);
     if (bounce && this.ball.fly) this.ball.fly.bounce = true;
   }
@@ -1012,7 +1016,7 @@ export class PixelCourt {
     }
     for (const [pid, p] of this.players) {
       if (p.hang && p.hang > 0) p.hang -= dt;
-      else if (p.jd > 0) { p.jt += dt; const u = p.jt / p.jd; if (u >= 1) { p.jd = 0; p.z = 0; } else p.z = p.jh * 4 * u * (1 - u); }
+      else if (p.jd > 0) { p.jt += dt; const u = p.jt / p.jd; if (u >= 1) { p.jd = 0; p.z = 0; if (p.jh > 1.2 && !p.next && LANDS.has(p.pose)) { p.pose = 'land'; p.pt = 0.17; } } else p.z = p.jh * 4 * u * (1 - u); }
       const dx = p.tx - p.x, dd = p.td - p.d, dist = hyp(dx, dd);
       if (p.stun && p.stun > 0) p.stun -= dt;
       const vmax = p.pose === 'fall' && p.pt > 0 ? 0 : p.spd * p.mul * (p.stun && p.stun > 0 ? 0.25 : 1); // on the floor: he gets up first
@@ -2292,10 +2296,14 @@ export class PixelCourt {
       if (a && this.dbg) this.dbg({ beh: JSON.stringify(a.beh), tgt: [a.tx.toFixed(1), a.td.toFixed(1), S.x.toFixed(1), S.d.toFixed(1), a.x.toFixed(1), a.d.toFixed(1)].join(','), pose: a.pose, z: a.z.toFixed(1), L, release, type, three, rim, dist: hyp(a.x - S.x, a.d - S.d), fromRim: hyp(a.x - B.x, a.d - B.d), want: hyp(S.x - B.x, S.d - B.d) });
       if (blocker) {
         const bp = this.P(blocker);
-        if (bp && a) { this.go(bp, a.x + s * 1.2, a.d, SPRINT); this.jump(bp, 2.8 + 1.4 * this.sk(blocker, 'blk') * (this.o.looks?.[blocker!]?.ath ?? 0.5) * 2, 0.6, 'block'); }
+        // on the break an athletic wing chases the shooter down from behind; an elite shot-blocker spikes it away
+        const chase = type === 'fb' && !!bp && this.traits(blocker).ath >= 0.72 && this.posN(blocker!) <= 3.5;
+        const spike = this.sk(blocker, 'blk') >= 0.8;
+        if (bp && a) { this.go(bp, a.x + s * (chase ? -1.0 : 1.2), a.d + (chase ? 0.6 : 0), SPRINT); this.jump(bp, 2.8 + 1.4 * this.sk(blocker, 'blk') * (this.o.looks?.[blocker!]?.ath ?? 0.5) * 2, 0.6, 'block'); }
         this.flyBall((a?.x ?? S.x) + s * 1.2, a?.d ?? S.d, 11, 12, 0.18, () => {
-          const bs = this.sk(blocker, 'blk'); this.sayAt(blocker, bs > 0.7 ? (r() < 0.5 ? 'REJECTED!' : 'NOT IN MY HOUSE!') : 'BLOCKED!', '#ff6b6b', 1.3);
-          this.flyBall((a?.x ?? S.x) - s * (3 + r() * 6), (a?.d ?? S.d) + (r() - 0.5) * 12, 0.5, 6, 0.55);
+          const bs = this.sk(blocker, 'blk'); this.sayAt(blocker, chase ? 'CHASE-DOWN BLOCK!' : bs > 0.7 ? (r() < 0.5 ? 'REJECTED!' : 'NOT IN MY HOUSE!') : 'BLOCKED!', '#ff6b6b', 1.3);
+          if (spike || chase) { this.shake = Math.max(this.shake, 0.4); this.cheer = Math.max(this.cheer, def === 'h' ? 1.6 : 0.6); }
+          this.flyBall((a?.x ?? S.x) - s * (spike ? 8 + r() * 6 : 3 + r() * 6), (a?.d ?? S.d) + (r() - 0.5) * (spike ? 16 : 12), 0.5, spike ? 9 : 6, spike ? 0.7 : 0.55);
         });
         this.label2 = { pid: blocker, t: 1.5 };
       } else {
@@ -2311,7 +2319,7 @@ export class PixelCourt {
           const tx = made ? B.x : B.x - s * 0.62 * front, td = made ? B.d : B.d + (r() - 0.5) * 0.9;
           const peak = rim ? 11.6 : motion === 'floater' ? 14.5 : motion === 'hook' ? 13.5 : 12.5 + hyp(S.x - B.x, S.d - B.d) * 0.22;
           this.flyBall(tx, td, made ? 10.1 : 10.4, peak, fl);
-          if (a && (motion === 'jumper' || motion === 'stepback')) this.setPose(a, 'follow', 0.55);
+          if (a && (motion === 'jumper' || motion === 'stepback')) this.setPose(a, 'follow', T.sht >= 0.8 ? 0.95 : 0.55);   // a sniper holds his follow-through
         }
       }
     });

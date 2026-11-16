@@ -10,7 +10,7 @@ export interface Body {
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
 }
-export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy';
+export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass';
 export interface AthOpts {
   H: number;          // standing height in canvas pixels
   face: number;       // 1 = facing right, -1 = left
@@ -241,6 +241,15 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'shimmy': // shoulders shaking, arms out
         thA = 0.2; bdA = 0.4; thB = -0.15; bdB = 0.35; hipY += 3 * u; lean = 0.1 * Math.sin(ps * 2.2);
         uA = 1.25 + 0.3 * Math.sin(ps * 2.2); fA = 2.35; uB = -1.25 + 0.3 * Math.sin(ps * 2.2); fB = -2.35; spreadA = 0.95; spreadB = 0.95;
+        break;
+      case 'land': // coming down: knees and hips soak it up, arms out for balance
+        hipY += 7 * u; lean = 0.14;
+        thA = 0.45; bdA = 0.95; thB = -0.02; bdB = 0.7;
+        uA = 0.55; fA = 0.95; uB = 0.35; fB = 0.7; spreadA = 0.55; spreadB = 0.55; splay = 0.25;
+        break;
+      case 'bpass': // the ball whipped around his back to the man beside him
+        thA = 0.3; bdA = 0.45; thB = -0.25; bdB = 0.3; lean = 0.1;
+        uA = 0.35; fA = 0.75; uB = -1.05; fB = -0.35; spreadB = 0.4;
         break;
       case 'hang': // hanging on the rim
         thA = 0.25; bdA = 0.5; thB = 0.1; bdB = 0.6; lean = 0.05;
