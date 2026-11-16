@@ -2094,7 +2094,7 @@ export class PixelCourt {
     // what the defence did on this shot, readable at a glance: a ring under his defender during the play (red beaten,
     // yellow there, green on top of it) and a tag at the release: OPEN / CONTESTED / SMOTHERED
     const verdict: 'beaten' | 'even' | 'on' = beaten ? 'beaten' : onIt ? 'on' : 'even';
-    if (dpid && type !== 'putback') add(0, () => { this.dRing = { pid: dpid, v: verdict, from: this.finalAt, until: items[k].a + release + 0.7 }; });
+    if (actor && type !== 'putback') add(0, () => { this.dRing = { pid: actor, v: verdict, from: items[k].a + release - 1.1, until: items[k].a + release + 0.8 }; });
     if (!blocker && type !== 'putback' && motion !== 'dunk') add(Math.max(0, release - 0.05), () => {
       const [t2, c2] = verdict === 'beaten' ? (rim ? ['BEAT HIS MAN', '#7dff9a'] : ['OPEN', '#7dff9a']) : verdict === 'on' ? ['SMOTHERED', '#ff8a7a'] : ['CONTESTED', '#ffd34d'];
       this.tag = { pid: actor ?? '', text: t2, color: c2, t: 0, dur: 1.1 };
@@ -3194,21 +3194,36 @@ export class PixelCourt {
     const effH = (pid: string) => { const ht = this.looksOf(pid).ht || 79; return 79 + (ht - 79) * 2.1; };   // as drawn (heights exaggerated)
     const topOf = (p: PSprite) => { const q = this.proj(p.x, p.d); return { x: q.x, y: q.y - (effH(p.pid) / 12) * VZ * depthScale(p.d) * 1.08 - p.z * VZ * depthScale(p.d) }; };
     // stars wear a star over their head (a superstar two): where the best players are, at a glance
+    // stars wear an icon at their feet (as in Madden): a gold ring with a star; a superstar a double ring, two stars
+    const g0 = this.ctx;
+    const ring = (q: { x: number; y: number }, rr: number, c: string, w = 0.5, alpha = 0.95) => {
+      g0.save(); g0.globalAlpha = alpha; g0.strokeStyle = c; g0.lineWidth = w;
+      g0.beginPath(); g0.ellipse(q.x, q.y, rr * 1.6, rr * 0.55, 0, 0, Math.PI * 2); g0.stroke(); g0.restore();
+    };
+    const spark = (x: number, y: number) => {
+      // a small five-pointed star
+      g0.save(); g0.fillStyle = '#ffd34d'; g0.strokeStyle = '#7a5a00'; g0.lineWidth = 0.25; g0.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? 0.75 : 1.8; g0.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+      g0.closePath(); g0.fill(); g0.stroke(); g0.restore();
+    };
     for (const p of this.players.values()) {
       if (p.leaving) continue;
       const st = this.starOf(p.pid); if (!st) continue;
-      const t = topOf(p), yy = t.y - (b.holder === p.pid && !b.fly ? 11 : 3);
-      // a small pixel star (a plus with a bright centre); a superstar wears two
-      const spark = (x: number, y: number) => { this.px(x - 1, y, 3, 1, '#ffd34d'); this.px(x, y - 1, 1, 3, '#ffd34d'); this.px(x, y, 1, 1, '#fff6c8'); };
-      if (st >= 2) { spark(t.x - 2, yy); spark(t.x + 2, yy); } else spark(t.x, yy);
+      const q = this.proj(p.x, p.d), rr = 3.4 * depthScale(p.d);
+      ring(q, rr, st >= 2 ? '#ffd34d' : '#e8c36a', 0.45);
+      if (st >= 2) ring(q, rr * 1.2, '#ffd34d', 0.35, 0.7);
+      const fy = q.y + rr * 0.55 + 0.8;
+      if (st >= 2) { spark(q.x - 2.1, fy); spark(q.x + 2.1, fy); } else spark(q.x, fy);
     }
-    // the defender of the shot: a ring at his feet in the colour of how he is doing
+    // the shooter: a ring at his feet in the colour of the look he got (green open, yellow contested, red smothered)
     const dr = this.dRing;
     if (dr && this.v >= dr.from && this.v <= dr.until) {
       const p = this.players.get(dr.pid);
       if (p) {
-        const q = this.proj(p.x, p.d), c = dr.v === 'beaten' ? '#ff5a4a' : dr.v === 'on' ? '#5dff8a' : '#ffd34d', rr = 4 * depthScale(p.d);
-        for (let i = 0; i < 20; i++) { const a = Math.PI * 2 * i / 20; this.px(q.x + Math.cos(a) * rr * 1.6, q.y + Math.sin(a) * rr * 0.55, 1, 1, c); }
+        const q = this.proj(p.x, p.d), c = dr.v === 'beaten' ? '#5dff8a' : dr.v === 'on' ? '#ff5a4a' : '#ffd34d', rr = 4.6 * depthScale(p.d);
+        // a glowing disc and ring in the colour of the look
+        g0.save(); g0.globalAlpha = 0.28; g0.fillStyle = c; g0.beginPath(); g0.ellipse(q.x, q.y, rr * 1.6, rr * 0.55, 0, 0, Math.PI * 2); g0.fill(); g0.restore();
+        ring(q, rr, c, 0.7, 1);
       }
     }
     if (this.tag) {
