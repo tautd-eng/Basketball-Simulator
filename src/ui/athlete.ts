@@ -10,7 +10,7 @@ export interface Body {
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
 }
-export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass';
+export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe';
 export interface AthOpts {
   H: number;          // standing height in canvas pixels
   face: number;       // 1 = facing right, -1 = left
@@ -241,6 +241,16 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'shimmy': // shoulders shaking, arms out
         thA = 0.2; bdA = 0.4; thB = -0.15; bdB = 0.35; hipY += 3 * u; lean = 0.1 * Math.sin(ps * 2.2);
         uA = 1.25 + 0.3 * Math.sin(ps * 2.2); fA = 2.35; uB = -1.25 + 0.3 * Math.sin(ps * 2.2); fB = -2.35; spreadA = 0.95; spreadB = 0.95;
+        break;
+      case 'shootlow': // a poor shooter's push: the ball from in front of his face, elbows out, barely leaving the floor
+        thA = 0.14; bdA = air ? 0.35 : 0.3; thB = -0.06; bdB = air ? 0.4 : 0.25; hipY += 2 * u;
+        uA = 1.6; fA = 2.75; uB = 1.45; fB = 2.6; spreadA = 0.85; spreadB = 0.85;
+        lean = 0.02;
+        break;
+      case 'swipe': // a lunge with a low reach at the ball
+        hipY += 9 * u; lean = 0.5;
+        thA = 0.85; bdA = 1.25; thB = -0.35; bdB = 0.35;
+        uA = 1.25; fA = 1.4; uB = -0.4; fB = -0.2; spreadA = 0.5;
         break;
       case 'land': // coming down: knees and hips soak it up, arms out for balance
         hipY += 7 * u; lean = 0.14;
