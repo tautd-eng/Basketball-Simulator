@@ -15,6 +15,7 @@ import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose } from 
 import { AZ, AXC, AFX, AFY, AYF, VZ, aproj, depthScale, renderCourt, renderStands, Layer } from './arena';
 
 export const VW = 320, VH = 180;
+const BAR_H = 40;   // the broadcast bar along the bottom (score, clock, the play call), in screen pixels
 const S = 2; // drawn at 2× so text and overlays stay crisp
 const Z = 1.4; // broadcast camera zoom: follows the ball across the court
 const FAR_Y = 74, NEAR_Y = 168, FAR_L = 50, FAR_R = 270, NEAR_L = 6, NEAR_R = 314;
@@ -47,6 +48,7 @@ export interface CourtOpts {
   orbReset?: number;            // shot clock after an offensive rebound (24, or 14 from 2018–19)
   season?: number;
   homeName?: string;            // full team name (painted on the baselines)
+  awayName?: string;
 }
 export interface Look extends Body { ovr?: number; ath?: number; tz?: number; az?: number; def?: number; arch?: string; zs?: Record<string, number> }
 
@@ -308,6 +310,7 @@ export class PixelCourt {
     if (this.rimFx && (this.rimFx.t += dt) > 0.7) this.rimFx = null;
     if (this.hl && (this.hl.t -= dt) <= 0) this.hl = null;
     if (this.caption) this.caption.t += dt;
+    if (this.tl) { if (this.introT < 0) this.introT = this.v < 3 ? 0 : 99; else if (this.introT < 99) this.introT += dt; }
     if (this.label) { this.label.t -= dt; if (this.label.t <= 0) this.label = null; }
     if (this.label2) { this.label2.t -= dt; if (this.label2.t <= 0) this.label2 = null; }
     this.cheer = Math.max(0, this.cheer - dt);
@@ -2881,6 +2884,8 @@ export class PixelCourt {
         else { g.fillStyle = '#e02828'; for (let i = -r; i <= r; i++) { g.fillRect(Math.round(P.X + i), Math.round(P.Y + i * 0.6), 1, 1); g.fillRect(Math.round(P.X + i), Math.round(P.Y - i * 0.6), 1, 1); } }
         g.globalAlpha = 1;
       }
+      // the polished floor: a faint mirror image of every player under his feet
+      this.drawReflections(time);
       // shadows first, then everything by depth (the basket's back half, players, the ball, the front of the rim)
       for (const p of this.players.values()) this.drawShadow(p);
       this.drawBallShadow();
@@ -2907,11 +2912,11 @@ export class PixelCourt {
     main.imageSmoothingEnabled = false;
     const shake = this.shake > 0 ? Math.round(Math.sin(time * 70) * this.shake * 6) : 0;
     main.drawImage(this.buf, 0, shake, this.canvas.width, this.canvas.height);
+    this.drawLighting(time);
     const kk = S * this.z * this.R;
     main.setTransform(kk, 0, 0, kk, -this.camX * kk, -this.camY * kk);
     this.drawOverlays(time);
-    this.drawScoreBug();
-    this.drawCaption(true);
+    this.drawBottomBar();
     this.drawGraphics();
     this.drawReplay(time);
   }
@@ -2924,6 +2929,7 @@ export class PixelCourt {
     g.setTransform(this.R, 0, 0, this.R, 0, 0);
     const font = (w: string, px: number) => `${w} ${px}px "IBM Plex Sans", system-ui, sans-serif`;
     const fade = (t: number, dur: number) => Math.min(1, t * 5, (dur - t) * 5);
+    if (this.drawIntro(font) || this.drawFinal(font)) return;
     if (this.lower) {
       const pid = this.lower.pid, ln = this.lineNow(pid);
       const side = this.o.side[pid] as Side, [col] = this.tc(side);
@@ -2932,7 +2938,7 @@ export class PixelCourt {
       const line = `${ln.pts ?? 0} PTS · ${reb} REB · ${ln.ast ?? 0} AST · ${ln.fgm ?? 0}/${ln.fga ?? 0} FG`;
       const a = fade(this.lower.t, 3.6), slide = (1 - Math.min(1, this.lower.t * 4)) * 40;
       g.globalAlpha = a;
-      const x = 16 - slide, y = VH * S - 17 * S - 58, w = 330, h = 50;
+      const x = 16 - slide, y = VH * S - BAR_H - 58, w = 330, h = 50;
       g.fillStyle = 'rgba(10,13,19,0.9)'; g.fillRect(x, y, w, h);
       g.fillStyle = col; g.fillRect(x, y, 6, h);
       g.fillStyle = '#ffd34d'; g.font = font('700', 15); g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(name, x + 16, y + 16);
@@ -2971,6 +2977,80 @@ export class PixelCourt {
       }
       g.globalAlpha = 1;
     }
+  }
+
+  /** Before the tip: tonight's matchup and both starting fives. Shown over the first seconds of the broadcast. */
+  private drawIntro(font: (w: string, px: number) => string) {
+    const T = this.introT, D = 6.5;
+    if (!this.tl || T < 0 || T > D || this.ff || this.replaying) return false;
+    const g = this.ctx, a = Math.min(1, (D - T) * 2, T * 3);
+    const W = VW * S, cw = 540, ch = 218, x = (W - cw) / 2, y = 28;
+    g.save(); g.globalAlpha = Math.max(0, a);
+    const bg = g.createLinearGradient(x, y, x, y + ch); bg.addColorStop(0, 'rgba(14,18,28,0.95)'); bg.addColorStop(1, 'rgba(6,8,14,0.95)');
+    g.fillStyle = bg; this.round(g, x, y, cw, ch, 8); g.fill();
+    const [ac] = this.tc('a'), [hc] = this.tc('h');
+    const edge = g.createLinearGradient(x, 0, x + cw, 0); edge.addColorStop(0, ac); edge.addColorStop(0.5, '#ffffff'); edge.addColorStop(1, hc);
+    g.fillStyle = edge; g.fillRect(x + 8, y, cw - 16, 3);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#9fb0cc'; g.font = font('700', 10); g.fillText(`TONIGHT${this.o.season ? ` · ${this.o.season - 1}–${String(this.o.season).slice(2)} SEASON` : ''}`, x + cw / 2, y + 18);
+    for (const sd of ['a', 'h'] as Side[]) {
+      const t = sd === 'h' ? this.o.home : this.o.away, cx = sd === 'a' ? x + 130 : x + cw - 130, im = this.embOf(sd);
+      if (im) g.drawImage(im, cx - 22, y + 30, 44, 44);
+      g.fillStyle = '#ffffff'; g.font = font('800', 22); g.fillText(t.abbr, cx, y + 86);
+      const full = (sd === 'h' ? this.o.homeName : this.o.awayName) ?? '';
+      if (full) { g.fillStyle = '#9fb0cc'; g.font = font('600', 10); g.fillText(full.toUpperCase(), cx, y + 101); }
+      // the starting five: position, name, overall
+      const five = [...this.players.values()].filter(p => p.side === sd && !p.leaving).sort((p, q) => (this.o.pos[p.pid] ?? 3) - (this.o.pos[q.pid] ?? 3)).slice(0, 5);
+      five.forEach((p, i) => {
+        const yy = y + 120 + i * 18, ov = this.o.looks?.[p.pid]?.ovr;
+        g.textAlign = 'left'; g.fillStyle = '#7f8ba3'; g.font = font('700', 10); g.fillText(['PG', 'SG', 'SF', 'PF', 'C'][Math.max(0, Math.min(4, Math.round(this.o.pos[p.pid] ?? 3) - 1))], cx - 96, yy);
+        g.fillStyle = this.starOf(p.pid) > 0 ? '#ffd34d' : '#e8edf6'; g.font = font('600', 12); g.fillText(this.o.names[p.pid] ?? '', cx - 74, yy);
+        if (ov) { g.textAlign = 'right'; g.fillStyle = '#9fb0cc'; g.font = font('700', 11); g.fillText(String(ov), cx + 96, yy); }
+      });
+      g.textAlign = 'center';
+    }
+    g.fillStyle = '#ffd34d'; g.font = font('800', 18); g.fillText('AT', x + cw / 2, y + 60);
+    g.fillStyle = '#7f8ba3'; g.font = font('600', 9); g.fillText('STARTERS', x + cw / 2, y + 118);
+    g.restore();
+    return true;
+  }
+
+  /** At the final buzzer: the final score and the player of the game. */
+  private drawFinal(font: (w: string, px: number) => string) {
+    if (!this.tl || this.v < this.tl.end - 0.05 || this.replaying) return false;
+    const items = this.tl.items, e = items[items.length - 1]?.e; if (!e) return false;
+    const g = this.ctx, W = VW * S, cw = 440, ch = 170, x = (W - cw) / 2, y = 52;
+    // player of the game by game score
+    const tot: Record<string, Record<string, number>> = {};
+    for (const it of items) for (const d of it.e.d ?? []) { const o = (tot[d[0]] ??= {}); o[d[1]] = (o[d[1]] ?? 0) + d[2]; }
+    const gs = (o: Record<string, number>) => (o.pts ?? 0) + 0.4 * (o.fgm ?? 0) - 0.7 * (o.fga ?? 0) - 0.4 * ((o.fta ?? 0) - (o.ftm ?? 0)) + 0.7 * (o.orb ?? 0) + 0.3 * (o.drb ?? 0) + (o.stl ?? 0) + 0.7 * (o.ast ?? 0) + 0.7 * (o.blk ?? 0) - 0.4 * (o.pf ?? 0) - (o.tov ?? 0);
+    const win: Side = e.hs > e.as ? 'h' : 'a';
+    const best = Object.entries(tot).filter(([pid]) => this.o.side[pid] === win).sort((p, q) => gs(q[1]) - gs(p[1]))[0];
+    g.save();
+    const bg = g.createLinearGradient(x, y, x, y + ch); bg.addColorStop(0, 'rgba(14,18,28,0.95)'); bg.addColorStop(1, 'rgba(6,8,14,0.95)');
+    g.fillStyle = bg; this.round(g, x, y, cw, ch, 8); g.fill();
+    g.fillStyle = this.tc(win)[0]; g.fillRect(x + 8, y, cw - 16, 3);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const ot = (items[items.length - 1].e.p ?? 4) - 4;
+    g.fillStyle = '#ffd34d'; g.font = font('800', 14); g.fillText(ot > 0 ? `FINAL / ${ot > 1 ? ot : ''}OT` : 'FINAL', x + cw / 2, y + 20);
+    for (const sd of ['a', 'h'] as Side[]) {
+      const cx = sd === 'a' ? x + 110 : x + cw - 110, im = this.embOf(sd), t = sd === 'h' ? this.o.home : this.o.away;
+      if (im) g.drawImage(im, cx - 60 - 20, y + 38, 36, 36);
+      g.fillStyle = sd === win ? '#ffffff' : '#8a93a6'; g.font = font('800', 34); g.fillText(String(sd === 'h' ? e.hs : e.as), cx + 18, y + 57);
+      g.font = font('700', 12); g.fillText(t.abbr, cx - 62, y + 84);
+    }
+    if (best) {
+      const o = best[1], reb = (o.orb ?? 0) + (o.drb ?? 0);
+      const parts = [`${o.pts ?? 0} PTS`, `${reb} REB`, `${o.ast ?? 0} AST`];
+      if ((o.stl ?? 0) + (o.blk ?? 0) >= 3) parts.push(`${o.stl ?? 0} STL`, `${o.blk ?? 0} BLK`);
+      parts.push(`${o.fgm ?? 0}/${o.fga ?? 0} FG`);
+      g.fillStyle = 'rgba(255,255,255,0.06)'; g.fillRect(x + 16, y + 104, cw - 32, 52);
+      g.fillStyle = '#9fb0cc'; g.font = font('700', 10); g.fillText('PLAYER OF THE GAME', x + cw / 2, y + 116);
+      g.fillStyle = '#ffd34d'; g.font = font('800', 17); g.fillText((this.o.names[best[0]] ?? '').toUpperCase(), x + cw / 2, y + 133);
+      g.fillStyle = '#e8edf6'; g.font = font('600', 12); g.fillText(parts.join(' · '), x + cw / 2, y + 149);
+    }
+    g.restore();
+    return true;
   }
 
   private drawReplay(time: number) {
@@ -3303,6 +3383,155 @@ export class PixelCourt {
       if (f.at) { const q = this.proj(f.at.x, f.at.d, f.at.z); this.text(f.text, Math.max(this.camX + 22, Math.min(this.camX + VW / this.z - 22, q.x)), Math.max(this.camY + 22, q.y - 6 - u * 6), f.color, f.big ? 11 : 7, true, alpha); }
       else this.text(f.text, VW / 2, (f.big ? 70 : 84) - u * 10, f.color, f.big ? 16 : 8, true, alpha, true);
     }
+  }
+
+  // ---------------------------------------------------------------- broadcast look
+  private reflBuf: HTMLCanvasElement | null = null;
+  private introT = -1;
+  private reflN = 0;   // the intro card's own clock (real time), from the start of a broadcast that begins at the tip
+  /** Players mirrored in the polished floor (drawn into their own layer, then laid on the floor faintly). */
+  private drawReflections(time: number) {
+    const g = this.ctx, W = g.canvas.width, H = g.canvas.height;
+    if (!this.reflBuf || this.reflBuf.width !== W >> 1 || this.reflBuf.height !== H >> 1) { this.reflBuf = document.createElement('canvas'); this.reflBuf.width = W >> 1; this.reflBuf.height = H >> 1; }   // half size: a soft image, a quarter of the work
+    const r = this.reflBuf.getContext('2d')!;
+    // (a faint image: redrawn every third frame, which halves what the mirror costs; nothing at fast speeds)
+    if (this.ff || (this.extRate ?? 1) > 6) return;
+    const lay = () => { g.save(); g.globalAlpha = 0.17; g.imageSmoothingEnabled = true; g.drawImage(this.reflBuf!, 0, 0, W, H); g.restore(); };
+    if (this.reflN++ % 2 !== 0) { lay(); return; }
+    r.setTransform(1, 0, 0, 1, 0, 0); r.clearRect(0, 0, W >> 1, H >> 1); r.imageSmoothingEnabled = false;
+    const keep = this.ctx, hold = this.ball.holder;
+    this.ctx = r;
+    try {
+      for (const p of [...this.players.values()].sort((a, b) => a.d - b.d)) {
+        const q = this.proj(p.x, p.d), { Y } = this.toCanvas(q.x, q.y);
+        r.setTransform(0.5, 0, 0, -0.31, 0, 0.81 * Y);   // flipped about his feet, foreshortened (at half size)
+        const fp = p.curPose, fa = p.fromPose, at = p.poseAt;
+        this.drawArenaPlayer(p, time);
+        p.curPose = fp; p.fromPose = fa; p.poseAt = at;   // (the mirror image does not move the pose blend on)
+      }
+    } finally { this.ctx = keep; this.ball.holder = hold; }
+    r.setTransform(1, 0, 0, 1, 0, 0);
+    lay();
+  }
+
+  /** Arena lights: the court lit from above, the stands in the dark, a soft vignette. */
+  private drawLighting(time: number) {
+    const g = this.ctx;
+    g.setTransform(this.R, 0, 0, this.R, 0, 0);
+    const W = VW * S, H = VH * S;
+    // stands and the far end fade into the dark
+    const top = g.createLinearGradient(0, 0, 0, H * 0.42);
+    top.addColorStop(0, 'rgba(4,6,12,0.55)'); top.addColorStop(1, 'rgba(4,6,12,0)');
+    g.fillStyle = top; g.fillRect(0, 0, W, H * 0.42);
+    // the lights over the floor
+    const c = g.createRadialGradient(W * 0.5, H * 0.62, 20, W * 0.5, H * 0.62, W * 0.62);
+    c.addColorStop(0, 'rgba(255,236,200,0.10)'); c.addColorStop(0.55, 'rgba(255,236,200,0.03)'); c.addColorStop(1, 'rgba(255,236,200,0)');
+    g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = c; g.fillRect(0, 0, W, H); g.restore();
+    // vignette
+    const v = g.createRadialGradient(W / 2, H * 0.55, H * 0.45, W / 2, H * 0.55, W * 0.75);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.45)');
+    g.fillStyle = v; g.fillRect(0, 0, W, H);
+    // camera flashes in the stands after a big play
+    if (this.cheer > 0.3 && !this.ff) for (let i = 0; i < 5; i++) {
+      const h1 = hash01(`fl${Math.floor(time * 6)}|${i}`);
+      if (h1 > 0.35) continue;
+      const fx = hash01(`fx${Math.floor(time * 6)}|${i}`) * W, fy = 8 + hash01(`fy${Math.floor(time * 6)}|${i}`) * H * 0.2;
+      const f = g.createRadialGradient(fx, fy, 0, fx, fy, 7); f.addColorStop(0, 'rgba(255,255,255,0.9)'); f.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = f; g.fillRect(fx - 7, fy - 7, 14, 14);
+    }
+  }
+
+  private emb: Partial<Record<Side, HTMLImageElement>> = {};
+  private embOf(sd: Side) {
+    if (typeof Image === 'undefined') return null;
+    let im = this.emb[sd];
+    if (!im) { const t = sd === 'h' ? this.o.home : this.o.away; im = new Image(); im.src = emblemURL(t.tid, t.abbr, sd === 'h' ? this.o.homeName ?? t.abbr : t.abbr, this.tc(sd), true); this.emb[sd] = im; }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  private barMemo: { k: number; per: number; to: Record<Side, number>; pf: Record<Side, number> } | null = null;
+  /** Timeouts used and team fouls this period, as of the event shown. */
+  private barState(per: number) {
+    const k = Math.min(this.cur, (this.tl?.items.length ?? 0));
+    if (this.barMemo && this.barMemo.k === k && this.barMemo.per === per) return this.barMemo;
+    const to = { h: 0, a: 0 }, pf = { h: 0, a: 0 };
+    const items = this.tl?.items ?? [];
+    for (let i = 0; i < k; i++) {
+      const e = items[i].e;
+      if (e.k === 'timeout' && (e.s === 'h' || e.s === 'a')) to[e.s]++;
+      if (e.p === per) for (const d of e.d ?? []) if (d[1] === 'pf') { const sd = this.o.side[d[0]] as Side; if (sd) pf[sd] += d[2]; }
+    }
+    return (this.barMemo = { k, per, to, pf });
+  }
+  /** The broadcast bar along the bottom: both teams with emblem, score, timeouts left and the bonus; the period,
+   *  the game clock and the shot clock; then the play call or the last play. */
+  private drawBottomBar() {
+    if (!this.tl || !this.tl.items.length) return;
+    const g = this.ctx;
+    g.setTransform(this.R, 0, 0, this.R, 0, 0);
+    const W = VW * S, H = BAR_H, y0 = VH * S - H;
+    const c = this.tl.clockAt(this.v), st = this.barState(c.period);
+    const F = (w: string, px: number) => `${w} ${px}px "IBM Plex Sans", system-ui, sans-serif`;
+    // glass bar with a two-colour edge
+    const bg = g.createLinearGradient(0, y0, 0, VH * S);
+    bg.addColorStop(0, 'rgba(22,27,40,0.96)'); bg.addColorStop(1, 'rgba(8,10,16,0.98)');
+    g.fillStyle = bg; g.fillRect(0, y0, W, H);
+    const [ac] = this.tc('a'), [hc] = this.tc('h');
+    const edge = g.createLinearGradient(0, 0, 304, 0); edge.addColorStop(0, ac); edge.addColorStop(1, hc);
+    g.fillStyle = edge; g.fillRect(0, y0, 304, 2);
+    g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(304, y0, W - 304, 1);
+    const team = (sd: Side, x: number) => {
+      const t = sd === 'h' ? this.o.home : this.o.away, [col] = this.tc(sd), sc = sd === 'h' ? c.hs : c.as;
+      g.fillStyle = col; g.fillRect(x, y0 + 2, 4, H - 2);
+      const im = this.embOf(sd);
+      if (im) g.drawImage(im, x + 8, y0 + 7, 26, 26);
+      else { g.fillStyle = col; g.beginPath(); g.arc(x + 21, y0 + 20, 12, 0, Math.PI * 2); g.fill(); }
+      g.textBaseline = 'middle'; g.textAlign = 'left';
+      g.fillStyle = '#ffffff'; g.font = F('700', 15); g.fillText(t.abbr, x + 39, y0 + 15);
+      // timeouts left (7 a game) and the bonus
+      const left = Math.max(0, 7 - st.to[sd]);
+      for (let i = 0; i < 7; i++) { g.fillStyle = i < left ? '#ffd34d' : 'rgba(255,255,255,0.18)'; g.fillRect(x + 39 + i * 5, y0 + 27, 3, 3); }
+      const bonus = st.pf[sd === 'h' ? 'a' : 'h'] >= 5 && c.period <= 4 || st.pf[sd === 'h' ? 'a' : 'h'] >= 4 && c.period > 4;
+      if (bonus) { g.fillStyle = '#ff9a3c'; g.font = F('700', 8); g.fillText('BONUS', x + 78, y0 + 29); }
+      g.textAlign = 'right'; g.fillStyle = '#ffffff'; g.font = F('700', sc >= 100 ? 21 : 24); g.fillText(String(sc), x + 148, y0 + 21);
+    };
+    team('a', 0); team('h', 152);
+    // period, clock, shot clock
+    const x = 304;
+    g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x, y0 + 2, 86, H - 2);
+    const q = c.period <= 4 ? `${c.period}${['ST', 'ND', 'RD', 'TH'][c.period - 1]}` : c.period === 5 ? 'OT' : `${c.period - 4}OT`;
+    const left = c.left, clk = left >= 60 ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}` : left.toFixed(1);
+    g.textAlign = 'center'; g.fillStyle = '#9fb0cc'; g.font = F('700', 9); g.fillText(q, x + 30, y0 + 11);
+    g.fillStyle = left < 60 ? '#ff9a3c' : '#ffd34d'; g.font = F('700', 17); g.fillText(clk, x + 30, y0 + 27);
+    if (c.shot != null) {
+      const sv = Math.ceil(c.shot - 1e-6), red = c.shot <= 5;
+      g.fillStyle = red ? '#b3141b' : '#1d2433'; this.round(g, x + 60, y0 + 9, 22, 22, 5); g.fill();
+      g.fillStyle = red ? '#ffffff' : '#ff9a3c'; g.font = F('700', 13); g.fillText(String(sv), x + 71, y0 + 21);
+    }
+    this.captionIn(398, W - 398 - 8, y0, H);
+    g.setTransform(this.R, 0, 0, this.R, 0, 0);
+  }
+  private round(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  /** The play call / last play inside the bar. */
+  private captionIn(x0: number, w: number, y0: number, H: number) {
+    const g = this.ctx, c = this.caption; if (!c) return;
+    g.save(); g.globalAlpha = Math.min(1, c.t * 6);
+    const side = c.side === 'h' ? 'h' : c.side === 'a' ? 'a' : null;
+    let x = x0;
+    if (side) { g.fillStyle = this.tc(side)[0]; g.fillRect(x, y0 + 12, 3, H - 22); x += 9; }
+    const isCall = c.kind === 'call';
+    const good = c.kind === 'make2' || c.kind === 'make3' || c.kind === 'ft';
+    const bad = c.kind === 'miss2' || c.kind === 'miss3' || c.kind === 'ftm' || c.kind === 'tov';
+    g.textBaseline = 'middle'; g.textAlign = 'left';
+    if (good || bad) { g.fillStyle = good ? '#3ddc6e' : '#ff5c5c'; g.font = `700 14px "IBM Plex Sans", system-ui, sans-serif`; g.fillText(good ? '✓' : '✗', x, y0 + H / 2 + 1); x += 15; }
+    g.font = `${isCall ? 'italic 600' : '500'} 13px "IBM Plex Sans", system-ui, sans-serif`;
+    let t = c.text; const max = x0 + w - x;
+    while (t.length > 4 && g.measureText(t).width > max) t = t.slice(0, -2);
+    if (t !== c.text) t = t.slice(0, -1) + '…';
+    g.fillStyle = isCall ? '#ffd88a' : good ? '#d9ffe4' : bad ? '#ffe0e0' : '#f4efe2';
+    g.fillText(t, x, y0 + H / 2 + 1);
+    g.restore();
   }
 
   /** Broadcast score bug at the top: team blocks, score, quarter, clock, shot clock. */

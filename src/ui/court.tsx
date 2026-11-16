@@ -57,7 +57,7 @@ export function CourtCanvas({ home, away, names, sides, pos, events, v, upto, sp
 
   useEffect(() => {
     const season = nav.lg?.season ?? 2000;
-    const c = new PixelCourt(ref.current!, { home, away, names, side: sides, pos, style: mode, looks: looksFor(names), orbReset: season >= 2019 ? 14 : 24, season, homeName: nav.lg?.teams?.[home.tid]?.name });
+    const c = new PixelCourt(ref.current!, { home, away, names, side: sides, pos, style: mode, looks: looksFor(names), orbReset: season >= 2019 ? 14 : 24, season, homeName: nav.lg?.teams?.[home.tid]?.name, awayName: nav.lg?.teams?.[away.tid]?.name });
     court.current = c;
     (window as any).__court = c; // handy for debugging the director from the console
     c.onIdle = () => idle.current?.();
