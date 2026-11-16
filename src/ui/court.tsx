@@ -36,6 +36,8 @@ function looksFor(names: Record<string, string>) {
     out[pid] = { skin: f.skin, hair: f.hair, hairColor: f.hairColor, facial: f.facial, band: f.band || (era >= 2005 && h('bd') < 0.1), num, ht: p.ht ?? 79, build, socks, sockH, shoe, sleeve, knee: pn >= 4 && h('k') < 0.3, tat: era >= 1998 && h('tt') < (era >= 2010 ? 0.5 : 0.3) ? (h('tt2') < 0.45 ? 2 : 1) : 0, goggles: GOGGLES.has(pid) || h('gg') < 0.012, legSleeve: era >= 2008 && h('ls') < (era >= 2015 ? 0.2 : 0.12) ? (h('ls2') < 0.5 ? 1 : -1) : 0, wrist: h('w') < (era < 1995 ? 0.35 : 0.2), ovr: shownOvr(p.z, p.id), tz: p.z?.[4] ?? 0, az: p.z?.[7] ?? 0, ath: Math.max(0, Math.min(1, 0.5 + (p.z?.[3] ?? 0) * 0.15 + (p.z?.[0] ?? 0) * 0.1 - Math.max(0, (p.ht ?? 79) - 82) * 0.04)),
       // the arena reads these: how well he defends (0..1) and his role, so plays and matchups look like the player
       def: Math.max(0, Math.min(1, 0.5 + (p.z?.[13] ?? 0) * 0.2 + (p.z?.[10] ?? 0) * 0.08 + (pn >= 4 ? (p.z?.[11] ?? 0) * 0.08 : 0))),
+      // raw skills (z) for the arena: how well each move works grows with them, archetype or not
+      zs: p.z ? { ins: p.z[0], tp: p.z[1], drw: p.z[3], usg: p.z[5], tov: p.z[6], ast: p.z[7], orb: p.z[8], drb: p.z[9], stl: p.z[10], blk: p.z[11], def: p.z[13] } : undefined,
       arch: (() => { try { return p.z ? roleOf(p.z, p.pos).arch.id : 'role'; } catch { return 'role'; } })() };
   }
   return out;
