@@ -10,7 +10,7 @@ export interface Body {
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
 }
-export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay';
+export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy';
 export interface AthOpts {
   H: number;          // standing height in canvas pixels
   face: number;       // 1 = facing right, -1 = left
@@ -213,6 +213,35 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         thA = 0.55; bdA = 1.2; thB = 0.35; bdB = 1.1; lean = -0.12;
         uA = Math.PI - 0.05; fA = Math.PI + 0.25; uB = Math.PI - 0.2; fB = Math.PI + 0.1;
         break;
+      case 'windmill': { // the ball sweeps in a full circle on the way up: down, back, over the top and through
+        const w = Math.max(0, Math.min(1, 1 - (o.t ?? 0) / 1.05));
+        thA = 0.6; bdA = 1.25; thB = 0.4; bdB = 1.15; lean = -0.1;
+        uA = 0.45 - w * 4.1; fA = uA - 0.12; uB = Math.PI - 0.5; fB = Math.PI - 0.3;
+        break;
+      }
+      case 'tomahawk': { // cocked far behind the head, then hammered down through the rim
+        const w = Math.max(0, Math.min(1, 1 - (o.t ?? 0) / 1.05));
+        thA = 0.7; bdA = 1.3; thB = 0.25; bdB = 1.0; lean = -0.22 + 0.2 * Math.max(0, w - 0.55);
+        uA = w < 0.55 ? Math.PI + 0.8 : Math.PI + 0.8 - (w - 0.55) / 0.45 * 1.25; fA = uA + 0.45 * (w < 0.55 ? 1 : 1 - (w - 0.55) / 0.45);
+        uB = 0.9; fB = 1.35;
+        break;
+      }
+      case 'fadekick': // the one-legged fadeaway: leaning back, the front knee kicked out
+        thA = 1.15; bdA = 0.25; thB = 0.12; bdB = 0.55; lean = -0.4;
+        uA = Math.PI - 0.12; fA = Math.PI + 0.06; uB = Math.PI - 0.55; fB = Math.PI - 0.25;
+        break;
+      case 'shh': // a finger to the lips for the crowd
+        thA = 0.1; bdA = 0.15; thB = -0.08; bdB = 0.1; lean = -0.06;
+        uA = 0.55; fA = Math.PI + 0.25; uB = -0.08; fB = 0.08;
+        break;
+      case 'nightnight': // hands together by the tilted head: put them to sleep
+        thA = 0.1; bdA = 0.2; thB = -0.06; bdB = 0.12; lean = -0.1;
+        uA = 2.25; fA = 3.85; uB = 2.05; fB = 3.7; spreadA = 0.3; spreadB = 0.3;
+        break;
+      case 'shimmy': // shoulders shaking, arms out
+        thA = 0.2; bdA = 0.4; thB = -0.15; bdB = 0.35; hipY += 3 * u; lean = 0.1 * Math.sin(ps * 2.2);
+        uA = 1.25 + 0.3 * Math.sin(ps * 2.2); fA = 2.35; uB = -1.25 + 0.3 * Math.sin(ps * 2.2); fB = -2.35; spreadA = 0.95; spreadB = 0.95;
+        break;
       case 'hang': // hanging on the rim
         thA = 0.25; bdA = 0.5; thB = 0.1; bdB = 0.6; lean = 0.05;
         uA = Math.PI - 0.15; fA = Math.PI - 0.05; uB = Math.PI - 0.25; fB = Math.PI - 0.1;
@@ -331,7 +360,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     if (side) poly(ctx, [[heel, L.an.y - 1 * u], [L.an.x + 2 * u * f, L.an.y - 1.2 * u], [toe, fy - 1.8 * u], [toe + 0.5 * u * f, fy], [heel, fy]], sh2);
     else poly(ctx, [[L.an.x - 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.9 * u, fy], [L.an.x - 2.9 * u, fy]], sh2);
     const x0 = side ? Math.min(heel, toe) : L.an.x - 2.9 * u, w0 = side ? Math.abs(toe - heel) + 0.5 * u : 5.8 * u;
-    rect(ctx, x0, fy - 1.1 * u, w0, 1.1 * u, back ? '#8e8e8e' : '#e2e2e2');
+    rect(ctx, x0, fy - 1.5 * u, w0, 1.5 * u, back ? '#8e8e8e' : shoe === '#f4f4f4' ? '#d6d6d6' : '#ececec');
+    if (!back) rect(ctx, x0, fy - 1.5 * u, w0, 0.45 * u, shade(shoe, 0.7));   // the line where the upper meets the sole
     if (!back && side) {
       limb(ctx, L.an.x + 0.4 * u * f, L.an.y - 0.6 * u, L.an.x + 2.6 * u * f, fy - 2.2 * u, 0.6 * u, 0.6 * u, shade(shoe, 0.6));
       limb(ctx, heel + 1.2 * u * f, fy - 2.2 * u, toe - 1.6 * u * f, fy - 1.6 * u, 0.9 * u, 0.9 * u, shoe === '#f4f4f4' ? k.trim : '#f4f4f4');
@@ -342,7 +372,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const ex = L.h.x + (L.kn.x - L.h.x) * t, ey = L.h.y + (L.kn.y - L.h.y) * t;
     const col = back ? shade(k.shorts, 0.82) : k.shorts;
     const w1 = (8.8 + 2.2 * t) * u * lw;
-    limb(ctx, L.h.x, L.h.y - 1 * u, ex, ey, 9.6 * u * lw, w1, col);
+    if (back || o.suit) limb(ctx, L.h.x, L.h.y - 1 * u, ex, ey, 9.6 * u * lw, w1, col);
+    else vchain(ctx, [[L.h.x, L.h.y - 1 * u, 9.6 * u * lw], [ex, ey, w1]], col, 0);
     if (o.suit) { limb(ctx, L.h.x, L.h.y, L.kn.x, L.kn.y, 6.4 * u * lw, 5.6 * u * lw, col); limb(ctx, L.kn.x, L.kn.y, L.an.x, L.an.y + 1.4 * u, 5.6 * u * lw, 5.2 * u * lw, col); return; }
     if (!back) {
       // side stripe, hem and a fold
@@ -387,7 +418,14 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const wl = { x: hipC.x - hipW / 2, y: hipC.y - 1 * u }, wr = { x: hipC.x + hipW / 2, y: hipC.y - 1 * u };
     const tl = { x: sh.x - shW / 2 + 3 * u, y: sh.y - 0.5 * u }, tr = { x: sh.x + shW / 2 - 3 * u, y: sh.y - 0.5 * u };
     const al = { x: sh.x - shW / 2 + 1.2 * u, y: sh.y + 7.5 * u }, ar = { x: sh.x + shW / 2 - 1.2 * u, y: sh.y + 7.5 * u };
-    poly(ctx, [[tl.x, tl.y], [tr.x, tr.y], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wl.x - 0.6 * u, wl.y + 1.5 * u], [al.x, al.y]], k.jersey);
+    // the jersey lit from the upper left: a soft gradient across the chest (flat in the floor reflection)
+    if (!FLAT) {
+      const gx = ctx.createLinearGradient(sh.x - shW / 2, sh.y, sh.x + shW / 2, hipC.y);
+      gx.addColorStop(0, shade(k.jersey, 1.07)); gx.addColorStop(0.55, k.jersey); gx.addColorStop(1, shade(k.jersey, 0.86));
+      ctx.fillStyle = gx; ctx.beginPath();
+      for (const [i, [x, y]] of ([[tl.x, tl.y], [tr.x, tr.y], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wl.x - 0.6 * u, wl.y + 1.5 * u], [al.x, al.y]] as [number, number][]).entries()) i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      ctx.closePath(); ctx.fill();
+    } else poly(ctx, [[tl.x, tl.y], [tr.x, tr.y], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wl.x - 0.6 * u, wl.y + 1.5 * u], [al.x, al.y]], k.jersey);
     // light from the upper left: shade the right side, highlight the left, folds at the waist
     const dark = shade(k.jersey, 0.8), light = shade(k.jersey, 1.08);
     poly(ctx, [[tr.x - 1.2 * u, tr.y + 1], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wr.x - 2.6 * u, wr.y + 1.5 * u], [ar.x - 3.2 * u, ar.y + 2 * u], [tr.x - 2.6 * u, tr.y + 1]], dark);

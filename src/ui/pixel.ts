@@ -11,7 +11,7 @@ import type { PbpEv } from '../engine/game';
 import { hash01 } from '../rng';
 import { Timeline } from './timeline';
 import { emblemURL, eraColors } from './emblem';
-import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose, setFlat } from './athlete';
+import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose } from './athlete';
 import { AZ, AXC, AFX, AFY, AYF, VZ, aproj, depthScale, renderCourt, renderStands, Layer } from './arena';
 
 export const VW = 320, VH = 180;
@@ -53,7 +53,7 @@ export interface CourtOpts {
 export interface Look extends Body { ovr?: number; ath?: number; tz?: number; az?: number; def?: number; arch?: string; zs?: Record<string, number> }
 
 type Side = 'h' | 'a';
-type Pose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay';
+type Pose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy';
 type Beh =
   | { k: 'spot' }
   | { k: 'guard'; man: string; tight: number }
@@ -71,6 +71,7 @@ interface PSprite {
   hand?: number;  // dribbling hand: 1 = front (strong) hand, -1 = the other
   dph?: number;   // dribble phase
   xover?: number; // crossover in progress (seconds left)
+  ghost?: number; hist?: { x: number; d: number; z: number; face: number; pose: Pose; pt: number; ph: number; hand?: number; vx: number; vd: number; spin?: number }[];   // a superstar's afterimage: until when, and where he just was
   rate?: number;  // dribbles per second
   hang?: number;  // hanging on the rim after a dunk (seconds)
   lvx?: number;   // last velocity along the court (to notice a change of direction)
@@ -1098,7 +1099,7 @@ export class PixelCourt {
         }
       }
       // a shooter rising into his shot is not shoved off his spot by anybody
-      const busy = (q: PSprite) => q.pt > 0 && ['gather', 'shoot', 'follow', 'fade', 'layup', 'dunk', 'hook'].includes(q.pose) || q.beh.k === 'arrive';
+      const busy = (q: PSprite) => q.pt > 0 && ['gather', 'shoot', 'follow', 'fade', 'fadekick', 'layup', 'dunk', 'windmill', 'tomahawk', 'hook'].includes(q.pose) || q.beh.k === 'arrive';
       const min = a.side === b.side ? (a.z > 0.5 || b.z > 0.5 || busy(a) || busy(b) ? 1.9 : 3.4) : 2.1;
       const fixA = busy(a), fixB = busy(b);
       if (dist < min && dist > 0.001) {
@@ -2136,9 +2137,14 @@ export class PixelCourt {
     for (const lead of type === 'fb' ? [3.2, 1.9, 0.9] : (type === 'kickdrive' || type === 'double' || type === 'blitz') && rim ? [0.7] : [1.9, 0.9]) add(Math.max(0, due - lead), () => { const a = A(); if (a && hyp(a.x - P0.x, a.d - P0.d) > 0.5) a.beh = { k: 'arrive', x: P0.x, d: P0.d, at: abs(due) }; });
     // the move into the shot
     const showOff = (txt: string) => { if (star > 0 || r() < 0.35) this.sayAt(actor, txt, '#ffd34d', 1.0); };
+    let dunkStyle = '';
+    // a superstar's handle: a crossover (or two) that leaves his man on the floor before the pull-up
+    const handle = this.sk(actor, 'handle');
+    const perp0 = (a: PSprite, sideSgn: number, dist: number) => { const dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1; return { x: a.x - (dd / l) * dist * sideSgn, d: Math.max(1, Math.min(49, a.d + (dx / l) * dist * sideSgn)) }; };
     if (sb) add(Math.max(0, release - 0.78), () => {
       const a = A(); if (!a) return;
-      a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; this.jump(a, 0.4, 0.3, 'gather');
+      a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; this.jump(a, star >= 2 ? 0.6 : 0.4, 0.3, 'gather');
+      if (star >= 2) a.ghost = this.v + 0.9;
       showOff('STEP-BACK');
     });
     // the matchup shows: a weak defender gets beaten off the dribble and left behind, a stopper is right there to contest
@@ -2162,6 +2168,18 @@ export class PixelCourt {
       da.stun = 0.55; this.setPose(da, 'stumble', 0.45);
       if (r() < 0.75) this.sayAt(actor, dq < 0.3 ? 'BLOW-BY' : 'BEATS HIS MAN', '#ffd34d', 1.0);
     });
+    if (!rim && !blocker && beaten && star > 0 && handle > 0.55 && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type)) {
+      const drop = star >= 2 && (od == null ? edge >= 10 : od > 0.25) && r() < 0.55;
+      const t0 = Math.max(0, release - (sb ? 1.35 : 1.15));
+      // left, right – and the defender's hips go the wrong way
+      add(t0, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); if (star >= 2) a.ghost = this.v + 1.2; } });
+      if (star >= 2) add(t0 + 0.3, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); const p1 = perp0(a, a.d < 25 ? 1 : -1, 1.8); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(t0 + 0.55) }; } });
+      add(t0 + (star >= 2 ? 0.45 : 0.25), () => {
+        const da = DA(); if (!da || da.side === A()?.side) return;
+        if (drop) { da.stun = 1.2; this.setPose(da, 'fall', 1.0); this.sayAt(actor, 'ANKLES!', '#ffd34d', 1.3); this.cheer = Math.max(this.cheer, 1.5); }
+        else { da.stun = 0.6; this.setPose(da, 'stumble', 0.45); if (star >= 2 || r() < 0.4) this.sayAt(actor, 'CROSSOVER', '#ffd34d', 1.0); }
+      });
+    }
     if (false && !rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
       const da = DA(); if (!da) return;
       this.sayAt(made ? actor : da.pid, made ? 'TOUGH SHOT' : 'GREAT CONTEST', made ? '#ffd34d' : '#9fd3ff', 1.0);
@@ -2217,9 +2235,12 @@ export class PixelCourt {
       this.label = { pid: a.pid, t: 1.6 }; this.hl = { pid: a.pid, t: 1.6 };
       switch (motion) {
         case 'dunk': {
-          // take off a step or two out and glide to the rim
+          // take off a step or two out and glide to the rim – a superstar goes higher, hangs longer and adds style
           a.beh = { k: 'arrive', x: B.x - s * 0.7, d: B.d + Math.max(-0.6, Math.min(0.6, (a.d - B.d) * 0.15)), at: abs(release) };
-          this.jump(a, 3.1 + ath * 1.1, 0.95, 'dunk');
+          dunkStyle = oop ? '' : star >= 2 || ath > 0.78 ? ['windmill', 'tomahawk', '360', 'tomahawk', 'windmill'][Math.floor(r() * 5)] : star >= 1 || ath > 0.68 ? (r() < 0.55 ? ['tomahawk', '360', ''][Math.floor(r() * 3)] : '') : '';
+          this.jump(a, 3.1 + ath * 1.1 + (star >= 2 ? 0.55 : star ? 0.25 : 0), 0.95 + (star >= 2 ? 0.1 : 0), dunkStyle === 'windmill' || dunkStyle === 'tomahawk' ? dunkStyle : 'dunk');
+          if (dunkStyle === '360') a.spin = 0.32;
+          if (star >= 2 || dunkStyle) a.ghost = this.v + 1.2;
           break;
         }
         case 'layup':
@@ -2229,7 +2250,7 @@ export class PixelCourt {
         case 'floater': this.go(a, a.x + s * 1.5, a.d, JOG); this.jump(a, 1.9, 0.7, 'layup'); break;
         case 'hook': this.go(a, a.x + s * 0.6, a.d + (B.d - a.d) * 0.1, WALK); this.jump(a, 1.3, 0.6, 'hook'); break;
         case 'tip': a.beh = { k: 'arrive', x: B.x - s * 1.1, d: B.d, at: abs(release) }; this.jump(a, 3.0, 0.6, 'reb'); break;
-        case 'fade': this.go(a, a.x - s * 2.2, a.d, JOG); this.jump(a, 1.9, 0.68, 'fade'); break;
+        case 'fade': { const kick = star >= 2 || (star > 0 && r() < 0.45); this.go(a, a.x - s * 2.2, a.d, JOG); this.jump(a, 1.9 + (kick ? 0.3 : 0), 0.68 + (kick ? 0.08 : 0), kick ? 'fadekick' : 'fade'); if (kick && star >= 2) a.ghost = this.v + 0.8; break; }
         default: this.go(a, S.x, S.d, WALK); this.jump(a, three ? 1.9 : 2.1, 0.62, 'shoot');
       }
       const da = DA();
@@ -2238,6 +2259,7 @@ export class PixelCourt {
     // the defender contests: a jump with a hand up when he is close, a raised hand otherwise
     add(release - 0.12, () => {
       const da = DA(), a = A(); if (!da || !a || blocker) return;
+      if (da.pose === 'fall' && da.pt > 0) return;   // on the floor after the crossover: no contest
       const dd = hyp(da.x - a.x, da.d - a.d);
       if (motion === 'dunk' && made && dd < 6) {
         // he challenges at the rim – and wears it
@@ -2313,7 +2335,7 @@ export class PixelCourt {
         this.net[off] = 0.4;
         this.cheer = off === 'h' ? 1.2 : 0.5; this.cheerSide = off;
         this.say(three ? '+3' : '+2', '#5dff8a', true, 1.3, atRim);
-        if (motion === 'dunk') { const pz = this.poster === actor; this.poster = null; this.shake = pz ? 0.9 : oop || star > 0 || ath > 0.6 ? 0.7 : 0.35; this.cheer = 2; this.net[off] = 0.8; this.sayAt(actor, pz ? 'POSTERIZED!' : oop ? 'ALLEY-OOP!' : star > 0 ? 'SLAM!' : 'DUNK!', '#ffd34d', 1.5); }
+        if (motion === 'dunk') { const pz = this.poster === actor; this.poster = null; this.shake = pz ? 0.9 : oop || star > 0 || ath > 0.6 || dunkStyle ? 0.7 : 0.35; this.cheer = 2; this.net[off] = 0.8; this.sayAt(actor, pz ? 'POSTERIZED!' : oop ? 'ALLEY-OOP!' : dunkStyle === 'windmill' ? 'WINDMILL!' : dunkStyle === 'tomahawk' ? 'TOMAHAWK!' : dunkStyle === '360' ? '360 SLAM!' : star > 0 ? 'SLAM!' : 'DUNK!', '#ffd34d', 1.5); }
         // a great pass gets its credit
         const ap = this.pidOf(e, 'ast');
         const ps = this.sk(ap, 'pass');
@@ -2321,7 +2343,12 @@ export class PixelCourt {
         this.scored(actor, three ? 3 : 2, made);
         const lateClose = e.p >= 4 && e.c < 120 && Math.abs(e.hs - e.as) <= 5;
         const big = three || lateClose || type === 'fb' || andOne || motion === 'dunk';
-        if (three || lateClose || type === 'fb') { this.setPose(A(), three && (star > 0 || r() < 0.15 + 0.6 * this.sk(actor, 'shoot') ** 2) ? 'goggles' : 'celebrate', 1.4); if (lateClose) this.cheer = 2; }
+        if (three || lateClose || type === 'fb') {
+          // a superstar has his own: the crowd hushed on the road, "night night" to end it, a shimmy, the goggles
+          const sig: Pose | null = star >= 2 ? (lateClose ? (off === 'a' ? 'shh' : r() < 0.6 ? 'nightnight' : 'flex') : three ? (r() < 0.5 ? 'goggles' : 'shimmy') : r() < 0.5 ? 'shimmy' : 'flex') : null;
+          this.setPose(A(), sig ?? (three && (star > 0 || r() < 0.15 + 0.6 * this.sk(actor, 'shoot') ** 2) ? 'goggles' : 'celebrate'), sig ? 1.7 : 1.4);
+          if (lateClose) this.cheer = 2;
+        }
         if (andOne) { this.say('AND ONE!', '#ffd34d', false, 1.4, { x: S.x, d: S.d, z: 24 }); const a = A(); if (a) { this.setPose(a, 'stumble', 0.45); a.next = [r() < 0.6 ? 'flex' : 'celebrate', 1.0]; } const df = DA(); if (df) this.setPose(df, 'block', 0.4); }
         // the scorers jog back on defence
         const back = other(off);
@@ -2884,8 +2911,6 @@ export class PixelCourt {
         else { g.fillStyle = '#e02828'; for (let i = -r; i <= r; i++) { g.fillRect(Math.round(P.X + i), Math.round(P.Y + i * 0.6), 1, 1); g.fillRect(Math.round(P.X + i), Math.round(P.Y - i * 0.6), 1, 1); } }
         g.globalAlpha = 1;
       }
-      // the polished floor: a faint mirror image of every player under his feet
-      this.drawReflections(time);
       // shadows first, then everything by depth (the basket's back half, players, the ball, the front of the rim)
       for (const p of this.players.values()) this.drawShadow(p);
       this.drawBallShadow();
@@ -2894,7 +2919,20 @@ export class PixelCourt {
         items.push({ d: 24.6, f: () => this.drawHoop(side, time, false) });
         items.push({ d: 25.4, f: () => this.drawHoop(side, time, true) });
       }
-      for (const p of this.players.values()) items.push({ d: p.d, f: () => this.drawArenaPlayer(p, time) });
+      for (const p of this.players.values()) {
+        // a superstar's burst leaves an afterimage: where he was a moment ago, fading
+        if (p.ghost && p.ghost > this.v && !this.ff) {
+          const h = (p.hist ??= []);
+          h.push({ x: p.x, d: p.d, z: p.z, face: p.face, pose: p.pose, pt: p.pt, ph: p.ph, hand: p.hand, vx: p.vx, vd: p.vd, spin: p.spin });
+          if (h.length > 13) h.shift();
+          for (const [back, al] of [[12, 0.12], [8, 0.2], [4, 0.3]] as [number, number][]) {
+            const snap = h[h.length - 1 - back]; if (!snap) continue;
+            if (Math.hypot(snap.x - p.x, snap.d - p.d) + Math.abs(snap.z - p.z) < 0.6) continue;   // standing still: nothing to trail
+            items.push({ d: p.d - 0.001, f: () => this.drawGhost(p, snap, al, time) });
+          }
+        } else if (p.hist) p.hist = undefined;
+        items.push({ d: p.d, f: () => this.drawArenaPlayer(p, time) });
+      }
       const b = this.ball;
       if (!(b.holder && !b.fly)) items.push({ d: b.d + 0.01, f: () => this.drawBallArena() });
       items.sort((a, c) => a.d - c.d);
@@ -3193,6 +3231,20 @@ export class PixelCourt {
     g.globalAlpha = 0.3; g.fillStyle = '#1a0d04'; g.beginPath(); g.ellipse(Math.round(X), Math.round(Y), r * 1.1, r * 0.4, 0, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
   }
 
+  /** One afterimage: the player drawn where (and how) he was a few frames ago, faint and tinted in his team's colour. */
+  private drawGhost(p: PSprite, snap: NonNullable<PSprite['hist']>[number], alpha: number, time: number) {
+    const keep = { x: p.x, d: p.d, z: p.z, face: p.face, pose: p.pose, pt: p.pt, ph: p.ph, hand: p.hand, vx: p.vx, vd: p.vd, spin: p.spin, cur: p.curPose, from: p.fromPose, at: p.poseAt, xo: p.xover };
+    const holder = this.ball.holder;
+    Object.assign(p, { x: snap.x, d: snap.d, z: snap.z, face: snap.face, pose: snap.pose, pt: snap.pt, ph: snap.ph, hand: snap.hand, vx: snap.vx, vd: snap.vd, spin: snap.spin });
+    const g = this.ctx;
+    g.save(); g.globalAlpha = alpha;
+    try { this.drawArenaPlayer(p, time); } finally {
+      g.restore();
+      Object.assign(p, { x: keep.x, d: keep.d, z: keep.z, face: keep.face, pose: keep.pose, pt: keep.pt, ph: keep.ph, hand: keep.hand, vx: keep.vx, vd: keep.vd, spin: keep.spin, curPose: keep.cur, fromPose: keep.from, poseAt: keep.at, xover: keep.xo });
+      this.ball.holder = holder;
+    }
+  }
+
   private drawArenaPlayer(p: PSprite, time: number) {
     const q = this.proj(p.x, p.d);
     const { X, Y } = this.toCanvas(q.x, q.y);
@@ -3203,7 +3255,7 @@ export class PixelCourt {
     const H = this.heightPx(lk, p.d);
     const g = this.ctx;
     const B = this.basket(p.side);
-    const face = pose === 'shoot' || pose === 'layup' || pose === 'dunk' ? Math.sign(B.x - p.x) || 1 : p.face;
+    const face = pose === 'shoot' || pose === 'layup' || pose === 'dunk' || pose === 'windmill' || pose === 'tomahawk' ? Math.sign(B.x - p.x) || 1 : p.face;
     const ap: AthPose = pose === 'run' && sp < 1.5 ? 'stand' : (pose as AthPose);
     if (ap !== p.curPose) { p.fromPose = p.curPose; p.curPose = ap; p.poseAt = time; }
     const blend = p.fromPose ? Math.min(1, (time - (p.poseAt ?? 0)) / 0.13) : 1;
@@ -3213,10 +3265,10 @@ export class PixelCourt {
     let spinFace = 0;
     let spinView: 'front' | 'back' | 'side' | null = null;
     if (p.spin && p.spin > 0) { const u = 1 - p.spin / 0.32; spinView = u < 0.25 ? 'front' : u < 0.5 ? 'side' : u < 0.75 ? 'back' : 'side'; if (u >= 0.25 && u < 0.5) spinFace = -1; }
-    const turning = (p.ft ?? 1) < 0.09 && sp < 9 && !['shoot', 'layup', 'dunk', 'hook', 'stance', 'fade', 'follow'].includes(pose);
-    const view = spinView ? spinView : turning ? 'front' : pose === 'stance' || pose === 'shoot' || pose === 'layup' || pose === 'dunk' || pose === 'hook' ? 'side' : sp > 3 && across > along * 1.4 ? (p.vd < 0 ? 'back' : 'front') : 'side';
+    const turning = (p.ft ?? 1) < 0.09 && sp < 9 && !['shoot', 'layup', 'dunk', 'windmill', 'tomahawk', 'hook', 'stance', 'fade', 'fadekick', 'follow'].includes(pose);
+    const view = spinView ? spinView : turning ? 'front' : pose === 'stance' || pose === 'shoot' || pose === 'layup' || pose === 'dunk' || pose === 'windmill' || pose === 'tomahawk' || pose === 'fadekick' || pose === 'hook' ? 'side' : sp > 3 && across > along * 1.4 ? (p.vd < 0 ? 'back' : 'front') : 'side';
     const nm = (this.o.names[p.pid] ?? '').split(' ').slice(1).join(' ').toUpperCase();
-    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'stand' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend });
+    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'shimmy' ? time * 7 : ap === 'stand' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend });
     if (this.ball.holder === p.pid && !this.ball.fly) this.drawHeldBall(p, hands, Y, pose, H);
     // on fire: a flicker of flames around a hot shooter
     if (this.hot.get(p.pid) && !this.ff) {
@@ -3245,7 +3297,8 @@ export class PixelCourt {
         else if (p.xkind === 'btb') { y = (h.front.y + floorY) / 2 + r; if (u > 0.3 && u < 0.7) return; } // around the back: hidden behind him
         else y = bottom - r * 0.4 - Math.sin(u * Math.PI) * r * 2;
       }
-    } else if (pose === 'shoot' || pose === 'jump' || pose === 'celebrate' || pose === 'dunk' || pose === 'layup' || pose === 'hook') y = h.front.y - r * 0.9;
+    } else if (pose === 'shoot' || pose === 'jump' || pose === 'celebrate' || pose === 'dunk' || pose === 'layup' || pose === 'hook' || pose === 'fadekick') y = h.front.y - r * 0.9;
+    else if (pose === 'windmill' || pose === 'tomahawk') { x = h.front.x; y = h.front.y; }   // the ball rides the sweeping hand
     else if (pose === 'gather') { x = (h.front.x + h.back.x) / 2; y = (h.front.y + h.back.y) / 2 - r * 0.2; }
     this.ballHD(x, y, r);
     // remember where the ball really is in his hands, so a pass or a shot leaves from there
@@ -3386,33 +3439,7 @@ export class PixelCourt {
   }
 
   // ---------------------------------------------------------------- broadcast look
-  private reflBuf: HTMLCanvasElement | null = null;
-  private introT = -1;
-  private reflN = 0;   // the intro card's own clock (real time), from the start of a broadcast that begins at the tip
-  /** Players mirrored in the polished floor (drawn into their own layer, then laid on the floor faintly). */
-  private drawReflections(time: number) {
-    const g = this.ctx, W = g.canvas.width, H = g.canvas.height;
-    if (!this.reflBuf || this.reflBuf.width !== W >> 1 || this.reflBuf.height !== H >> 1) { this.reflBuf = document.createElement('canvas'); this.reflBuf.width = W >> 1; this.reflBuf.height = H >> 1; }   // half size: a soft image, a quarter of the work
-    const r = this.reflBuf.getContext('2d')!;
-    // (a faint image: redrawn every third frame, which halves what the mirror costs; nothing at fast speeds)
-    if (this.ff || (this.extRate ?? 1) > 6) return;
-    const lay = () => { g.save(); g.globalAlpha = 0.17; g.imageSmoothingEnabled = true; g.drawImage(this.reflBuf!, 0, 0, W, H); g.restore(); };
-    if (this.reflN++ % 2 !== 0) { lay(); return; }
-    r.setTransform(1, 0, 0, 1, 0, 0); r.clearRect(0, 0, W >> 1, H >> 1); r.imageSmoothingEnabled = false;
-    const keep = this.ctx, hold = this.ball.holder;
-    this.ctx = r; setFlat(true);
-    try {
-      for (const p of [...this.players.values()].sort((a, b) => a.d - b.d)) {
-        const q = this.proj(p.x, p.d), { Y } = this.toCanvas(q.x, q.y);
-        r.setTransform(0.5, 0, 0, -0.31, 0, 0.81 * Y);   // flipped about his feet, foreshortened (at half size)
-        const fp = p.curPose, fa = p.fromPose, at = p.poseAt;
-        this.drawArenaPlayer(p, time);
-        p.curPose = fp; p.fromPose = fa; p.poseAt = at;   // (the mirror image does not move the pose blend on)
-      }
-    } finally { this.ctx = keep; this.ball.holder = hold; setFlat(false); }
-    r.setTransform(1, 0, 0, 1, 0, 0);
-    lay();
-  }
+  private introT = -1;   // the intro card's own clock (real time), from the start of a broadcast that begins at the tip
 
   /** Arena lights: the court lit from above, the stands in the dark, a soft vignette. */
   private drawLighting(time: number) {
