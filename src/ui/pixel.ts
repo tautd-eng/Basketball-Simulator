@@ -3325,7 +3325,7 @@ export class PixelCourt {
     const ht = lk.ht || 79, eff = 79 + (ht - 79) * 2.1;   // exaggerated, so a 6-0 guard next to a 7-2 centre reads at a glance
     return (eff / 12) * VZ * depthScale(d) * this.K * 1.08 * (this.toon ? TOON.body : 1);
   }
-  private headU(d = 25) { return (79 / 12) * VZ * depthScale(d) * this.K * 1.45 / 100 * (this.toon ? TOON.head / 1.1 : 1); } // a touch larger than life: faces read at broadcast distance
+  private headU(d = 25) { return (79 / 12) * VZ * depthScale(d) * this.K * 1.2 / 100 * (this.toon ? TOON.head / 1.1 : 1); } // close to life size (a little larger, so faces still read at broadcast distance)
   private kitOf(side: Side) {
     const [prim, sec] = this.tc(side);
     return side === 'h'
