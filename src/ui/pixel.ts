@@ -370,6 +370,7 @@ export class PixelCourt {
 
   /** Jump to time v: rebuild the scene at the start of its window and play forward quickly. */
   seek(v: number) {
+    this.lagOv = null;
     this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null; this.pendPass = null; this.stillT = 0; this.fbOn = false; this.finalAt = -1;   // the referee starts fresh with the rebuilt scene
     const tl = this.tl;
     if (!tl || !tl.items.length) { this.v = v; return; }
@@ -649,7 +650,13 @@ export class PixelCourt {
   /** how well he defends, 0..1 (from his ratings) */
   defQ(pid: string | null | undefined) { return this.o.looks?.[pid ?? '']?.def ?? 0.5; }
   /** how far behind a defender falls: a stopper stays attached to his man, a weak defender trails him */
-  lagF(pid: string | null | undefined) { return Math.max(0.55, Math.min(1.85, 1.6 - 1.1 * this.defQ(pid))); }
+  lagF(pid: string | null | undefined) {
+    const o = this.lagOv;
+    if (o && pid === o.pid && this.v >= o.from && this.v <= o.until) return o.f;   // the engine's verdict on this shot
+    return Math.max(0.55, Math.min(1.85, 1.6 - 1.1 * this.defQ(pid)));
+  }
+  /** this play's defender: beaten (he trails, far behind) or on top of it (right there) – as the engine decided */
+  private lagOv: { pid: string; f: number; from: number; until: number } | null = null;
   archOf(pid: string | null | undefined) { return this.o.looks?.[pid ?? '']?.arch ?? 'role'; }
 
   // ---------------------------------------------------------------- the referee
@@ -1545,6 +1552,10 @@ export class PixelCourt {
     const actor = this.pidOf(e, 'fga');
     const blocker = this.pidOf(e, 'blk');
     let assist = this.pidOf(e, 'ast') ?? (e.cr && this.players.has(e.cr) ? e.cr : null); // the assist, or who set up the miss
+    // what the engine says decided it: a double team on the star kicked out to this man, the help at the rim
+    const kk = e.kk && this.players.has(e.kk) && e.kk !== actor ? e.kk : null;
+    if (kk) assist = kk;
+    const helper = blocker ?? (e.hp && this.players.has(e.hp) ? e.hp : null);
     const made = e.k.startsWith('make'), three = e.k.endsWith('3');
     const ex = e.x ?? 25, ey = e.y ?? 12;
     const S = { x: off === 'h' ? LEN - ey : ey, d: off === 'h' ? ex : WID - ex };
@@ -1574,6 +1585,8 @@ export class PixelCourt {
     if (type === 'fb' && !fb) type = rim ? 'drive' : 'pullup';
     // the player's role shows in how he scores: shooters come off screens, slashers attack, post scorers back down
     type = this.byRole(type, actor, assist, { rim, three, r, big: big(actor) });
+    // a real double team (the engine's): the star is trapped and the ball comes out to this man
+    if (kk && type !== 'putback' && type !== 'fb') type = big(kk) ? 'double' : 'blitz';
     if (sc0 <= 2.5 && gap > 8 && !['putback', 'fb', 'post', 'roll', 'cut'].includes(type)) type = rim ? (big(actor) ? 'post' : 'drive') : (big(actor) ? 'pop' : 'pullup');
     // the shot itself, as the play-by-play describes it
     const sk = e.sk ?? (rim ? 'layup' : three ? 'three' : 'jumper');
@@ -1588,7 +1601,8 @@ export class PixelCourt {
     const postMan = o.filter(p => p.pid !== actor && this.inside(p.pid)).sort((p, q) => this.posN(q.pid) - this.posN(p.pid))[0]?.pid ?? null;
     if (type === 'double' && !(assist && this.inside(assist)) && !postMan) type = rim ? 'cut' : 'kick';
     if (type === 'blitz' && !assist) type = rim ? 'kickdrive' : 'kick';
-    const creator = type === 'double' ? (assist && this.inside(assist) ? assist : postMan) : ['roll', 'pop', 'kick', 'kickdrive', 'cut', 'offscreen', 'blitz', 'highpost', 'dho'].includes(type) ? (assist ?? pg) : actor;
+    let creator = type === 'double' ? (assist && this.inside(assist) ? assist : postMan) : ['roll', 'pop', 'kick', 'kickdrive', 'cut', 'offscreen', 'blitz', 'highpost', 'dho'].includes(type) ? (assist ?? pg) : actor;
+    if (kk && (type === 'double' || type === 'blitz')) creator = kk;
     const screener = o.filter(p => p.pid !== actor && p.pid !== creator).sort((p, q) => this.posN(q.pid) - this.posN(p.pid))[0]?.pid ?? null;
     const DUR: Record<string, number> = { highpost: 2.5, dho: 2.4, iso: 3.4, putback: 0.35, fb: 0, roll: 2.9, pop: 2.7, pnrDrive: 2.6, pnrPull: 2.5, drive: 2.6, pullup: 1.9, post: 2.8, kick: 2.1, offscreen: 2.1, cut: 1.6 };
     let finDur = type === 'double' ? (rim ? 3.7 : 3.0) : type === 'blitz' ? (rim ? 4.0 : 3.4) : type === 'kickdrive' ? 3.2 : DUR[type] ?? 2;
@@ -1655,7 +1669,7 @@ export class PixelCourt {
         });
         // the hedging big recovers to his man
         if ((this.o.season ?? 2000) < 2008) add(T(1.45), () => { const dx = this.defOf(screener); if (dx && screener && this.scheme !== 'switch') dx.beh = { k: 'guard', man: screener, tight: 0 }; });
-        if (type === 'pnrDrive') add(T(1.9), () => this.helpSide(off, actor, blocker));
+        if (type === 'pnrDrive') add(T(1.9), () => this.helpSide(off, actor, helper));
         break;
       }
       case 'drive': {
@@ -1668,7 +1682,7 @@ export class PixelCourt {
           this.go(a, S.x, S.d, SPRINT / c);
           const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2, dd: a.d < 25 ? -1.2 : 1.2 };
         });
-        add(T(1.8), () => this.helpSide(off, actor, blocker));
+        add(T(1.8), () => this.helpSide(off, actor, helper));
         break;
       }
       case 'iso': {
@@ -1692,7 +1706,7 @@ export class PixelCourt {
           this.go(a, S.x, S.d, rim ? SPRINT : RUN);
           const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2, dd: a.d < 25 ? -1 : 1 };
         });
-        if (rim) add(T(3.0), () => this.helpSide(off, actor, blocker));
+        if (rim) add(T(3.0), () => this.helpSide(off, actor, helper));
         break;
       }
       case 'pullup': {
@@ -1735,7 +1749,7 @@ export class PixelCourt {
         if (rim) {
           add(T(2.95), () => { const a = A(); if (a) this.setPose(a, 'gather', 0.25 * c); });
           add(T(3.2), () => { const a = A(); if (!a) return; a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2.2, dd: a.d < 25 ? -1 : 1 }; this.call(off, `${name(actor)} attacks the closeout`); });
-          add(T(3.5), () => this.helpSide(off, actor, blocker));
+          add(T(3.5), () => this.helpSide(off, actor, helper));
         }
         break;
       }
@@ -1765,7 +1779,7 @@ export class PixelCourt {
           // the closeout comes flying – a shot fake and he drives right past it
           add(T(2.75), () => { const a = A(); if (a) this.setPose(a, 'gather', 0.25 * c); });
           add(T(3.0), () => { const a = A(); if (!a) return; a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2.2, dd: a.d < 25 ? -1 : 1 }; this.call(off, `${name(actor)} attacks the closeout`); });
-          add(T(3.3), () => this.helpSide(off, actor, blocker));
+          add(T(3.3), () => this.helpSide(off, actor, helper));
         }
         break;
       }
@@ -1780,7 +1794,7 @@ export class PixelCourt {
         add(T(1.45), () => { const da = DA(), a = A(); if (da && a) { da.beh = { k: 'mark', pid: a.pid, dist: 2.5 }; } });
         add(T(1.75), () => { const a = A(); if (a) this.setPose(a, 'gather', 0.25 * c); });
         add(T(2.0), () => { const a = A(); if (!a) return; a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2.2, dd: a.d < 25 ? -1 : 1 }; this.call(off, `${name(actor)} attacks the closeout`); });
-        add(T(2.4), () => this.helpSide(off, actor, blocker));
+        add(T(2.4), () => this.helpSide(off, actor, helper));
         break;
       }
       case 'kick': {
@@ -1959,17 +1973,22 @@ export class PixelCourt {
     // the matchup shows: a weak defender gets beaten off the dribble and left behind, a stopper is right there to contest
     const dpid = md ?? this.defOf(actor)?.pid ?? null;
     const dq = this.defQ(dpid), edge = (this.o.looks?.[actor ?? '']?.ovr ?? 75) - (this.o.looks?.[dpid ?? '']?.ovr ?? 75);
-    if (rim && ['drive', 'iso', 'pnrDrive', 'kickdrive'].includes(type) && (dq < 0.38 || edge >= 12)) add(Math.max(0, release - 1.0), () => {
+    // the engine's verdict (od: his edge over the defence on this shot) decides how it looks; older logs fall back to ratings
+    const od = typeof e.od === 'number' ? e.od : null;
+    const beaten = od != null ? od > 0.06 : dq < 0.38 || edge >= 12;
+    const onIt = od != null ? od < -0.1 : dq > 0.72;
+    if (od != null && dpid) add(0, () => { this.lagOv = { pid: dpid, f: beaten ? 1.85 : onIt ? 0.55 : 1, from: this.finalAt, until: items[k].a + release + 0.6 }; });
+    if (rim && ['drive', 'iso', 'pnrDrive', 'kickdrive'].includes(type) && beaten) add(Math.max(0, release - 1.0), () => {
       const da = DA(); if (!da || da.side === A()?.side) return;
       da.stun = 0.55; this.setPose(da, 'stumble', 0.45);
       if (r() < 0.75) this.sayAt(actor, dq < 0.3 ? 'BLOW-BY' : 'BEATS HIS MAN', '#ffd34d', 1.0);
     });
-    if (!rim && !blocker && dq > 0.72 && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
+    if (!rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
       const da = DA(); if (!da) return;
       this.sayAt(made ? actor : da.pid, made ? 'TOUGH SHOT' : 'GREAT CONTEST', made ? '#ffd34d' : '#9fd3ff', 1.0);
     });
     if (!made && !blocker && ['lockdown', 'twoway', '3d'].includes(this.archOf(dpid)) && r() < 0.5) add(Math.max(0, release + 0.1), () => this.sayAt(dpid, 'LOCKED UP', '#9fd3ff', 1.0));
-    if (!rim && dq < 0.32 && ['kick', 'offscreen', 'pop', 'double', 'blitz'].includes(type) && r() < 0.55) add(Math.max(0, release - 0.35), () => this.sayAt(actor, 'WIDE OPEN', '#5dff8a', 0.9));
+    if (!rim && (od != null ? beaten : dq < 0.32) && ['kick', 'offscreen', 'pop', 'double', 'blitz', 'dho'].includes(type) && r() < 0.55) add(Math.max(0, release - 0.35), () => this.sayAt(actor, 'WIDE OPEN', '#5dff8a', 0.9));
     // the stars improvise: a Eurostep on the way to the rim, a spin move on the drive, the lob
     const flashy = star > 0 || ath > 0.65;
     const perp = (a: PSprite, sideSgn: number, dist: number, back: number) => {

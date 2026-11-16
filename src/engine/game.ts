@@ -156,6 +156,9 @@ export interface PbpEv {
   pl?: string;                              // the play that produced it (iso, pnrDrive, pnrPull, roll, pop, post, cut, kick, offscreen, drive, pullup, fb, putback)
   sk?: string;                              // shot kind (dunk, layup, putback, hook, turnaround, floater, jumper, fadeaway, three, stepback)
   m?: string;                               // primary defender on the play (matchup)
+  od?: number;                              // his edge over the defence on the shot (logit; + he got the better of his man, – it was well defended)
+  hp?: string;                              // the help defender at the rim on a shot inside
+  kk?: string;                              // the star the defence doubled – the ball was kicked out of the double team
   v?: string;                               // turnover type: strip, pick (intercepted pass), bad (pass out of bounds), travel, oob, clock (shot clock), charge (offensive foul)
   fb?: 1;                                   // fast break
   bk?: 1;                                   // the miss was a blocked shot
@@ -853,6 +856,13 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     }
     const size = three ? 0 : C.mmHt * Math.max(-8, Math.min(8, actor.p.ht - md.p.ht));
     const shift = passQ + homeAdv - fat + usgShift - C.def * defOn * (three ? 0.7 : 1) + size + fitAll + (three ? e3 : fit2 + e2) + callShift + (defCall === 'pressure' ? 0.08 : 0) + (fb && !three ? C.fbMake : 0) - (lc ? C.lateClock : 0);
+    // what decided the shot, for the viewer (read only: nothing here draws a random number or changes the game)
+    const meta: Partial<PbpEv> = log ? (() => {
+      const od = Math.round((-C.def * defOn * (three ? 0.7 : 1) + size + (three ? e3 : e2) + (kick ? 0.3 : 0)) * 100) / 100;
+      let help: GP | null = null;
+      if (!three && zone.k === 'rim') for (const g of dOn) if (g !== md && (!help || g.rim > help.rim)) help = g;
+      return { od, ...(help ? { hp: help.p.id } : {}), ...(kick ? { kk: star.p.id } : {}) };
+    })() : {};
     inc(actor, 'fga'); md.st.dfga++;
     if (three) inc(actor, 'tpa');
     lastBlocked = false;
@@ -889,7 +899,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       const play = log ? playOf(actor, mates, three, spot, fb, afterOrb, asG) : undefined;
       const pl = play?.pl;
       ended = 'make';
-      ev(three ? 'make3' : 'make2', off, three ? `${an} hits a ${spot.sk === 'stepback' && !astTxt ? 'step-back ' : ''}three${astTxt}` : `${an} ${MADE[spot.sk] ?? `scores ${fb ? 'on the break' : what}`}${astTxt}`, { x: spot.x, y: spot.y, sk: spot.sk || undefined, pl, cr: play?.cr, m: md.p.id, ...tag });
+      ev(three ? 'make3' : 'make2', off, three ? `${an} hits a ${spot.sk === 'stepback' && !astTxt ? 'step-back ' : ''}three${astTxt}` : `${an} ${MADE[spot.sk] ?? `scores ${fb ? 'on the break' : what}`}${astTxt}`, { x: spot.x, y: spot.y, sk: spot.sk || undefined, pl, cr: play?.cr, m: md.p.id, ...meta, ...tag });
       if (!three && rng.chance(C.andOne)) {
         foulOn(def);
         ftTrip(off, def, actor, 1);
@@ -897,7 +907,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       }
       return 'end';
     }
-    ev(three ? 'miss3' : 'miss2', off, blocker ? `${short(blocker.p.name)} blocks ${an}${spot.sk ? `'s ${({ dunk: 'dunk attempt', stepback: 'step-back' } as Record<string, string>)[spot.sk] ?? spot.sk}` : ''}` : three ? `${an} misses a three` : `${an} ${MISS[spot.sk] ?? `misses ${what === 'at the rim' ? 'at the rim' : what === 'a putback' ? 'the putback' : 'a mid-range jumper'}`}`, { x: spot.x, y: spot.y, sk: spot.sk || undefined, ...(blocker ? { bk: 1 as const } : {}), ...(log ? (() => { const ms = on.filter(g => g !== actor); const pp = playOf(actor, ms, three, spot, fb, afterOrb, cr.chance(three ? 0.55 : spot.rim ? 0.4 : 0.35) ? passerOf(ms) : null); return { pl: pp.pl, cr: pp.cr }; })() : {}), m: md.p.id, ...tag });
+    ev(three ? 'miss3' : 'miss2', off, blocker ? `${short(blocker.p.name)} blocks ${an}${spot.sk ? `'s ${({ dunk: 'dunk attempt', stepback: 'step-back' } as Record<string, string>)[spot.sk] ?? spot.sk}` : ''}` : three ? `${an} misses a three` : `${an} ${MISS[spot.sk] ?? `misses ${what === 'at the rim' ? 'at the rim' : what === 'a putback' ? 'the putback' : 'a mid-range jumper'}`}`, { x: spot.x, y: spot.y, sk: spot.sk || undefined, ...(blocker ? { bk: 1 as const } : {}), ...(log ? (() => { const ms = on.filter(g => g !== actor); const pp = playOf(actor, ms, three, spot, fb, afterOrb, cr.chance(three ? 0.55 : spot.rim ? 0.4 : 0.35) ? passerOf(ms) : null); return { pl: pp.pl, cr: pp.cr }; })() : {}), m: md.p.id, ...meta, ...tag });
     return rebound(off, def, false);
   }
 
