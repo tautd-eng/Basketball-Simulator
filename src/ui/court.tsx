@@ -33,11 +33,33 @@ function looksFor(names: Record<string, string>) {
     const SHOES = ['#d23a2a', '#2a62d2', '#f2c230', '#30b060', '#ff7a1a', '#b04bd6', '#28c8c8', '#ff5fa2'];
     const shoe = era < 1995 ? (h('sc') < 0.85 ? '#f4f4f4' : '#202020') : era < 2010 ? (h('sc') < 0.45 ? '#f4f4f4' : h('sc') < 0.8 ? '#1c1c1c' : SHOES[Math.floor(h('scc') * 4)]) : h('sc') < 0.25 ? '#f4f4f4' : h('sc') < 0.42 ? '#1c1c1c' : SHOES[Math.floor(h('scc') * SHOES.length)];
     const sleeve = era >= 2003 && h('sl') < (era >= 2012 ? 0.3 : 0.18) ? (h('sls') < 0.5 ? 1 : -1) : 0;
-    out[pid] = { skin: f.skin, hair: f.hair, hairColor: f.hairColor, facial: f.facial, band: f.band || (era >= 2005 && h('bd') < 0.1), num, ht: p.ht ?? 79, build, socks, sockH, shoe, sleeve, knee: pn >= 4 && h('k') < 0.3, tat: era >= 1998 && h('tt') < (era >= 2010 ? 0.5 : 0.3) ? (h('tt2') < 0.45 ? 2 : 1) : 0, goggles: GOGGLES.has(pid) || h('gg') < 0.012, legSleeve: era >= 2008 && h('ls') < (era >= 2015 ? 0.2 : 0.12) ? (h('ls2') < 0.5 ? 1 : -1) : 0, wrist: h('w') < (era < 1995 ? 0.35 : 0.2), ovr: shownOvr(p.z, p.id), tz: p.z?.[4] ?? 0, az: p.z?.[7] ?? 0, ath: Math.max(0, Math.min(1, 0.5 + (p.z?.[3] ?? 0) * 0.15 + (p.z?.[0] ?? 0) * 0.1 - Math.max(0, (p.ht ?? 79) - 82) * 0.04)),
+    // more gear, by era: tights and team socks in the modern game, T-shirts under jerseys in the 2000s, coloured
+    // headbands (and the tied "ninja" ones from the mid-2010s), tape, high-tops in the old days, dyed tips, mouthguards
+    const TEAMISH = ['#1c1c1c', '#f4f4f4'];
+    const band = f.band || (era >= 2005 && h('bd') < 0.1);
+    const gear: any = {
+      bandColor: band ? (era >= 2008 && h('bc') < 0.45 ? (h('bc2') < 0.6 ? '#1c1c1c' : 'team') : '#f4f4f4') : undefined,
+      ninja: band && era >= 2015 && h('nj') < 0.35,
+      tights: era >= 2008 && h('ti') < (era >= 2015 ? 0.1 : 0.05) ? (h('ti2') < 0.75 ? '#1c1c1c' : '#f4f4f4') : undefined,
+      mouthguard: era >= 2005 && h('mg') < 0.07,
+      shoeHigh: era < 2000 ? h('hi') < 0.85 : era < 2012 ? h('hi') < 0.4 : h('hi') < 0.12,
+      shoe2: era >= 1995 && h('s2') < 0.6 ? ['#1c1c1c', '#f4f4f4', '#f2c230', '#d23a2a', '#28c8c8'][Math.floor(h('s2c') * 5)] : undefined,
+      sole: era >= 2000 && h('so') < 0.3 ? ['#1c1c1c', '#c98a3a', '#f2c230', '#5ad1ff'][Math.floor(h('soc') * 4)] : undefined,
+      tee: era >= 2000 && era < 2012 && h('te') < 0.05 ? TEAMISH[Math.floor(h('tec') * 2)] : undefined,
+      tape: era >= 2012 && h('tp') < 0.06 ? ['#1fa2ff', '#ff4fa0', '#1c1c1c', '#f2c230'][Math.floor(h('tpc') * 4)] : undefined,
+      neckTat: era >= 2005 && h('tt') < 0.5 && h('nt') < 0.18,
+      tips: era >= 2012 && h('dy') < 0.05 && !['bald'].includes(f.hair) ? (h('dyc') < 0.7 ? '#e8d27a' : '#ff6a3d') : undefined,
+      teamSocks: era >= 2016 && h('ts') < 0.3,
+      fingerTape: pn >= 3.5 && h('ft') < 0.25,
+      facial: f.facial === 'beard' && era >= 2010 && h('lb') < 0.25 ? 'longbeard' : f.facial,
+      knee: (pn >= 4 && h('k') < 0.3) || h('k2') < 0.06,
+    };
+    out[pid] = { skin: f.skin, hair: f.hair, hairColor: f.hairColor, facial: gear.facial, band, num, ht: p.ht ?? 79, build, socks, sockH, shoe, sleeve, knee: gear.knee, tat: era >= 1998 && h('tt') < (era >= 2010 ? 0.5 : 0.3) ? (h('tt2') < 0.45 ? 2 : 1) : 0, goggles: GOGGLES.has(pid) || h('gg') < 0.012, legSleeve: era >= 2008 && h('ls') < (era >= 2015 ? 0.2 : 0.12) ? (h('ls2') < 0.5 ? 1 : -1) : 0, wrist: h('w') < (era < 1995 ? 0.35 : 0.2), ovr: shownOvr(p.z, p.id), tz: p.z?.[4] ?? 0, az: p.z?.[7] ?? 0, ath: Math.max(0, Math.min(1, 0.5 + (p.z?.[3] ?? 0) * 0.15 + (p.z?.[0] ?? 0) * 0.1 - Math.max(0, (p.ht ?? 79) - 82) * 0.04)),
       // the arena reads these: how well he defends (0..1) and his role, so plays and matchups look like the player
       def: Math.max(0, Math.min(1, 0.5 + (p.z?.[13] ?? 0) * 0.2 + (p.z?.[10] ?? 0) * 0.08 + (pn >= 4 ? (p.z?.[11] ?? 0) * 0.08 : 0))),
       // raw skills (z) for the arena: how well each move works grows with them, archetype or not
       zs: p.z ? { ins: p.z[0], tp: p.z[1], drw: p.z[3], usg: p.z[5], tov: p.z[6], ast: p.z[7], orb: p.z[8], drb: p.z[9], stl: p.z[10], blk: p.z[11], def: p.z[13] } : undefined,
+      ...gear, facial: gear.facial, knee: gear.knee,
       arch: (() => { try { return p.z ? roleOf(p.z, p.pos).arch.id : 'role'; } catch { return 'role'; } })() };
   }
   return out;

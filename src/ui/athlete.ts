@@ -9,6 +9,17 @@ export interface Body {
   skin: string; hair: string; hairColor: string; facial: string; band: boolean; num: number; ht: number;
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
+  // more gear that tells players apart
+  bandColor?: string; ninja?: boolean;   // headband colour; tied at the back with two tails
+  tights?: string;                       // full-length compression tights under the shorts
+  mouthguard?: boolean;                  // hanging out of the side of his mouth
+  shoeHigh?: boolean; shoe2?: string; sole?: string;   // high-tops; the accent and the sole colour
+  tee?: string;                          // a T-shirt under the jersey
+  tape?: string;                         // kinesiology tape on a shoulder
+  neckTat?: boolean;
+  tips?: string;                         // dyed or bleached hair on top
+  teamSocks?: boolean;                   // socks in the team colour
+  fingerTape?: boolean;
 }
 export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe' | 'chin' | 'protect' | 'backdown' | 'poke' | 'ready' | 'hips';
 export interface AthOpts {
@@ -399,11 +410,12 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     vchain(ctx, [[L.h.x, L.h.y, thW], [L.kn.x, L.kn.y, knW], [cx, cy, 6.8 * u * lw], [L.an.x, L.an.y, 4 * u]], sk, back ? 0 : 1);
     if (!back) limb(ctx, L.kn.x - 0.7 * u, L.kn.y - 0.4 * u, L.kn.x + 0.7 * u, L.kn.y - 0.4 * u, 1.3 * u, 1.3 * u, skinD); // kneecap
     if (b.legSleeve && (b.legSleeve > 0) === !back) { limb(ctx, L.h.x + (L.kn.x - L.h.x) * 0.55, L.h.y + (L.kn.y - L.h.y) * 0.55, L.kn.x, L.kn.y, 7.4 * u * lw, 5.8 * u * lw, back ? '#161616' : '#222'); limb(ctx, L.kn.x, L.kn.y, cx, cy, 5.8 * u * lw, 6.4 * u * lw, back ? '#161616' : '#222'); limb(ctx, cx, cy, L.an.x, L.an.y, 6.4 * u * lw, 4.2 * u, back ? '#161616' : '#222'); }
+    if (b.tights) { const tc = back ? shade(b.tights, 0.8) : b.tights; vchain(ctx, [[L.h.x, L.h.y, thW * 1.03], [L.kn.x, L.kn.y, knW * 1.06], [cx, cy, 6.9 * u * lw], [L.an.x, L.an.y - 1.5 * u, 4.4 * u]], tc, back ? 0 : 1); }
     if (b.knee) limb(ctx, L.kn.x, L.kn.y - 1.2 * u, L.kn.x + Math.sin(L.sa) * 4 * u * f * sx, L.kn.y + 4 * u, 6.4 * u, 5.8 * u, back ? '#222' : '#333');
     // socks (tube socks with stripes in the early years)
     const sockH = (b.sockH ?? 6) * u;
     const sxk = L.an.x - Math.sin(L.sa) * sockH * f * sx, syk = L.an.y - Math.cos(L.sa) * sockH;
-    const sc = b.socks ?? '#f2f2f2';
+    const sc = b.teamSocks ? k.jersey === '#f4f4f4' || k.jersey === '#ffffff' ? k.trim : k.jersey : b.socks ?? '#f2f2f2';
     limb(ctx, sxk, syk, L.an.x, L.an.y, 4.6 * u, 4.4 * u, back ? shade(sc, 0.86) : sc);
     if (sockH > 9 * u) for (const t of [0.12, 0.3]) { const yy = syk + (L.an.y - syk) * t, xx = sxk + (L.an.x - sxk) * t; limb(ctx, xx - 2.3 * u, yy, xx + 2.3 * u, yy, 1.1 * u, 1.1 * u, t < 0.2 ? k.trim : k.trim2 === '#ffffff' ? k.trim : shade(k.trim, 0.7)); }
     // shoe: upper, toe cap, sole, laces, accent stripe
@@ -413,14 +425,15 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const toe = L.an.x + len * Math.sign(dir || 1) * (side ? 1 : Math.abs(dir) * 2.6), heel = L.an.x - (side ? 2.2 * u * f : 1.6 * u * Math.sign(dir || 1));
     const fy = L.an.y + 2.8 * u;
     const sh2 = back ? shade(shoe, 0.82) : shoe;
-    if (side) poly(ctx, [[heel, L.an.y - 1 * u], [L.an.x + 2 * u * f, L.an.y - 1.2 * u], [toe, fy - 1.8 * u], [toe + 0.5 * u * f, fy], [heel, fy]], sh2);
+    const hiT = b.shoeHigh ? 2.4 * u : 0;   // a high-top's collar comes up over the ankle
+    if (side) poly(ctx, [[heel, L.an.y - 1 * u - hiT], [L.an.x + 2 * u * f, L.an.y - 1.2 * u - hiT * 0.7], [toe, fy - 1.8 * u], [toe + 0.5 * u * f, fy], [heel, fy]], sh2);
     else poly(ctx, [[L.an.x - 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.9 * u, fy], [L.an.x - 2.9 * u, fy]], sh2);
     const x0 = side ? Math.min(heel, toe) : L.an.x - 2.9 * u, w0 = side ? Math.abs(toe - heel) + 0.5 * u : 5.8 * u;
-    rect(ctx, x0, fy - 1.5 * u, w0, 1.5 * u, back ? '#8e8e8e' : shoe === '#f4f4f4' ? '#d6d6d6' : '#ececec');
+    rect(ctx, x0, fy - 1.5 * u, w0, 1.5 * u, back ? '#8e8e8e' : b.sole ?? (shoe === '#f4f4f4' ? '#d6d6d6' : '#ececec'));
     if (!back) rect(ctx, x0, fy - 1.5 * u, w0, 0.45 * u, shade(shoe, 0.7));   // the line where the upper meets the sole
     if (!back && side) {
       limb(ctx, L.an.x + 0.4 * u * f, L.an.y - 0.6 * u, L.an.x + 2.6 * u * f, fy - 2.2 * u, 0.6 * u, 0.6 * u, shade(shoe, 0.6));
-      limb(ctx, heel + 1.2 * u * f, fy - 2.2 * u, toe - 1.6 * u * f, fy - 1.6 * u, 0.9 * u, 0.9 * u, shoe === '#f4f4f4' ? k.trim : '#f4f4f4');
+      limb(ctx, heel + 1.2 * u * f, fy - 2.2 * u, toe - 1.6 * u * f, fy - 1.6 * u, 0.9 * u, 0.9 * u, b.shoe2 ?? (shoe === '#f4f4f4' ? k.trim : '#f4f4f4'));
     }
   };
   const drawShorts = (L: typeof LA, back: boolean) => {
@@ -454,6 +467,10 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     // forearm: thicker near the elbow
     const mx = A.el.x + (A.ha.x - A.el.x) * 0.3, my = A.el.y + (A.ha.y - A.el.y) * 0.3;
     vchain(ctx, [[A.s0.x, A.s0.y, w * 1.12], [A.el.x, A.el.y, w * 0.8], [mx, my, w * 0.92], [A.ha.x, A.ha.y, w * 0.62]], sc, back || sleeve ? 0 : 1);
+    // a T-shirt under the jersey: a short sleeve over the top of the arm
+    if (b.tee) { const tx = A.s0.x + (A.el.x - A.s0.x) * 0.42, ty = A.s0.y + (A.el.y - A.s0.y) * 0.42; limb(ctx, A.s0.x, A.s0.y, tx, ty, w * 1.16, w * 1.08, back ? shade(b.tee, 0.82) : b.tee); }
+    // kinesiology tape: two strips down the shoulder
+    if (b.tape && !back && !b.tee) for (const o2 of [-0.18, 0.18]) { const ox = (A.el.y - A.s0.y) / Lu * w * o2, oy = -(A.el.x - A.s0.x) / Lu * w * o2; limb(ctx, A.s0.x + ox, A.s0.y + oy, A.s0.x + (A.el.x - A.s0.x) * 0.5 + ox, A.s0.y + (A.el.y - A.s0.y) * 0.5 + oy, 0.7 * u, 0.7 * u, b.tape); }
     if (b.tat && !sleeve && (b.tat >= 2 || !back)) {
       const ink = shade(skin, 0.55);
       for (const t of [0.25, 0.5, 0.75]) { const tx = A.s0.x + (A.el.x - A.s0.x) * t, ty = A.s0.y + (A.el.y - A.s0.y) * t; oval(ctx, tx, ty, w * 0.32, w * 0.22, ink); }
@@ -465,6 +482,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 3.8 * u, 2.9 * u, back ? skinD : shade(skin, 0.9));
     oval(ctx, A.ha.x, A.ha.y, 2.5 * u, 2.6 * u, back ? skinD : skin);
     if (!back) oval(ctx, A.ha.x - 0.6 * u, A.ha.y - 0.6 * u, 1.1 * u, 1.1 * u, skinL);
+    if (b.fingerTape && !back) limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 0.9 * u, 0.9 * u, '#f2f2f2');
   };
   const drawTorso = () => {
     const s1 = shoulder(1), s2 = shoulder(-1);
@@ -528,6 +546,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   // neck and head
   vlimb(ctx, sh.x + (side ? 0.5 * u * f : 0), sh.y + 1 * u, head.x, head.y + 5 * u, 5.2 * u, 4.6 * u, skinD, 0);
   if (view !== 'back') limb(ctx, sh.x + (side ? 1.4 * u * f : 0), sh.y, head.x + (side ? 1.4 * u * f : 0), head.y + 5 * u, 1.1 * u, 1.1 * u, skinDD);
+  if (b.tee && view !== 'back') limb(ctx, sh.x - 2.6 * u, sh.y + 0.4 * u, sh.x + 2.6 * u, sh.y + 0.4 * u, 1.2 * u, 1.2 * u, b.tee);
+  if (b.neckTat && view !== 'back') { const ink = shade(skin, 0.55); oval(ctx, sh.x + (side ? 1.2 * u * f : 1.2 * u), sh.y - 1.6 * u, 1.1 * u, 0.9 * u, ink); oval(ctx, sh.x + (side ? 0.2 * u * f : -1.4 * u), sh.y - 2.6 * u, 0.7 * u, 0.6 * u, ink); }
   drawHead(ctx, head.x, head.y, uh, f, b, skin, skinD, skinL, k, view);
   if (side) drawArm(AA, false); else { drawArm(AB, false); drawArm(AA, false); }
   return { front: AA.ha, back: AB.ha, head: { x: head.x, y: head.y - 8 * uh } };
@@ -574,7 +594,13 @@ function drawHead(ctx: Ctx, cx: number, cy: number, u: number, f: number, b: Bod
     case 'buzz': case 'fade': cap(-0.2 * u, 3.6 * u); for (let i = 0; i < 5; i++) rect(ctx, cx + (i - 2) * 2.2 * u, cy - ry + 1.2 * u, 0.5 * u, 0.5 * u, hcL); break;
     default: cap(0.3 * u, 3.2 * u); texture();
   }
-  if (b.band) limb(ctx, cx - rx - 0.3 * u, cy - 3.2 * u, cx + rx + 0.3 * u, cy - 3.2 * u, 1.9 * u, 1.9 * u, '#f4f4f4');
+  if (b.tips && !['bald', 'buzz', 'fade'].includes(style)) oval(ctx, cx, cy - ry * 0.75, rx * 0.85, ry * 0.32, b.tips, -1e9, cy - ry * 0.55);
+  if (b.band) {
+    const bc = b.bandColor === 'team' ? (k.jersey === '#f4f4f4' || k.jersey === '#ffffff' ? k.trim : k.jersey) : b.bandColor ?? '#f4f4f4';
+    limb(ctx, cx - rx - 0.3 * u, cy - 3.2 * u, cx + rx + 0.3 * u, cy - 3.2 * u, 1.9 * u, 1.9 * u, bc);
+    // the "ninja" tie: two short tails at the back of the head
+    if (b.ninja) { const bx = side ? cx - f * (rx + 0.2 * u) : cx + (back ? 0 : rx * 0.9); limb(ctx, bx, cy - 3.2 * u, bx - (side ? f : 0.4) * 2.6 * u, cy - 0.6 * u, 1.1 * u, 0.7 * u, bc); limb(ctx, bx, cy - 3.2 * u, bx - (side ? f : 0.4) * 1.8 * u, cy + 0.4 * u, 1.0 * u, 0.6 * u, shade(bc, 0.85)); }
+  }
   if (back) return;
   // face: big friendly eyes (whites, iris, a catch-light), arched brows, a soft nose, lips with colour
   const brow = shade(hc === '#9a9a9a' ? '#5a5a5a' : hc, 0.85);
@@ -596,7 +622,9 @@ function drawHead(ctx: Ctx, cx: number, cy: number, u: number, f: number, b: Bod
   if (side) { oval(ctx, cx + f * 5.4 * u, cy + 1.4 * u, 1.1 * u, 1.3 * u, skin); oval(ctx, cx + f * 4.6 * u, cy + 2.2 * u, 0.7 * u, 0.45 * u, shade(skin, 0.68)); }
   else { oval(ctx, cx, cy + 1.6 * u, 1.15 * u, 1.05 * u, shade(skin, 1.06)); oval(ctx, cx - 0.65 * u, cy + 2.2 * u, 0.42 * u, 0.32 * u, shade(skin, 0.6)); oval(ctx, cx + 0.65 * u, cy + 2.2 * u, 0.42 * u, 0.32 * u, shade(skin, 0.6)); }
   const fac = b.facial;
+  const mx0 = () => (side ? cx + f * 3 * u : cx);
   const mx = side ? cx + f * 3 * u : cx, mw = side ? 1.6 * u : 2.4 * u;
+  if (fac === 'longbeard') { oval(ctx, cx + fx * 0.8 * u, cy + 4.4 * u, rx * 1.0, ry * 0.72, hc, cy + 2.3 * u, 1e9, side && f > 0 ? cx - rx * 0.4 : -1e9, side && f < 0 ? cx + rx * 0.4 : 1e9); oval(ctx, mx0(), cy + 3.15 * u, (side ? 1.6 : 2.4) * u * 0.7 + 0.4 * u, 0.55 * u, hc); }
   if (fac === 'beard') oval(ctx, cx + fx * 0.8 * u, cy + 3.6 * u, rx * 0.95, ry * 0.56, hc, cy + 2.3 * u, 1e9, side && f > 0 ? cx - rx * 0.4 : -1e9, side && f < 0 ? cx + rx * 0.4 : 1e9);
   else if (fac === 'goatee' || fac === 'chin') oval(ctx, cx + fx * 2.4 * u, cy + 5.6 * u, 1.9 * u, 1.5 * u, hc);
   else if (fac === 'stubble') oval(ctx, cx + fx * 0.8 * u, cy + 3.8 * u, rx * 0.9, ry * 0.48, shade(skin, 0.86), cy + 2.5 * u);
@@ -605,6 +633,7 @@ function drawHead(ctx: Ctx, cx: number, cy: number, u: number, f: number, b: Bod
   const lip = shade(skin, 0.62), lipL = mixHex(shade(skin, 0.85), '#c0605a', 0.25);
   oval(ctx, mx, cy + 4.15 * u, mw * 0.55, 0.38 * u, lip);
   oval(ctx, mx, cy + 4.6 * u, mw * 0.45, 0.35 * u, lipL);
+  if (b.mouthguard) { const gx = mx + (side ? f * mw * 0.6 : mw * 0.55); oval(ctx, gx, cy + 4.5 * u, 0.9 * u, 0.6 * u, '#f6f6f2'); }
   if (!side) { rect(ctx, mx - mw * 0.62, cy + 3.9 * u, 0.4 * u, 0.4 * u, lip); rect(ctx, mx + mw * 0.62 - 0.4 * u, cy + 3.9 * u, 0.4 * u, 0.4 * u, lip); }
 }
 
