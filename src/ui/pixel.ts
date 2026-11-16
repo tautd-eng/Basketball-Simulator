@@ -11,7 +11,7 @@ import type { PbpEv } from '../engine/game';
 import { hash01 } from '../rng';
 import { Timeline } from './timeline';
 import { emblemURL, eraColors } from './emblem';
-import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose } from './athlete';
+import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose, setFlat } from './athlete';
 import { AZ, AXC, AFX, AFY, AYF, VZ, aproj, depthScale, renderCourt, renderStands, Layer } from './arena';
 
 export const VW = 320, VH = 180;
@@ -3400,7 +3400,7 @@ export class PixelCourt {
     if (this.reflN++ % 2 !== 0) { lay(); return; }
     r.setTransform(1, 0, 0, 1, 0, 0); r.clearRect(0, 0, W >> 1, H >> 1); r.imageSmoothingEnabled = false;
     const keep = this.ctx, hold = this.ball.holder;
-    this.ctx = r;
+    this.ctx = r; setFlat(true);
     try {
       for (const p of [...this.players.values()].sort((a, b) => a.d - b.d)) {
         const q = this.proj(p.x, p.d), { Y } = this.toCanvas(q.x, q.y);
@@ -3409,7 +3409,7 @@ export class PixelCourt {
         this.drawArenaPlayer(p, time);
         p.curPose = fp; p.fromPose = fa; p.poseAt = at;   // (the mirror image does not move the pose blend on)
       }
-    } finally { this.ctx = keep; this.ball.holder = hold; }
+    } finally { this.ctx = keep; this.ball.holder = hold; setFlat(false); }
     r.setTransform(1, 0, 0, 1, 0, 0);
     lay();
   }

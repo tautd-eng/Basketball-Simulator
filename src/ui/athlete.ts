@@ -57,6 +57,37 @@ function limb(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, w0: numb
   ctx.arc(x0, y0, r0, Math.atan2(-ny, -nx), Math.atan2(ny, nx), dx * ny - dy * nx > 0);
   ctx.fill();
 }
+/** A limb with volume: lit from the upper left (screen), a darker band along the far edge and a soft highlight
+ *  along the near one – drawn inside the limb's own outline, so it is no thicker than a flat one. */
+function vlimb(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number, c: string, lit = 1) {
+  const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1e-6;
+  let nx = -dy / l, ny = dx / l;
+  if (nx * 0.8 + ny * 0.6 < 0) { nx = -nx; ny = -ny; }          // n points away from the light
+  limb(ctx, x0, y0, x1, y1, w0, w1, shade(c, 0.74));            // the shadow side
+  const k = 0.16;
+  limb(ctx, x0 - nx * w0 * k, y0 - ny * w0 * k, x1 - nx * w1 * k, y1 - ny * w1 * k, w0 * 0.7, w1 * 0.7, c);
+  if (lit > 0) limb(ctx, x0 - nx * w0 * 0.3, y0 - ny * w0 * 0.3, x1 - nx * w1 * 0.3, y1 - ny * w1 * 0.3, w0 * 0.2, w1 * 0.2, shade(c, 1.12));
+}
+/** A chain of limb segments with volume (thigh–knee–calf–ankle, shoulder–elbow–wrist): every shadow first,
+ *  then every lit part, then the highlight, so the joints show no seams. p = [x, y, width] at each joint. */
+let FLAT = false;
+/** Flat limbs (no volume shading) – for the faint floor reflections, where nobody sees it. */
+export function setFlat(on: boolean) { FLAT = on; }
+function vchain(ctx: Ctx, p: [number, number, number][], c: string, lit = 1) {
+  if (FLAT) { for (let i = 0; i + 1 < p.length; i++) limb(ctx, p[i][0], p[i][1], p[i + 1][0], p[i + 1][1], p[i][2], p[i + 1][2], c); return; }
+  const seg = (pass: number) => {
+    for (let i = 0; i + 1 < p.length; i++) {
+      const [x0, y0, w0] = p[i], [x1, y1, w1] = p[i + 1];
+      const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1e-6;
+      let nx = -dy / l, ny = dx / l;
+      if (nx * 0.8 + ny * 0.6 < 0) { nx = -nx; ny = -ny; }
+      if (pass === 0) limb(ctx, x0, y0, x1, y1, w0, w1, shade(c, 0.74));
+      else if (pass === 1) limb(ctx, x0 - nx * w0 * 0.16, y0 - ny * w0 * 0.16, x1 - nx * w1 * 0.16, y1 - ny * w1 * 0.16, w0 * 0.7, w1 * 0.7, c);
+      else limb(ctx, x0 - nx * w0 * 0.3, y0 - ny * w0 * 0.3, x1 - nx * w1 * 0.3, y1 - ny * w1 * 0.3, w0 * 0.18, w1 * 0.18, shade(c, 1.12));
+    }
+  };
+  seg(0); seg(1); if (lit > 0 && p[0][2] > 5) seg(2);   // (the highlight only where it can be seen)
+}
 /** filled polygon */
 function poly(ctx: Ctx, pts: [number, number][], c: string) {
   ctx.fillStyle = c;
@@ -99,6 +130,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     let thA = 0.04, bdA = 0.06, thB = -0.04, bdB = 0.06;      // A = front leg, B = back leg
     let uA = 0.12, fA = 0.3, uB = -0.12, fB = 0.1;             // arm angles: 0 = hanging, + = forward, π = straight up
     let spreadA = 0, spreadB = 0;                               // arms out to the side (front/back views)
+    let splay = 0;                                              // knees and feet apart (seen from the front/back)
     const runLegs = () => {
       thA = 0.62 * amp * Math.sin(ps); bdA = amp * (0.2 + 1.25 * Math.max(0, Math.cos(ps))) + 0.06;
       thB = 0.62 * amp * Math.sin(pb); bdB = amp * (0.2 + 1.25 * Math.max(0, Math.cos(pb))) + 0.06;
@@ -122,10 +154,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'stance':
         hipY += 0.6 * u * Math.sin(ps * 1.6); // bouncing on his toes
-        hipY += 9 * u; lean = 0.28;
-        // a defensive slide: the feet push apart and come back together, never crossing
-        { const sl = amp > 0.12 ? 0.22 * Math.sin(ps) * Math.min(1, amp * 2) : 0; thA = 0.5 + sl; bdA = 0.95; thB = -0.5 + sl; bdB = 0.35; }
-        uA = 1.25; fA = 1.55; uB = -1.15; fB = -1.45; spreadA = 1.1; spreadB = 1.1;
+        hipY += 11 * u; lean = 0.34;
+        // a defensive slide: low, both knees bent over the toes, the feet push apart and come back together
+        { const sl = amp > 0.12 ? 0.2 * Math.sin(ps) * Math.min(1, amp * 2) : 0; thA = 0.72 + sl; bdA = 1.22; thB = 0.02 + sl; bdB = 0.72; }
+        // active hands: the front one up in the passing lane, the other low and out
+        uA = 1.05; fA = 1.75; uB = 0.55; fB = 0.95; spreadA = 0.85; spreadB = 0.75; splay = 0.42;
         break;
       case 'shoot':
         thA = 0.12; bdA = air ? 0.45 : 0.25; thB = -0.05; bdB = air ? 0.55 : 0.2;
@@ -203,7 +236,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'screen': // feet set wide, arms crossed in front
         hipY += 3 * u; thA = 0.22; bdA = 0.35; thB = -0.22; bdB = 0.35;
-        uA = 0.35; fA = 1.75; uB = 0.25; fB = 1.9;
+        uA = 0.35; fA = 1.75; uB = 0.25; fB = 1.9; splay = 0.22;
         break;
       case 'fall': // on the floor after taking the charge: sitting back, legs out, hands behind him
         hipY = -9 * u; lean = -0.75;
@@ -218,7 +251,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'boxout': // low, wide, arms out, backside into the man
         hipY += 8 * u; lean = 0.2;
         thA = 0.55; bdA = 0.9; thB = -0.55; bdB = 0.4;
-        uA = 1.0; fA = 1.6; uB = -1.0; fB = -1.5; spreadA = 1.3; spreadB = 1.3;
+        uA = 1.0; fA = 1.6; uB = -1.0; fB = -1.5; spreadA = 1.3; spreadB = 1.3; splay = 0.4;
         break;
       case 'sit':
         hipY = -22 * u; lean = -0.05;
@@ -226,7 +259,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         uA = 0.35; fA = 1.3; uB = 0.25; fB = 1.2;
         break;
     }
-    return { hipY, lean, thA, bdA, thB, bdB, uA, fA, uB, fB, spreadA, spreadB };
+    return { hipY, lean, thA, bdA, thB, bdB, uA, fA, uB, fB, spreadA, spreadB, splay };
   };
   const R0 = rigOf(pose);
   const R1 = o.from && o.from !== pose && (o.blend ?? 1) < 1 ? rigOf(o.from) : null;
@@ -234,14 +267,16 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   const mixR = (key: keyof typeof R0) => (R1 ? R1[key] + (R0[key] - R1[key]) * e : R0[key]);
   const hipY = mixR('hipY'), lean = mixR('lean');
   const thA = mixR('thA'), bdA = mixR('bdA'), thB = mixR('thB'), bdB = mixR('bdB');
-  const uA = mixR('uA'), fA = mixR('fA'), uB = mixR('uB'), fB = mixR('fB'), spreadA = mixR('spreadA'), spreadB = mixR('spreadB');
+  const uA = mixR('uA'), fA = mixR('fA'), uB = mixR('uB'), fB = mixR('fB'), spreadA = mixR('spreadA'), spreadB = mixR('spreadB'), splay = side ? 0 : mixR('splay');
   const hx = X, hy = Y + hipY;
   const legSide = (s: number) => side ? s * 2.6 * u * f : s * 4 * u * (view === 'back' ? -1 : 1);
   const leg = (s: number, th: number, bd: number) => {
     const h = { x: hx + legSide(s), y: hy };
-    const kn = { x: h.x + Math.sin(th) * Lt * f * sx, y: h.y + Math.cos(th) * Lt };
+    // seen from the front a wide stance shows: the knees out over the toes, the feet apart
+    const so = s * (view === 'back' ? -1 : 1);
+    const kn = { x: h.x + Math.sin(th) * Lt * f * sx + so * Math.sin(splay) * Lt, y: h.y + Math.cos(th) * Lt * Math.cos(splay * 0.6) };
     const sa = th - bd;
-    const an = { x: kn.x + Math.sin(sa) * Ls * f * sx, y: kn.y + Math.cos(sa) * Ls };
+    const an = { x: kn.x + Math.sin(sa) * Ls * f * sx + so * Math.sin(splay * 0.45) * Ls, y: kn.y + Math.cos(sa) * Ls };
     return { h, kn, an, sa };
   };
   const LA = leg(1, thA, bdA), LB = leg(-1, thB, bdB);
@@ -273,20 +308,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   // ---- parts
   const drawLeg = (L: typeof LA, back: boolean) => {
     const sk = back ? skinD : skin;
-    const thW = 7.6 * u * lw, knW = 5.6 * u * lw;
-    limb(ctx, L.h.x, L.h.y, L.kn.x, L.kn.y, thW, knW, sk);
+    const thW = 8.3 * u * lw, knW = 5.9 * u * lw;
     // calf: thicker below the knee, thin at the ankle
     const cx = L.kn.x + (L.an.x - L.kn.x) * 0.3, cy = L.kn.y + (L.an.y - L.kn.y) * 0.3;
-    limb(ctx, L.kn.x, L.kn.y, cx, cy, knW, 6.3 * u * lw, sk);
-    limb(ctx, cx, cy, L.an.x, L.an.y, 6.3 * u * lw, 3.9 * u, sk);
-    if (!back) {
-      // muscle shading: back of the calf and the thigh, a highlight down the shin
-      const bx = -1.9 * u * (side ? f : 1);
-      limb(ctx, L.kn.x + bx, L.kn.y + 2 * u, cx + bx * 1.1, cy + 2 * u, 1.3 * u, 1.6 * u, skinD);
-      limb(ctx, cx + bx * 1.1, cy + 2 * u, L.an.x + bx * 0.6, L.an.y - 3 * u, 1.6 * u, 1 * u, skinD);
-      limb(ctx, L.kn.x - bx * 0.7, L.kn.y + 1.5 * u, L.an.x - bx * 0.5, L.an.y - 4 * u, 0.9 * u, 0.7 * u, skinL);
-      limb(ctx, L.kn.x - 0.6 * u, L.kn.y - 0.6 * u, L.kn.x + 0.6 * u, L.kn.y - 0.6 * u, 1.2 * u, 1.2 * u, skinD); // kneecap
-    }
+    vchain(ctx, [[L.h.x, L.h.y, thW], [L.kn.x, L.kn.y, knW], [cx, cy, 6.8 * u * lw], [L.an.x, L.an.y, 4 * u]], sk, back ? 0 : 1);
+    if (!back) limb(ctx, L.kn.x - 0.7 * u, L.kn.y - 0.4 * u, L.kn.x + 0.7 * u, L.kn.y - 0.4 * u, 1.3 * u, 1.3 * u, skinD); // kneecap
     if (b.legSleeve && (b.legSleeve > 0) === !back) { limb(ctx, L.h.x + (L.kn.x - L.h.x) * 0.55, L.h.y + (L.kn.y - L.h.y) * 0.55, L.kn.x, L.kn.y, 7.4 * u * lw, 5.8 * u * lw, back ? '#161616' : '#222'); limb(ctx, L.kn.x, L.kn.y, cx, cy, 5.8 * u * lw, 6.4 * u * lw, back ? '#161616' : '#222'); limb(ctx, cx, cy, L.an.x, L.an.y, 6.4 * u * lw, 4.2 * u, back ? '#161616' : '#222'); }
     if (b.knee) limb(ctx, L.kn.x, L.kn.y - 1.2 * u, L.kn.x + Math.sin(L.sa) * 4 * u * f * sx, L.kn.y + 4 * u, 6.4 * u, 5.8 * u, back ? '#222' : '#333');
     // socks (tube socks with stripes in the early years)
@@ -328,11 +354,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   };
   const drawArm = (A: typeof AA, back: boolean) => {
     const sk = back ? skinD : skin;
-    const w = 4.8 * u * lw;
+    const w = 5.3 * u * lw;
     const sleeve = !!b.sleeve && ((b.sleeve > 0) === !back);
     const sc = o.suit ? (back ? shade(o.suit, 0.8) : o.suit) : sleeve ? (back ? '#1b1b1b' : '#262626') : sk;
-    limb(ctx, A.s0.x, A.s0.y, A.el.x, A.el.y, w * 1.05, w * 0.8, sc);
     if (o.suit) {
+      limb(ctx, A.s0.x, A.s0.y, A.el.x, A.el.y, w * 1.05, w * 0.8, sc);
       const mx = A.el.x + (A.ha.x - A.el.x) * 0.8, my = A.el.y + (A.ha.y - A.el.y) * 0.8;
       limb(ctx, A.el.x, A.el.y, mx, my, w * 0.85, w * 0.8, sc);
       limb(ctx, mx, my, A.ha.x, A.ha.y, w * 0.6, w * 0.55, sk);
@@ -340,15 +366,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     }
     // forearm: thicker near the elbow
     const mx = A.el.x + (A.ha.x - A.el.x) * 0.3, my = A.el.y + (A.ha.y - A.el.y) * 0.3;
-    limb(ctx, A.el.x, A.el.y, mx, my, w * 0.8, w * 0.88, sc);
-    limb(ctx, mx, my, A.ha.x, A.ha.y, w * 0.88, w * 0.6, sc);
-    if (!back && !sleeve) {
-      // bicep highlight and forearm shadow
-      const nx2 = -(A.el.y - A.s0.y), ny2 = A.el.x - A.s0.x, nl = Math.hypot(nx2, ny2) || 1;
-      const ox = nx2 / nl * w * 0.25, oy = ny2 / nl * w * 0.25;
-      limb(ctx, A.s0.x + ox, A.s0.y + oy + 1.5 * u, A.el.x + ox, A.el.y + oy, 0.9 * u, 0.7 * u, skinL);
-      limb(ctx, mx - ox, my - oy, A.ha.x - ox, A.ha.y - oy, 0.9 * u, 0.6 * u, skinD);
-    }
+    vchain(ctx, [[A.s0.x, A.s0.y, w * 1.12], [A.el.x, A.el.y, w * 0.8], [mx, my, w * 0.92], [A.ha.x, A.ha.y, w * 0.62]], sc, back || sleeve ? 0 : 1);
     if (b.tat && !sleeve && (b.tat >= 2 || !back)) {
       const ink = shade(skin, 0.55);
       for (const t of [0.25, 0.5, 0.75]) { const tx = A.s0.x + (A.el.x - A.s0.x) * t, ty = A.s0.y + (A.el.y - A.s0.y) * t; oval(ctx, tx, ty, w * 0.32, w * 0.22, ink); }
@@ -357,8 +375,9 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     if (b.wrist) { const wx = A.el.x + (A.ha.x - A.el.x) * 0.8, wy = A.el.y + (A.ha.y - A.el.y) * 0.8; limb(ctx, wx, wy, A.ha.x - (A.ha.x - A.el.x) * 0.1, A.ha.y - (A.ha.y - A.el.y) * 0.1, w * 0.86, w * 0.86, k.trim); }
     // hand with fingers toward the end of the forearm
     const hx2 = A.ha.x + (A.ha.x - A.el.x) / Lf * 1.4 * u, hy2 = A.ha.y + (A.ha.y - A.el.y) / Lf * 1.4 * u;
-    limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 3.4 * u, 2.6 * u, back ? skinD : skin);
-    oval(ctx, A.ha.x, A.ha.y, 2.3 * u, 2.4 * u, back ? skinD : skinL);
+    limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 3.8 * u, 2.9 * u, back ? skinD : shade(skin, 0.9));
+    oval(ctx, A.ha.x, A.ha.y, 2.5 * u, 2.6 * u, back ? skinD : skin);
+    if (!back) oval(ctx, A.ha.x - 0.6 * u, A.ha.y - 0.6 * u, 1.1 * u, 1.1 * u, skinL);
   };
   const drawTorso = () => {
     const s1 = shoulder(1), s2 = shoulder(-1);
@@ -391,8 +410,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       const big = view === 'back';
       const ty = sh.y + (big ? 15 : 13) * u + Math.sin(lean) * 2 * u;
       const tx = sh.x + (side ? 1.5 * u * f : 0);
-      const fs = Math.max(8, R((big ? 12 : 9.5) * u));
-      ctx.font = `${fs}px ${o.font}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const fs = Math.max(8, R((big ? 13.5 : 11) * u));
+      ctx.font = `800 ${fs}px "IBM Plex Sans", "Arial Narrow", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = k.trim2; ctx.fillText(String(b.num), R(tx + Math.max(1, u * 0.7)), R(ty + Math.max(1, u * 0.7)));
       ctx.fillStyle = k.trim; ctx.fillText(String(b.num), R(tx), R(ty));
       if (big && o.name) { ctx.font = `${Math.max(6, R(3.6 * u))}px ${o.font}`; ctx.fillStyle = k.trim; ctx.fillText(o.name, R(tx), R(sh.y + 6.2 * u)); }
@@ -413,7 +432,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     drawTorso();
   }
   // neck and head
-  limb(ctx, sh.x + (side ? 0.5 * u * f : 0), sh.y + 1 * u, head.x, head.y + 5 * u, 4.8 * u, 4.4 * u, skinD);
+  vlimb(ctx, sh.x + (side ? 0.5 * u * f : 0), sh.y + 1 * u, head.x, head.y + 5 * u, 5.2 * u, 4.6 * u, skinD, 0);
   if (view !== 'back') limb(ctx, sh.x + (side ? 1.4 * u * f : 0), sh.y, head.x + (side ? 1.4 * u * f : 0), head.y + 5 * u, 1.1 * u, 1.1 * u, skinDD);
   drawHead(ctx, head.x, head.y, uh, f, b, skin, skinD, skinL, k, view);
   if (side) drawArm(AA, false); else { drawArm(AB, false); drawArm(AA, false); }
