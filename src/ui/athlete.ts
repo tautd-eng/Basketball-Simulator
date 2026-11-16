@@ -10,7 +10,7 @@ export interface Body {
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
 }
-export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe' | 'chin';
+export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe' | 'chin' | 'protect' | 'backdown' | 'poke';
 export interface AthOpts {
   H: number;          // standing height in canvas pixels
   face: number;       // 1 = facing right, -1 = left
@@ -256,6 +256,21 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         hipY += 5 * u; lean = 0.08; splay = 0.3;
         thA = 0.3; bdA = 0.6; thB = -0.2; bdB = 0.45;
         uA = 0.75; fA = 2.75; uB = 0.6; fB = 2.6; spreadA = 0.3; spreadB = 0.3;
+        break;
+      case 'protect': // dribbling low under pressure, the off arm out as a bar between the ball and his man
+        hipY += 6 * u + 0.6 * u * Math.sin(ps * 2); lean = 0.24;
+        thA = 0.32; bdA = 0.62; thB = -0.2; bdB = 0.45;
+        uA = 0.25; fA = 0.6; uB = 1.35; fB = 1.55; spreadB = 0.9;
+        break;
+      case 'backdown': // backing his man down: low, wide, leaning back into him, the ball on the far side
+        hipY += 7 * u; lean = -0.22 + 0.06 * Math.sin(ps * 2); splay = 0.35;
+        thA = 0.35; bdA = 0.7; thB = -0.35; bdB = 0.55;
+        uA = 0.45; fA = 0.75; uB = -0.85; fB = -0.55; spreadB = 0.7;
+        break;
+      case 'poke': // a quick reach at the ball from his stance
+        hipY += 11 * u; lean = 0.42;
+        thA = 0.72; bdA = 1.22; thB = 0.02; bdB = 0.72;
+        uA = 1.35; fA = 1.5; uB = 0.5; fB = 0.9; spreadA = 0.7; spreadB = 0.7; splay = 0.42;
         break;
       case 'land': // coming down: knees and hips soak it up, arms out for balance
         hipY += 7 * u; lean = 0.14;
