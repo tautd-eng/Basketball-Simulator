@@ -521,13 +521,19 @@ export class PixelCourt {
     this.match.clear();
     o.forEach((p, i) => { if (d[i]) this.match.set(p.pid, d[i].pid); });
     if (force) this.assign(force[0], force[1]);
+    // a defender already guarding somebody switches to his new man right away (getting back, zones and traps keep theirs)
+    for (const [om, dm] of this.match) { const dp = this.P(dm); if (dp && dp.beh.k === 'guard' && dp.beh.man !== om) dp.beh = { k: 'guard', man: om, tight: 0 }; }
   }
   private assign(offPid: string, defPid: string) {
     if (!this.players.has(offPid) || !this.players.has(defPid)) return;
     const cur = this.match.get(offPid);
     if (cur === defPid) return;
-    for (const [o, d] of this.match) if (d === defPid) { if (cur) this.match.set(o, cur); else this.match.delete(o); }
+    let other: string | null = null;
+    for (const [o, d] of this.match) if (d === defPid) { other = o; if (cur) this.match.set(o, cur); else this.match.delete(o); }
     this.match.set(offPid, defPid);
+    // the defenders take their new men at once (a 'guard' left on the old man is what made defenders swap back and forth)
+    const dp = this.P(defPid); if (dp && dp.beh.k === 'guard') dp.beh = { k: 'guard', man: offPid, tight: dp.beh.tight };
+    const cp = this.P(cur); if (cp && other && cp.beh.k === 'guard' && cp.beh.man === offPid) cp.beh = { k: 'guard', man: other, tight: cp.beh.tight };
   }
   defOf(pid: string | null | undefined) { return pid ? this.P(this.match.get(pid)) : null; }
   /** a pass held back until the dribbler is close enough (see pass) */
@@ -557,7 +563,7 @@ export class PixelCourt {
     this.stillT += h;
     if (this.stillT < 1.1) return;
     // he has held it for a second: jab, a dribble at his man, or a re-set – a live ball is never a statue
-    this.stillT = 0; this.flag('hold', hd, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} rel=${(this.relAt - this.v).toFixed(1)} actor=${this.relBy === hd.pid}`);
+    this.stillT = 0; if (false) this.flag('hold', hd, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} rel=${(this.relAt - this.v).toFixed(1)} actor=${this.relBy === hd.pid}`);
     const B = this.basket(hd.side), dx = B.x - hd.x, dd = B.d - hd.d, l = hyp(dx, dd) || 1;
     const u = hash01(hd.pid + '|' + Math.floor(this.v * 2)), side = u < 0.5 ? 1 : -1;
     const step = this.pre() ? 1 + u * 1.5 : 2.5 + u * 3;
@@ -873,6 +879,8 @@ export class PixelCourt {
         continue;
       }
       if (b.k === 'guard' || b.k === 'box' || b.k === 'back') {
+        // getting back: he picks up the man the matchups give him now (they may have changed since he turned to run)
+        if (b.k === 'back') { const cur = [...this.match].find(([, d]) => d === p.pid)?.[0]; if (cur && cur !== b.man) b.man = cur; }
         const man = this.P(b.man);
         if (b.k === 'back') {
           const B = this.basket(other(p.side)), s = this.dir(other(p.side));
@@ -910,7 +918,7 @@ export class PixelCourt {
           const gapMax = this.pre() ? (bigMan ? 8 : 5.5) : bigMan ? 10 : 7.5, gp = hyp(tx - man.x, td - man.d);
           if (gp > gapMax) { tx = man.x + (tx - man.x) * gapMax / gp; td = man.d + (td - man.d) * gapMax / gp; }
           // nobody guards a man 40 feet from the basket: the defence gets back and builds its wall first
-          const fromB = hyp(tx - B.x, td - B.d), lim = this.v < this.pressUntil ? 90 : 23; // pressing: pick up full court
+          const fromB = hyp(tx - B.x, td - B.d), lim = this.v < this.pressUntil ? 90 : this.pre() ? 28 : 23; // pressing: pick up full court; in the half court shooters are guarded out past the arc
           if (fromB > lim) { tx = B.x + (tx - B.x) * lim / fromB; td = B.d + (td - B.d) * lim / fromB; }
           p.tx = tx; p.td = td; p.spd = hyp(tx - p.x, td - p.d) > 12 ? SPRINT : RUN;
         }
