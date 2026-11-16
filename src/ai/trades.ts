@@ -207,7 +207,7 @@ function fresh(lg: League) {
   if (same) return;
   last = f;
   const st = `${lg.seed}|${lg.season}|${lg.phase}|${lg.day}|${lg.trades?.length ?? 0}|${lg.fa?.stage ?? 0}|${lg.fa?.log.length ?? 0}`;
-  if (st !== stamp) { stamp = st; vCache.clear(); pCache.clear(); rankCache = null; }
+  if (st !== stamp) { stamp = st; vCache.clear(); pCache.clear(); rankCache = null; rankLater = null; }
 }
 const pCache = new Map<string, { prod: number; cost: number }>();
 function parts(lg: League, p: Player, strategy: Horizon) {
@@ -253,15 +253,39 @@ export function expectedSlot(lg: League, p: { season: number; round: number; ori
     if (i >= 0) return i + 1;
   }
   fresh(lg);
-  const ranked = rankCache ??= Object.values(lg.teams).filter(t => t.active).map(t => ({ t: t.tid, s: teamStrength(lg, t.tid) })).sort((a, b) => a.s - b.s);
+  const years = Math.max(0, p.season - lg.season);
+  // this season's pick: the record so far counts as much as the games already played (updated every 10 games);
+  // a later pick leans a little on it too (a bad team now is often a bad team next year)
+  const ranked = years === 0 ? (rankCache ??= rankBy(lg, 1)) : (rankLater ??= rankBy(lg, 0.3));
   const n = ranked.length;
   const idx = Math.max(0, ranked.findIndex(r => r.t === p.orig));
   // further away = more uncertain, pull toward the middle
-  const years = Math.max(0, p.season - lg.season);
   const mid = (n + 1) / 2;
   const slot = (idx + 1) + (mid - (idx + 1)) * Math.min(0.8, 0.35 * years);
   return slot + (p.round - 1) * n;
 }
+
+/** Teams from the worst to the best by the win share they are heading for: the roster's outlook for the games
+ *  left plus the record (as of the last 10-game mark) for the games played. recW scales the record's weight. */
+function rankBy(lg: League, recW: number) {
+  const ts = Object.values(lg.teams).filter(t => t.active);
+  const str = ts.map(t => teamStrength(lg, t.tid)), mean = str.reduce((a, b) => a + b, 0) / (str.length || 1);
+  const G = Math.max(1, Math.round(2 * lg.schedule.length / (ts.length || 1)));
+  const live = lg.phase === 'regular' || lg.phase === 'playoffs' || lg.phase === 'draft';
+  const snap = ((lg as any).recSnap ??= {}) as Record<string, { s: number; w: number; l: number }>;
+  return ts.map((t, i) => {
+    const roster = Math.max(0.12, Math.min(0.88, 0.5 + 0.0245 * (str[i] - mean)));
+    if (!live || recW <= 0) return { t: t.tid, s: roster };
+    // the standing the GMs go by moves every 10 games (or once the season is over)
+    let r = snap[t.tid];
+    const gp = t.w + t.l, done = lg.phase !== 'regular';
+    if (!r || r.s !== lg.season || gp - (r.w + r.l) >= 10 || (done && gp !== r.w + r.l) || gp < r.w + r.l) r = snap[t.tid] = { s: lg.season, w: gp >= 10 || done ? t.w : 0, l: gp >= 10 || done ? t.l : 0 };
+    const g = r.w + r.l, share = Math.min(1, g / G) * recW;
+    const pace = g ? r.w / g : roster;
+    return { t: t.tid, s: share * pace + (1 - share) * roster };
+  }).sort((a, b) => a.s - b.s);
+}
+let rankLater: { t: string; s: number }[] | null = null;
 
 /** Value of a package to a neutral, middle-of-the-pack GM (the "market" view used to sanity-check deals). */
 export function neutralValue(lg: League, xs: TradeAsset[]) {
