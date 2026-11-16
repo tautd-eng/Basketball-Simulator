@@ -111,6 +111,40 @@ function vquad(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, w0: num
   q(1, 1, 0, FLAT ? c : shade(c, 0.78));
   if (!FLAT) { q(0.72, 0.72, 0.14, c); if (lit) q(0.16, 0.16, 0.32, shade(c, 1.1)); }
 }
+/** An arm (or any limb) as one smooth outline through its joints – no seams at the elbow – shaded inside it:
+ *  a soft shadow along the side away from the light, a soft sheen along the lit side. p = [x, y, width]. */
+function smoothLimb(ctx: Ctx, p: [number, number, number][], c: string, lit = 1) {
+  const n = p.length, L: [number, number][] = [], Rr: [number, number][] = [], N: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = p[Math.max(0, i - 1)], b2 = p[Math.min(n - 1, i + 1)];
+    const dx = b2[0] - a[0], dy = b2[1] - a[1], l = Math.hypot(dx, dy) || 1e-6;
+    const nx = -dy / l, ny = dx / l; N.push([nx, ny]);
+    L.push([p[i][0] + nx * p[i][2] / 2, p[i][1] + ny * p[i][2] / 2]); Rr.push([p[i][0] - nx * p[i][2] / 2, p[i][1] - ny * p[i][2] / 2]);
+  }
+  const path = () => {
+    ctx.beginPath(); ctx.moveTo(L[0][0], L[0][1]);
+    for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(L[i][0], L[i][1], (L[i][0] + L[i + 1][0]) / 2, (L[i][1] + L[i + 1][1]) / 2);
+    ctx.lineTo(L[n - 1][0], L[n - 1][1]);
+    const e = p[n - 1], ang = Math.atan2(L[n - 1][1] - e[1], L[n - 1][0] - e[0]);
+    ctx.arc(e[0], e[1], e[2] / 2, ang, ang + Math.PI, Math.cos(ang) * N[n - 1][0] + Math.sin(ang) * N[n - 1][1] < 0);
+    for (let i = n - 2; i > 0; i--) ctx.quadraticCurveTo(Rr[i][0], Rr[i][1], (Rr[i][0] + Rr[i - 1][0]) / 2, (Rr[i][1] + Rr[i - 1][1]) / 2);
+    ctx.lineTo(Rr[0][0], Rr[0][1]);
+    const s0 = p[0], a0 = Math.atan2(Rr[0][1] - s0[1], Rr[0][0] - s0[0]);
+    ctx.arc(s0[0], s0[1], s0[2] / 2, a0, a0 + Math.PI, Math.cos(a0) * -N[0][0] + Math.sin(a0) * -N[0][1] < 0);
+    ctx.closePath();
+  };
+  path(); ctx.fillStyle = c; ctx.fill();
+  if (FLAT) return;
+  ctx.save(); path(); ctx.clip(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // shadow side / lit side, per joint (the normal flipped to point away from the light, upper left)
+  const off = (k: number) => p.map((q, i) => { let [nx, ny] = N[i]; if (nx * 0.8 + ny * 0.6 < 0) { nx = -nx; ny = -ny; } return [q[0] + nx * q[2] * k, q[1] + ny * q[2] * k] as [number, number]; });
+  const stroke = (pts: [number, number][], width: number, col: string, a: number) => { ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke(); };
+  const wAvg = p.reduce((a, q) => a + q[2], 0) / n;
+  stroke(off(0.42), wAvg * 0.55, shade(c, 0.74), 0.9);
+  stroke(off(0.3), wAvg * 0.3, shade(c, 0.86), 0.6);
+  if (lit) stroke(off(-0.24), wAvg * 0.16, shade(c, 1.12), 0.55);
+  ctx.restore();
+}
 /** filled polygon */
 function poly(ctx: Ctx, pts: [number, number][], c: string) {
   ctx.fillStyle = c;
@@ -481,7 +515,10 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     }
     // forearm: thicker near the elbow
     const mx = A.el.x + (A.ha.x - A.el.x) * 0.3, my = A.el.y + (A.ha.y - A.el.y) * 0.3;
-    vchain(ctx, [[A.s0.x, A.s0.y, w * 1.15], [A.s0.x + (A.el.x - A.s0.x) * 0.45, A.s0.y + (A.el.y - A.s0.y) * 0.45, w * 1.06], [A.el.x, A.el.y, w * 0.76], [mx, my, w * 0.94], [A.ha.x, A.ha.y, w * 0.58]], sc, back || sleeve ? 0 : 1);
+    // shoulder – biceps – elbow – the forearm's belly – wrist, one smooth outline
+    const at = (a: { x: number; y: number }, c: { x: number; y: number }, t: number) => [a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t];
+    const [b1x, b1y] = at(A.s0, A.el, 0.4), [w1x, w1y] = at(A.el, A.ha, 0.86);
+    smoothLimb(ctx, [[A.s0.x, A.s0.y, w * 1.1], [b1x, b1y, w * 1.08], [A.el.x, A.el.y, w * 0.72], [mx, my, w * 0.9], [w1x, w1y, w * 0.58], [A.ha.x, A.ha.y, w * 0.54]], sc, back || sleeve ? 0 : 1);
     // a T-shirt under the jersey: a short sleeve over the top of the arm
     if (b.tee) { const tx = A.s0.x + (A.el.x - A.s0.x) * 0.42, ty = A.s0.y + (A.el.y - A.s0.y) * 0.42; limb(ctx, A.s0.x, A.s0.y, tx, ty, w * 1.16, w * 1.08, back ? shade(b.tee, 0.82) : b.tee); }
     // kinesiology tape: two strips down the shoulder
@@ -494,15 +531,19 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       { const a = P(A.s0, A.el, 0.22), c = P(A.s0, A.el, 0.92); limb(ctx, a.x, a.y, c.x, c.y, w * 0.86, w * 0.7, ink); }
       if (b.tat >= 2) { const a = P(A.el, A.ha, 0.1), c = P(A.el, A.ha, 0.7); limb(ctx, a.x, a.y, c.x, c.y, w * 0.7, w * 0.6, ink); }
       ctx.restore();
-      if (w > 4) for (const t of [0.4, 0.68]) { const a = P(A.s0, A.el, t), c = P(A.s0, A.el, t + 0.12); limb(ctx, a.x - w * 0.25, a.y, c.x + w * 0.2, c.y, 0.35 * u, 0.35 * u, line); }
+      void line;
     }
     if (b.wrist) { const wx = A.el.x + (A.ha.x - A.el.x) * 0.8, wy = A.el.y + (A.ha.y - A.el.y) * 0.8; limb(ctx, wx, wy, A.ha.x - (A.ha.x - A.el.x) * 0.1, A.ha.y - (A.ha.y - A.el.y) * 0.1, w * 0.86, w * 0.86, k.trim); }
     // hand with fingers toward the end of the forearm
-    const hx2 = A.ha.x + (A.ha.x - A.el.x) / Lf * 1.4 * u, hy2 = A.ha.y + (A.ha.y - A.el.y) / Lf * 1.4 * u;
-    limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 3.8 * u, 2.9 * u, back ? skinD : shade(skin, 0.9));
-    oval(ctx, A.ha.x, A.ha.y, 2.5 * u, 2.6 * u, back ? skinD : skin);
-    if (!back) oval(ctx, A.ha.x - 0.6 * u, A.ha.y - 0.6 * u, 1.1 * u, 1.1 * u, skinL);
-    if (b.fingerTape && !back) limb(ctx, A.ha.x, A.ha.y, hx2, hy2, 0.9 * u, 0.9 * u, '#f2f2f2');
+    // the hand: a palm along the forearm, the fingers beyond it, the thumb to the side
+    const fl = Math.hypot(A.ha.x - A.el.x, A.ha.y - A.el.y) || 1, dx = (A.ha.x - A.el.x) / fl, dy = (A.ha.y - A.el.y) / fl, ang = Math.atan2(dy, dx);
+    const hc0 = back ? skinD : skin, hcS = back ? shade(skinD, 0.9) : shade(skin, 0.86);
+    const E = (cx2: number, cy2: number, rx2: number, ry2: number, col: string) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx2, cy2, rx2, ry2, ang, 0, Math.PI * 2); ctx.fill(); };
+    const hx2 = A.ha.x + dx * 3.1 * u, hy2 = A.ha.y + dy * 3.1 * u;
+    { const tx = -dy * (side ? f : 1), ty = dx * (side ? f : 1); E(A.ha.x + dx * 1.2 * u + tx * 0.9 * u, A.ha.y + dy * 1.2 * u + ty * 0.9 * u, 0.85 * u, 0.5 * u, hcS); }
+    E(A.ha.x + dx * 1.7 * u, A.ha.y + dy * 1.7 * u, 2.3 * u, 1.3 * u, hc0);
+    if (!back) E(A.ha.x + dx * 2.6 * u, A.ha.y + dy * 2.6 * u, 1.2 * u, 1.05 * u, shade(skin, 0.93));
+    if (b.fingerTape && !back) E(hx2 + dx * 0.4 * u, hy2 + dy * 0.4 * u, 1.0 * u, 0.5 * u, '#f2f2f2');
   };
   const drawTorso = () => {
     const s1 = shoulder(1), s2 = shoulder(-1);
