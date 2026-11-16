@@ -22,7 +22,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   const [speed, setSpeed] = useState(late ? 2 : 4);
   const [view, setView] = useState<'court' | 'arena' | 'chart'>(() => late ? 'arena' : 'court');
   const [replays, setReplays] = useState(() => { try { return localStorage.getItem('replays') !== '0'; } catch { return true; } });
-  const [toon, setToon] = useState(() => { try { return localStorage.getItem('bigHeads') !== '0'; } catch { return true; } });
+  const toon = false;   // true-to-life proportions: heights and builds read clearly (the big-head look is gone)
   const t = tl.gameAt(v);
   const setT = (g: number) => setV(Math.min(endV, tl.vOfGame(g)));
   const raf = useRef(0);
@@ -123,7 +123,6 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
             <button className={view === 'arena' ? 'on' : ''} onClick={() => setView('arena')}>Arena</button>
             <button className={view === 'chart' ? 'on' : ''} onClick={() => setView('chart')}>Shot chart</button>
           </div>
-          {view === 'arena' && <label className="chk" title="Cartoon proportions: big heads and faces (off: true-to-life proportions)"><input type="checkbox" checked={toon} onChange={e => { setToon(e.target.checked); try { localStorage.setItem('bigHeads', e.target.checked ? '1' : '0'); } catch { /* optional */ } }} /> Big heads</label>}
           {view !== 'chart' && <label className="chk" title="Slow-motion replays of dunks, blocks and late daggers (at ×1–×2)"><input type="checkbox" checked={replays} onChange={e => { setReplays(e.target.checked); try { localStorage.setItem('replays', e.target.checked ? '1' : '0'); } catch { /* optional */ } }} /> Replays</label>}
           <button disabled={done} onClick={() => { const nx = period < 4 ? period * 720 : period === 4 ? 2880 : 2880 + (period - 4) * 300; setT(Math.min(endT, nx)); }}>Next quarter ⏭</button>
           <button disabled={done || t >= 2580} onClick={() => { setT(Math.min(endT, 2580)); setView('arena'); setSpeed(2); }}>Last 5 min</button>
