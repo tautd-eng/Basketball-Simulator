@@ -612,6 +612,8 @@ export class PixelCourt {
   private honest(off: Side) {
     if (this.scheme === 'zone' || this.v < this.pressUntil) return;
     const O = this.on(off), D = this.on(other(off));
+    // matchups of men who have left the floor (substitutions) free their defender
+    for (const [o, d] of [...this.match]) if (!O.some(p => p.pid === o) || !D.some(p => p.pid === d)) this.match.delete(o);
     for (const p of O) {
       if (this.defOf(p.pid) && !this.defOf(p.pid)!.leaving) continue;
       const used = new Set([...this.match.values()]);
@@ -698,7 +700,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -714,6 +716,7 @@ export class PixelCourt {
   private crossed: Side | null = null;
   inbPid: string | null = null;
   private backT = 0; private backSide: Side | null = null;
+  curSet = '';
   private inspT = new Map<string, number>();
   private inPaint(x: number, d: number, B: { x: number; d: number }) { return Math.abs(x - (B.x < 47 ? 0 : LEN)) < 19 && Math.abs(d - 25) < 8; }
   /** The rules of the game, every step: players stay on the floor (only the inbounder steps out), nobody stays in the
@@ -787,12 +790,13 @@ export class PixelCourt {
         for (const p of this.players.values()) {
           if (p.leaving) continue;
           if (p.side === holder.side) {
-            const near = [...this.players.values()].some(q => q.side !== p.side && !q.leaving && hyp(q.x - p.x, q.d - p.d) < 9);
+            const room = this.inside(p.pid) ? 13 : 9;   // sagging off a big who does not shoot is basketball
+            const near = [...this.players.values()].some(q => q.side !== p.side && !q.leaving && hyp(q.x - p.x, q.d - p.d) < room);
             const k2 = 'u' + p.pid; const t = (this.inspT.get(k2) ?? 0) + h; this.inspT.set(k2, near ? 0 : t);
             if (!near && t > 0.8 && hyp(p.x - B.x, p.d - B.d) < 30) {
               // nobody left alone in the half court before the play: his man (or the nearest free defender) picks him up
               let d0 = this.defOf(p.pid);
-              this.flag('unguarded', p, d0 ? `def=${this.o.names[d0.pid]} ${d0.beh.k}${(d0.beh as any).man ? '→' + this.o.names[(d0.beh as any).man] : ''} ${hyp(d0.x - p.x, d0.d - p.d).toFixed(0)}ft scheme=${this.scheme}` : 'no def');
+              this.flag('unguarded', p, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} ` + (d0 ? `def=${this.o.names[d0.pid]} ${d0.beh.k}${(d0.beh as any).man ? '→' + this.o.names[(d0.beh as any).man] : ''} ${hyp(d0.x - p.x, d0.d - p.d).toFixed(0)}ft scheme=${this.scheme}` : 'no def'));
               if (!d0 || d0.leaving) { d0 = [...this.players.values()].filter(q => q.side !== p.side && !q.leaving && !(q.beh.k === 'guard' && q.beh.man === holder.pid)).sort((q1, q2) => hyp(q1.x - p.x, q1.d - p.d) - hyp(q2.x - p.x, q2.d - p.d))[0] ?? null; if (d0) this.assign(p.pid, d0.pid); }
               if (d0 && !(d0.beh.k === 'guard' && d0.beh.man === holder.pid)) d0.beh = { k: 'guard', man: p.pid, tight: 0.5 };
               this.inspT.set(k2, 0);
@@ -804,6 +808,13 @@ export class PixelCourt {
           }
         }
       }
+    }
+    // a defender's man is the one the matchups give him: a stale 'guard' on somebody else (left over from an action
+    // whose matchups changed) is corrected – before the final action, outside a zone and a press
+    if (live && this.pre() && this.scheme !== 'zone' && this.v >= this.pressUntil) for (const p of this.players.values()) {
+      if (p.leaving || p.beh.k !== 'guard') continue;
+      const mine = [...this.match].find(([, d]) => d === p.pid)?.[0];
+      if (mine && mine !== p.beh.man && this.players.has(mine) && this.match.get(p.beh.man) !== p.pid) { this.flag('wrongMan', p, `set=${this.curSet} was=${this.o.names[p.beh.man]} mine=${this.o.names[mine]} hold=${this.ball.holder === p.beh.man}`); p.beh = { k: 'guard', man: mine, tight: 0.5 }; }
     }
     // a help or closeout assignment ends with the play: before the final action a defender stuck on someone else's
     // man for too long goes back to his own (that is what left shooters alone)
@@ -1519,6 +1530,7 @@ export class PixelCourt {
       let u = r() * avail.reduce((a, [, w]) => a + w, 0), set = 'swing';
       for (const [k, w] of avail) if ((u -= w) <= 0) { set = k; break; }
       lastSet = set;
+      { const st = set; add(at, () => { this.curSet = st; }); }
       const dur = Math.min(left() - 0.2, NEED[set] + r() * 0.8);
       const vh0 = vh;
       const star = mates.filter(p => this.starOf(p.pid) > 0).sort((a, b) => this.starOf(b.pid) - this.starOf(a.pid))[0];
@@ -1545,7 +1557,7 @@ export class PixelCourt {
           // probe: drive into the lane, draw help, kick it back out
           const f = vh0;
           add(at, () => { const p = this.P(f); if (p) this.go(p, B.x - s * 13, 25 + (r() - 0.5) * 10, RUN); });
-          add(at + 1.0, () => this.helpSide(off, f, null));
+          add(at + 1.0, () => this.stunt(off, f));   // a probe draws a stunt, not a full rotation: the helper shows and recovers
           add(at + 1.2, () => { const p = this.P(f); if (p) this.go(p, B.x - s * 23, p.d < 25 ? 12 : 38, JOG); });
           break;
         }
@@ -2016,6 +2028,18 @@ export class PixelCourt {
       const rot = this.ord(other(off)).filter(p => p !== help && p !== da).sort((p, q) => hyp(q.x - bp.x, q.d - bp.d) - hyp(p.x - bp.x, p.d - bp.d))[0];
       if (left && rot) { const lm = this.P(left); if (lm) { rot.beh = { k: 'spot' }; this.go(rot, lm.x + (B.x - lm.x) * 0.3, lm.d + (B.d - lm.d) * 0.3, SPRINT); } }
     }
+  }
+  /** A help stunt: the nearest defender steps toward the driver to show help, then gets back to his own man. */
+  private stunt(off: Side, driver: string | null) {
+    const d = this.P(driver); if (!d) return;
+    const own = this.defOf(driver);
+    const h = this.on(other(off)).filter(q => q !== own).sort((a, b) => hyp(a.x - d.x, a.d - d.d) - hyp(b.x - d.x, b.d - d.d))[0];
+    if (!h) return;
+    const man = [...this.match].find(([, x]) => x === h.pid)?.[0];
+    this.go(h, h.x + (d.x - h.x) * 0.4, h.d + (d.d - h.d) * 0.4, SPRINT);
+    this.setPose(h, 'stance', 0.5);
+    const back = this.v + 0.55;
+    this.keys.push({ at: back - (this.tl?.items?.[this.cur]?.a ?? 0), fn: () => { if (man && this.players.has(man)) h.beh = { k: 'guard', man, tight: 0.5 }; } });
   }
   /** isolation: teammates clear to the weak side */
   private clearOut(add: Add, at: number, off: Side, actor: string | null, r: () => number) {
