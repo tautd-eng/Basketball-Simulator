@@ -10,7 +10,7 @@ export interface Body {
   build?: number; socks?: string; sockH?: number; shoe?: string; sleeve?: number; knee?: boolean; wrist?: boolean;
   tat?: number; goggles?: boolean; legSleeve?: number; // tattoos (1 one arm, 2 both), goggles, a compression sleeve on one leg (1 front, -1 back)
 }
-export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe' | 'chin' | 'protect' | 'backdown' | 'poke';
+export type AthPose = 'fall' | 'stumble' | 'stand' | 'run' | 'shoot' | 'jump' | 'stance' | 'celebrate' | 'rest' | 'dribble' | 'sit' | 'gather' | 'layup' | 'dunk' | 'hang' | 'hook' | 'block' | 'contest' | 'pass' | 'screen' | 'boxout' | 'reb' | 'follow' | 'fade' | 'goggles' | 'flex' | 'dismay' | 'windmill' | 'tomahawk' | 'fadekick' | 'shh' | 'nightnight' | 'shimmy' | 'land' | 'bpass' | 'shootlow' | 'swipe' | 'chin' | 'protect' | 'backdown' | 'poke' | 'ready' | 'hips';
 export interface AthOpts {
   H: number;          // standing height in canvas pixels
   face: number;       // 1 = facing right, -1 = left
@@ -272,6 +272,16 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         thA = 0.72; bdA = 1.22; thB = 0.02; bdB = 0.72;
         uA = 1.35; fA = 1.5; uB = 0.5; fB = 0.9; spreadA = 0.7; spreadB = 0.7; splay = 0.42;
         break;
+      case 'ready': // off the ball, shot-ready: knees soft, hands up at the chest for the catch
+        hipY += 3.5 * u + 0.4 * u * Math.sin(ps); lean = 0.1;
+        thA = 0.2; bdA = 0.42; thB = -0.12; bdB = 0.32; splay = 0.18;
+        uA = 0.7; fA = 1.75; uB = 0.55; fB = 1.6; spreadA = 0.35; spreadB = 0.35;
+        break;
+      case 'hips': // a dead ball: hands on his hips, catching his breath
+        hipY += 0.5 * u * (1 + Math.sin(ps)); lean = -0.03;
+        thA = 0.06; bdA = 0.1; thB = -0.06; bdB = 0.1; splay = 0.1;
+        uA = -0.45; fA = 0.75; uB = -0.45; fB = 0.75; spreadA = 0.8; spreadB = 0.8;
+        break;
       case 'land': // coming down: knees and hips soak it up, arms out for balance
         hipY += 7 * u; lean = 0.14;
         thA = 0.45; bdA = 0.95; thB = -0.02; bdB = 0.7;
@@ -293,13 +303,15 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         thA = 0.25; bdA = 0.7; thB = -0.05; bdB = 0.6;
         uA = Math.PI - 0.12; fA = Math.PI - 0.04; uB = pose === 'reb' ? Math.PI - 0.3 : 0.6; fB = pose === 'reb' ? Math.PI - 0.15 : 1.1;
         break;
-      case 'contest': // a hand up in the shooter's face
+      case 'contest': // a hand up in the shooter's face (on a closeout he is still running at him)
         hipY += 4 * u; lean = 0.08;
         thA = 0.3; bdA = 0.55; thB = -0.3; bdB = 0.3;
+        if (amp > 0.3 && !air) { runLegs(); lean = 0.05; }
         uA = Math.PI - 0.15; fA = Math.PI - 0.08; uB = -0.6; fB = -0.9; spreadB = 0.8;
         break;
-      case 'pass': // both arms pushed out toward the target
+      case 'pass': // both arms pushed out toward the target (on the move the legs keep running)
         thA = 0.3; bdA = 0.45; thB = -0.25; bdB = 0.3; lean = 0.14;
+        if (amp > 0.3 && !air) runLegs();
         uA = 1.45; fA = 1.6; uB = 1.3; fB = 1.5;
         break;
       case 'screen': // feet set wide, arms crossed in front
@@ -368,7 +380,12 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const ha = { x: el.x + fx, y: el.y + Math.cos(side ? fa : Math.max(fa, spread)) * Lf };
     return { s0, el, ha };
   };
-  const AA = arm(1, uA, fA, spreadA), AB = arm(-1, uB, fB, spreadB);
+  let AA = arm(1, uA, fA, spreadA), AB = arm(-1, uB, fB, spreadB);
+  // hands on the hips, seen from the front: elbows out, the hands back on the hip bones
+  if (!side && pose === 'hips' && !R1) {
+    const hip = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.62 * Lu, y: A.s0.y + 0.72 * Lu }, ha: { x: hx + so * (hipW / 2 + 0.5 * u), y: Y + hipY - 1 * u } }; };
+    AA = hip(1, AA); AB = hip(-1, AB);
+  }
   // heads are about the same size on everybody: a seven-footer is tall in the legs and the body, not the head
   const uh = o.headU ?? u;
   const head = { x: sh.x + Math.sin(lean) * 4 * u * f * sx, y: sh.y - 4.2 * u - 7 * uh + (side ? 0 : Math.sin(lean) * 2 * u) };
