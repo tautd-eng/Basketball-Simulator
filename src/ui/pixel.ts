@@ -2138,13 +2138,14 @@ export class PixelCourt {
     // the move into the shot
     const showOff = (txt: string) => { if (star > 0 || r() < 0.35) this.sayAt(actor, txt, '#ffd34d', 1.0); };
     let dunkStyle = '';
+    const T = this.traits(actor), often = star >= 2 ? 0.8 : star ? 0.6 : 0.4;
     // a superstar's handle: a crossover (or two) that leaves his man on the floor before the pull-up
     const handle = this.sk(actor, 'handle');
     const perp0 = (a: PSprite, sideSgn: number, dist: number) => { const dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1; return { x: a.x - (dd / l) * dist * sideSgn, d: Math.max(1, Math.min(49, a.d + (dx / l) * dist * sideSgn)) }; };
     if (sb) add(Math.max(0, release - 0.78), () => {
       const a = A(); if (!a) return;
-      a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; this.jump(a, star >= 2 ? 0.6 : 0.4, 0.3, 'gather');
-      if (star >= 2) a.ghost = this.v + 0.9;
+      a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; this.jump(a, T.stepback ? 0.6 : 0.4, 0.3, 'gather');
+      if (T.stepback && T.trail) a.ghost = this.v + 0.9;
       showOff('STEP-BACK');
     });
     // the matchup shows: a weak defender gets beaten off the dribble and left behind, a stopper is right there to contest
@@ -2168,16 +2169,16 @@ export class PixelCourt {
       da.stun = 0.55; this.setPose(da, 'stumble', 0.45);
       if (r() < 0.75) this.sayAt(actor, dq < 0.3 ? 'BLOW-BY' : 'BEATS HIS MAN', '#ffd34d', 1.0);
     });
-    if (!rim && !blocker && beaten && star > 0 && handle > 0.55 && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type)) {
-      const drop = star >= 2 && (od == null ? edge >= 10 : od > 0.25) && r() < 0.55;
+    if (!rim && !blocker && beaten && T.xover && r() < often && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type)) {
+      const drop = T.ankles && (od == null ? edge >= 10 : od > 0.25) && r() < 0.55;
       const t0 = Math.max(0, release - (sb ? 1.35 : 1.15));
       // left, right – and the defender's hips go the wrong way
-      add(t0, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); if (star >= 2) a.ghost = this.v + 1.2; } });
-      if (star >= 2) add(t0 + 0.3, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); const p1 = perp0(a, a.d < 25 ? 1 : -1, 1.8); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(t0 + 0.55) }; } });
-      add(t0 + (star >= 2 ? 0.45 : 0.25), () => {
+      add(t0, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); if (T.trail && T.ankles) a.ghost = this.v + 1.2; } });
+      if (T.double) add(t0 + 0.3, () => { const a = A(); if (a && this.ball.holder === actor) { a.xover = 0.28; a.hand = -(a.hand ?? 1); const p1 = perp0(a, a.d < 25 ? 1 : -1, 1.8); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(t0 + 0.55) }; } });
+      add(t0 + (T.double ? 0.45 : 0.25), () => {
         const da = DA(); if (!da || da.side === A()?.side) return;
         if (drop) { da.stun = 1.2; this.setPose(da, 'fall', 1.0); this.sayAt(actor, 'ANKLES!', '#ffd34d', 1.3); this.cheer = Math.max(this.cheer, 1.5); }
-        else { da.stun = 0.6; this.setPose(da, 'stumble', 0.45); if (star >= 2 || r() < 0.4) this.sayAt(actor, 'CROSSOVER', '#ffd34d', 1.0); }
+        else { da.stun = 0.6; this.setPose(da, 'stumble', 0.45); if (T.double || r() < 0.4) this.sayAt(actor, 'CROSSOVER', '#ffd34d', 1.0); }
       });
     }
     if (false && !rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
@@ -2237,10 +2238,12 @@ export class PixelCourt {
         case 'dunk': {
           // take off a step or two out and glide to the rim – a superstar goes higher, hangs longer and adds style
           a.beh = { k: 'arrive', x: B.x - s * 0.7, d: B.d + Math.max(-0.6, Math.min(0.6, (a.d - B.d) * 0.15)), at: abs(release) };
-          dunkStyle = oop ? '' : star >= 2 || ath > 0.78 ? ['windmill', 'tomahawk', '360', 'tomahawk', 'windmill'][Math.floor(r() * 5)] : star >= 1 || ath > 0.68 ? (r() < 0.55 ? ['tomahawk', '360', ''][Math.floor(r() * 3)] : '') : '';
-          this.jump(a, 3.1 + ath * 1.1 + (star >= 2 ? 0.55 : star ? 0.25 : 0), 0.95 + (star >= 2 ? 0.1 : 0), dunkStyle === 'windmill' || dunkStyle === 'tomahawk' ? dunkStyle : 'dunk');
+          // only the dunks he has in his bag (a high flyer's windmill and 360, a strong big's tomahawk)
+          const bag = [T.windmill && 'windmill', T.tomahawk && 'tomahawk', T.spin360 && '360'].filter(Boolean) as string[];
+          dunkStyle = oop || !bag.length || r() >= often ? '' : bag[Math.floor(r() * bag.length)];
+          this.jump(a, 3.1 + ath * 1.1 + T.lift, 0.95 + (T.lift > 0.15 ? 0.08 : 0), dunkStyle === 'windmill' || dunkStyle === 'tomahawk' ? dunkStyle : 'dunk');
           if (dunkStyle === '360') a.spin = 0.32;
-          if (star >= 2 || dunkStyle) a.ghost = this.v + 1.2;
+          if (T.trail && (dunkStyle || T.lift > 0.2)) a.ghost = this.v + 1.2;
           break;
         }
         case 'layup':
@@ -2250,7 +2253,7 @@ export class PixelCourt {
         case 'floater': this.go(a, a.x + s * 1.5, a.d, JOG); this.jump(a, 1.9, 0.7, 'layup'); break;
         case 'hook': this.go(a, a.x + s * 0.6, a.d + (B.d - a.d) * 0.1, WALK); this.jump(a, 1.3, 0.6, 'hook'); break;
         case 'tip': a.beh = { k: 'arrive', x: B.x - s * 1.1, d: B.d, at: abs(release) }; this.jump(a, 3.0, 0.6, 'reb'); break;
-        case 'fade': { const kick = star >= 2 || (star > 0 && r() < 0.45); this.go(a, a.x - s * 2.2, a.d, JOG); this.jump(a, 1.9 + (kick ? 0.3 : 0), 0.68 + (kick ? 0.08 : 0), kick ? 'fadekick' : 'fade'); if (kick && star >= 2) a.ghost = this.v + 0.8; break; }
+        case 'fade': { const kick = T.fadekick && r() < often; this.go(a, a.x - s * 2.2, a.d, JOG); this.jump(a, 1.9 + (kick ? 0.3 : 0), 0.68 + (kick ? 0.08 : 0), kick ? 'fadekick' : 'fade'); break; }
         default: this.go(a, S.x, S.d, WALK); this.jump(a, three ? 1.9 : 2.1, 0.62, 'shoot');
       }
       const da = DA();
@@ -2345,7 +2348,14 @@ export class PixelCourt {
         const big = three || lateClose || type === 'fb' || andOne || motion === 'dunk';
         if (three || lateClose || type === 'fb') {
           // a superstar has his own: the crowd hushed on the road, "night night" to end it, a shimmy, the goggles
-          const sig: Pose | null = star >= 2 ? (lateClose ? (off === 'a' ? 'shh' : r() < 0.6 ? 'nightnight' : 'flex') : three ? (r() < 0.5 ? 'goggles' : 'shimmy') : r() < 0.5 ? 'shimmy' : 'flex') : null;
+          // his own celebration – from what he is (a shooter's goggles, a handler's shimmy, a high flyer's or a big's
+          // flex; the clutch gestures belong to the stars), the same one most of the time
+          const cands: Pose[] = [];
+          if (three && T.sht >= 0.7) cands.push('goggles');
+          if (T.hnd >= 0.7) cands.push('shimmy');
+          if (T.tomahawk || this.posN(actor ?? '') >= 4) cands.push('flex');
+          if (lateClose && star > 0) cands.push(off === 'a' ? 'shh' : 'nightnight');
+          const sig: Pose | null = cands.length && (star > 0 || r() < 0.35) ? (lateClose && star > 0 ? cands[cands.length - 1] : cands[r() < 0.7 ? Math.floor(hash01((actor ?? '') + 'cel') * cands.length) : Math.floor(r() * cands.length)]) : null;
           this.setPose(A(), sig ?? (three && (star > 0 || r() < 0.15 + 0.6 * this.sk(actor, 'shoot') ** 2) ? 'goggles' : 'celebrate'), sig ? 1.7 : 1.4);
           if (lateClose) this.cheer = 2;
         }
@@ -3194,6 +3204,26 @@ export class PixelCourt {
   }
 
   /** 2 = superstar, 1 = star, 0 = everybody else */
+  /** What a player can do with style – from his ratings, not his overall: a high flyer's dunks, an elite handle's
+   *  crossovers, a shooter's step-back, a post scorer's one-legged fadeaway; being a star only makes it more often. */
+  traits(pid: string | null | undefined) {
+    const lk = this.o.looks?.[pid ?? ''], ath = lk?.ath ?? 0.5, ht = lk?.ht ?? 79, pn = this.posN(pid ?? ''), arch = this.archOf(pid);
+    const fin = this.sk(pid, 'finish'), hnd = this.sk(pid, 'handle'), sht = this.sk(pid, 'shoot'), pst = this.sk(pid, 'post'), usg = this.zOf(pid, 'usg');
+    // a high flyer: an athletic wing who attacks the rim (or a jumbo creator who plays like one)
+    const wingLike = (pn <= 3.5 && ht <= 80) || (['creator', 'twoway', 'pointfwd'].includes(arch) && ht <= 84);
+    const flyer = wingLike && ['slasher', 'twoway', 'creator', 'pointfwd'].includes(arch) && ath >= 0.74 && fin >= 0.7;
+    return {
+      ath, hnd, sht,
+      windmill: flyer, tomahawk: flyer, spin360: flyer && ath >= 0.8,
+      xover: pn <= 3 && hnd >= 0.76,                                  // a real handle
+      ankles: (pn <= 2.5 || hnd >= 0.9) && hnd >= 0.84 && usg > 0.8,   // a creator with an elite handle
+      double: hnd >= 0.84,
+      stepback: pn <= 3.5 && sht >= 0.66 && hnd >= 0.65,
+      fadekick: pst >= 0.6 && sht >= 0.55 && usg > 0.5,               // a scorer from the post and the elbow
+      trail: flyer ? ath >= 0.8 : hnd >= 0.88,
+      lift: Math.max(0, ath - 0.65) * (flyer ? 1.6 : 0.6),
+    };
+  }
   starOf(pid: string) { const o = this.o.looks?.[pid]?.ovr ?? 0; return o >= 91 ? 2 : o >= 85 ? 1 : 0; }
   /** player height on the buffer (pixels) at depth d */
   private heightPx(lk: Look, d = 25) {
