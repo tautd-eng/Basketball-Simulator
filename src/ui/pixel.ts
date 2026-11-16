@@ -94,6 +94,8 @@ interface How { how: 'inbound' | 'rebound' | 'orb' | 'steal' | 'side' | 'period'
 
 // running speeds, feet per second
 const WALK = 5, JOG = 11, RUN = 16, SPRINT = 22, ACC = 32;
+/** the free-throw line, feet from the centre of the rim (19 ft from the baseline, the rim 5.25 ft in) – he stands just behind it */
+const FT_REL = 14.1;
 // half-court spots (feet from the basket along the court, depth across): top, wings, corners, elbows, blocks, slots
 const SP: Record<string, [number, number]> = {
   // wings sit at 45 degrees and the slots higher up, so the floor is spread along the court as well as across it
@@ -351,6 +353,7 @@ export class PixelCourt {
     }
     if (this.cur < items.length) this.fire(this.v - items[this.cur].a);
     this.behave();
+    this.liveBall(h);
     this.referee(h);
     this.physics(h);
     this.ballStep(h);
@@ -367,7 +370,7 @@ export class PixelCourt {
 
   /** Jump to time v: rebuild the scene at the start of its window and play forward quickly. */
   seek(v: number) {
-    this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null;   // the referee starts fresh with the rebuilt scene
+    this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null; this.pendPass = null; this.stillT = 0; this.fbOn = false;   // the referee starts fresh with the rebuilt scene
     const tl = this.tl;
     if (!tl || !tl.items.length) { this.v = v; return; }
     v = Math.max(0, Math.min(tl.end + 1, v));
@@ -489,12 +492,23 @@ export class PixelCourt {
     if (this.dbgTele) (b.fly as any).src = (new Error().stack ?? '').split('\n').slice(2, 4).map(l => l.replace(/.*pixel\.ts:(\d+).*/, '$1')).join('<');
   }
   /** a pass (homes in on the receiver) */
-  private pass(to: string | null | undefined, bounce = false, lob = false) {
+  private pass(to: string | null | undefined, bounce = false, lob = false, force = false) {
     const r = this.P(to);
     if (!r || this.ball.holder === to) return;
     const passer = this.P(this.ball.holder);
     const from = this.ballPos();
     const dist = hyp(r.x - from.x, r.d - from.d);
+    // the ball is brought up the floor on the dribble: a long pass ahead from the back court only on a break or
+    // against a press (and the inbound pass itself). Otherwise he dribbles toward the man first and passes from closer.
+    if (!force && passer && passer.pid !== this.inbPid && !this.fbOn && this.v >= this.pressUntil) {
+      const s2 = this.dir(passer.side), back = (passer.x - 47) * s2 < 2, ahead = (r.x - passer.x) * s2;
+      if (back && ahead > 26 && dist > 30) {
+        this.flag('longPass', passer, `${dist.toFixed(0)} ft`);
+        this.go(passer, passer.x + s2 * Math.min(ahead - 18, 30), passer.d + (r.d - passer.d) * 0.4, RUN);
+        this.pendPass = { to: to!, bounce, lob, until: this.v + 2.2, from: passer.pid };
+        return;
+      }
+    }
     // a crisp chest pass travels flat and fast; bounce passes skip off the floor; lobs float
     if (passer) { this.setPose(passer, 'pass', 0.28); passer.face = Math.sign(r.x - passer.x) || passer.face; }
     this.flyBall(r.x, r.d, 4.6, lob ? 9 + dist * 0.08 : bounce ? 0 : 4.9 + dist * 0.012, lob ? 0.35 + dist / 34 : Math.max(0.16, 0.08 + dist / (bounce ? 40 : 50)), () => this.give(to), to);
@@ -515,6 +529,38 @@ export class PixelCourt {
     this.match.set(offPid, defPid);
   }
   defOf(pid: string | null | undefined) { return pid ? this.P(this.match.get(pid)) : null; }
+  /** a pass held back until the dribbler is close enough (see pass) */
+  private pendPass: { to: string; bounce: boolean; lob: boolean; until: number; from: string } | null = null;
+  fbOn = false;
+  /** when the scripted shooter of this play lets it go (broadcast time), so nothing moves him off his spot just before */
+  private relAt = -1;
+  private relBy: string | null = null;
+  private stillT = 0;
+  /** every step: the held-back pass goes when he is close enough; a man with the ball does not stand still */
+  private liveBall(h: number) {
+    const pp = this.pendPass;
+    if (pp) {
+      const ps = this.P(this.ball.holder), r = this.P(pp.to);
+      if (!ps || ps.pid !== pp.from || !r || this.ball.fly) this.pendPass = null;
+      else if (hyp(r.x - ps.x, r.d - ps.d) < 26 || this.v > pp.until) { this.pendPass = null; this.pass(pp.to, pp.bounce, pp.lob, true); }
+    }
+    const it = this.tl?.items?.[this.cur];
+    const hd = this.P(this.ball.holder);
+    if (!it || !hd || this.ball.fly || !['make2', 'make3', 'miss2', 'miss3', 'tov', 'blk', 'foul'].includes(it.e.k) || hd.pid === this.inbPid
+      || hd.x < 0 || hd.x > LEN || hd.d < 0 || hd.d > WID || hd.pt > 0 || hd.z > 0.2 || hd.beh.k !== 'spot' || this.pendPass
+      || (this.relBy === hd.pid && this.relAt - this.v < 1.6 && this.relAt > this.v - 0.5)) { this.stillT = 0; return; }
+    if (hyp(hd.vx, hd.vd) > 1.2) { this.stillT = 0; return; }
+    this.stillT += h;
+    if (this.stillT < 1.1) return;
+    // he has held it for a second: jab, a dribble at his man, or a re-set – a live ball is never a statue
+    this.stillT = 0; this.flag('hold', hd);
+    const B = this.basket(hd.side), dx = B.x - hd.x, dd = B.d - hd.d, l = hyp(dx, dd) || 1;
+    const u = hash01(hd.pid + '|' + Math.floor(this.v * 2)), side = u < 0.5 ? 1 : -1;
+    const step = 2.5 + u * 3;
+    this.go(hd, hd.x + dx / l * step - dd / l * side * 2.5, Math.max(2, Math.min(48, hd.d + dd / l * step + dx / l * side * 2.5)), JOG);
+    hd.xover = 0.28; hd.hand = -(hd.hand ?? 1);
+    if (hd.ax !== undefined) { hd.ax = hd.tx; hd.ad = hd.td; }
+  }
   private guardAll(off: Side) {
     for (const [o, d] of this.match) { const dp = this.P(d); if (dp && dp.side !== off) dp.beh = { k: 'guard', man: o, tight: 0 }; }
   }
@@ -606,7 +652,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, back: 0, five: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -646,8 +692,16 @@ export class PixelCourt {
         else if (outNow) { p.tx = cx(p.tx); p.td = cd(p.td); }
         if (!outNow && cx(p.x) !== p.x || cd(p.d) !== p.d) { p.x = cx(p.x); p.d = cd(p.d); }
       }
-      // 3. the free-throw lane is clear until the ball is released (lane spots are outside it)
-      if (ft && p.pid !== this.hl?.pid && p.z < 0.3) {
+      // 3. free throws: the shooter is on the line for every attempt (also the second one, after the high five),
+      //    and the lane stays clear until the ball is released (lane spots are outside it)
+      if (ft && p.pid === this.pidOf(it.e, 'fta') && p.z < 0.3 && this.v - it.a > 0.2) {
+        const B = this.basket(it.e.s as Side), fx = B.x - this.dir(it.e.s as Side) * FT_REL;
+        if (hyp(p.tx - fx, p.td - 25) > 0.3 && !p.five) { p.tx = fx; p.td = 25; if (p.beh.k !== 'spot') p.beh = { k: 'spot' }; }
+        const away = hyp(p.x - fx, p.d - 25);
+        if (away > 0.4) p.spd = Math.max(p.spd, it.b - this.v < 1.6 ? RUN : JOG);
+        if (it.b - this.v < 0.9 && away > 1.2) this.flag('ftLine', p, `off by ${away.toFixed(1)} ft`);
+      }
+      if (ft && p.pid !== this.hl?.pid && p.z < 0.3 && this.v < it.b - 0.7) {
         for (const side of ['h', 'a'] as Side[]) {
           const B = this.basket(side);
           if (this.inPaint(p.tx, p.td, B) && hyp(p.tx - B.x, p.td - B.d) > 2) { this.flag('ftLane', p, `t=${p.tx.toFixed(1)},${p.td.toFixed(1)}`); p.td = p.td < 25 ? 16.2 : 33.8; }
@@ -828,10 +882,11 @@ export class PixelCourt {
           // crossovers: when he changes direction, and now and then to shake his man
           const turn = Math.abs(p.vx) > 3 && Math.sign(p.vx) !== Math.sign(p.lvx ?? p.vx);
           const dm = this.defOf(pid), close = dm ? hyp(dm.x - p.x, dm.d - p.d) < 6 : false;
-          if (turn || (close && hash01(pid + Math.floor(this.v * 3)) < dt * 3 * (0.35 + 0.3 * this.starOf(pid)))) {
+          const hf = ['general', 'creator'].includes(this.archOf(pid)) ? 1.7 : this.posN(pid) >= 4 && this.archOf(pid) !== 'playbig' ? 0.45 : 1 + Math.max(-0.4, Math.min(0.6, (this.o.looks?.[pid]?.az ?? 0) * 0.3));
+          if (turn || (close && hash01(pid + Math.floor(this.v * 3)) < dt * 3 * (0.35 + 0.3 * this.starOf(pid)) * hf)) {
             p.xover = 0.28; p.hand = -(p.hand ?? 1);
             // the best ball handlers mix it up: between the legs, behind the back
-            const u = hash01(pid + '|x' + Math.floor(this.v * 7)), st = this.starOf(pid) + ((this.o.looks?.[pid]?.az ?? 0) > 1 ? 1 : 0);
+            const u = hash01(pid + '|x' + Math.floor(this.v * 7)), st = this.starOf(pid) + ((this.o.looks?.[pid]?.az ?? 0) > 1 ? 1 : 0) + (['general', 'creator'].includes(this.archOf(pid)) ? 1 : 0);
             p.xkind = st >= 1 && u < 0.3 ? 'btl' : st >= 1 && u < 0.5 ? 'btb' : 'cross';
           }
         }
@@ -1094,7 +1149,7 @@ export class PixelCourt {
     let i = 0;
     for (const p of [...off, ...def]) if (!used.has(p.pid)) { this.go(p, B.x - s * (30 + (i % 2) * 4), 14 + (i * 7) % 24, spd); i++; }
     const sh = this.P(shooter);
-    if (sh) this.go(sh, B.x - s * 15, 25, spd);
+    if (sh) this.go(sh, B.x - s * FT_REL, 25, spd);
   }
 
   // ------------------------------------------------------------ staging: one window of the timeline
@@ -1189,13 +1244,14 @@ export class PixelCourt {
     const pg = o[0], big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
     const fb = !!opts.fb;
+    add(0, () => { this.fbOn = fb; this.pendPass = null; });
     const slow = call === 'milk' || call === 'hold';
     // who gets the ball first
     let holder = this.ball.holder && this.P(this.ball.holder)?.side === off ? this.ball.holder : null;
     let first: string | null = null, pA = 0;
     let inb: PSprite | null = null;
     // who may bring the ball up: guards, and the rare big who really handles it (a Jokić, a Giannis)
-    const handles = (pid: string | null) => !!pid && (this.posN(pid) <= 2.5 || (this.o.looks?.[pid]?.az ?? 0) > 1.0);
+    const handles = (pid: string | null) => !!pid && (this.posN(pid) <= 2.5 || (this.o.looks?.[pid]?.az ?? 0) > 1.0 || ['general', 'pointfwd', 'playbig', 'creator'].includes(this.archOf(pid)));
     if (h.how === 'inbound') {
       // whoever is nearest the ball under the basket takes it out – usually a big – and the guard comes to get it
       const bx = this.ball.x, bd = this.ball.d;
@@ -1517,16 +1573,16 @@ export class PixelCourt {
     const postMan = o.filter(p => p.pid !== actor && this.inside(p.pid)).sort((p, q) => this.posN(q.pid) - this.posN(p.pid))[0]?.pid ?? null;
     if (type === 'double' && !(assist && this.inside(assist)) && !postMan) type = rim ? 'cut' : 'kick';
     if (type === 'blitz' && !assist) type = rim ? 'kickdrive' : 'kick';
-    const creator = type === 'double' ? (assist && this.inside(assist) ? assist : postMan) : ['roll', 'pop', 'kick', 'kickdrive', 'cut', 'offscreen', 'blitz'].includes(type) ? (assist ?? pg) : actor;
+    const creator = type === 'double' ? (assist && this.inside(assist) ? assist : postMan) : ['roll', 'pop', 'kick', 'kickdrive', 'cut', 'offscreen', 'blitz', 'highpost', 'dho'].includes(type) ? (assist ?? pg) : actor;
     const screener = o.filter(p => p.pid !== actor && p.pid !== creator).sort((p, q) => this.posN(q.pid) - this.posN(p.pid))[0]?.pid ?? null;
-    const DUR: Record<string, number> = { iso: 3.4, putback: 0.35, fb: 0, roll: 2.9, pop: 2.7, pnrDrive: 2.6, pnrPull: 2.5, drive: 2.6, pullup: 1.9, post: 2.8, kick: 2.1, offscreen: 2.1, cut: 1.6 };
+    const DUR: Record<string, number> = { highpost: 2.5, dho: 2.4, iso: 3.4, putback: 0.35, fb: 0, roll: 2.9, pop: 2.7, pnrDrive: 2.6, pnrPull: 2.5, drive: 2.6, pullup: 1.9, post: 2.8, kick: 2.1, offscreen: 2.1, cut: 1.6 };
     let finDur = type === 'double' ? (rim ? 3.7 : 3.0) : type === 'blitz' ? (rim ? 4.0 : 3.4) : type === 'kickdrive' ? 3.2 : DUR[type] ?? 2;
     if (type === 'fb') {
       const hpid = h.pid && this.players.has(h.pid) ? h.pid : this.ball.holder;
       const hp = this.P(hpid);
       finDur = Math.max(1.2, (hp ? Math.abs(B.x - hp.x) : 50) / SPRINT + 0.5);
     }
-    const needBall = type === 'putback' || type === 'fb' ? null : creator === actor && ['post', 'kick', 'offscreen', 'cut'].includes(type) ? null : creator;
+    const needBall = type === 'putback' || type === 'fb' ? null : creator === actor && ['post', 'kick', 'offscreen', 'cut', 'highpost', 'dho'].includes(type) ? null : creator;
     const P = this.possession(k, release, finDur, needBall, add, r, { fb: type === 'fb' });
     const c = P.sc, T = (x: number) => P.tD + x * c;
     if (actor && md && type !== 'roll' && type !== 'pop') add(0, () => this.assign(actor, md));
@@ -1723,6 +1779,34 @@ export class PixelCourt {
         add(T(1.45), () => this.pass(actor));
         break;
       }
+      case 'highpost': {
+        // the big catches at the elbow, his cutter's man overplays the wing – backdoor, and a bounce pass from the big
+        const sideL = S.d < 25, elbow = this.spot(off, sideL ? 'le' : 're'), wing = this.spot(off, sideL ? 'lw' : 'rw');
+        cap(`${name(creator)} at the high post – ${name(actor)} goes backdoor`);
+        add(T(0), () => { const b = this.P(creator); if (b) this.go(b, elbow.x, elbow.d, RUN / c); this.go(A(), wing.x, wing.d, JOG / c); });
+        add(T(0.7), () => this.pass(creator));
+        add(T(1.1), () => { const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 2 }; const b = this.P(creator); if (b) b.face = Math.sign((A()?.x ?? b.x) - b.x) || b.face; });
+        add(T(1.45), () => { const a = A(); if (!a) return; this.go(a, S.x, S.d, SPRINT / c); const da = DA(); if (da) { da.beh = { k: 'follow', pid: a.pid, dx: -s * 2.4, dd: sideL ? -1.5 : 1.5 }; this.setPose(da, 'stumble', 0.3); } });
+        if (!oop) add(T(1.9), () => this.pass(actor, true));
+        break;
+      }
+      case 'dho': {
+        // dribble hand-off: the passer takes it at the slot, the shooter runs at him and takes it off his hip,
+        // the passer's body is the screen
+        const sideL = S.d < 25, slot = this.spot(off, sideL ? 'ls' : 'rs'), wing = this.spot(off, sideL ? 'lw' : 'rw');
+        cap(`Hand-off: ${name(creator)} to ${name(actor)}`);
+        add(T(0), () => { const b = this.P(creator); if (b) this.go(b, slot.x, slot.d, JOG / c); this.go(A(), wing.x, wing.d, JOG / c); });
+        add(T(0.5), () => { if (this.ball.holder !== creator) this.pass(creator); });
+        add(T(1.0), () => { const b = this.P(creator), a = A(); if (b && a) this.go(a, b.x + s * 1, b.d + (sideL ? 1.5 : -1.5), RUN / c); });
+        add(T(1.55), () => {
+          const b = this.P(creator), a = A(); if (!b || !a) return;
+          if (this.ball.holder === creator) this.give(actor);
+          this.setPose(b, 'screen', 0.6 * c);
+          const da = DA(); if (da) { da.stun = 0.4 * this.lagF(da.pid); da.beh = { k: 'follow', pid: a.pid, dx: -s * 2, dd: sideL ? -1 : 1 }; }
+          this.go(a, S.x, S.d, RUN / c);
+        });
+        break;
+      }
       case 'cut': {
         cap(`Backdoor cut: ${name(actor)}`);
         add(T(0), () => { const a = A(); if (a) { const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1.5 }; } });
@@ -1756,6 +1840,9 @@ export class PixelCourt {
     if (!actor || ['putback', 'fb', 'double', 'blitz'].includes(type) || c.r() > 0.7) return type;
     const a = this.archOf(actor), aa = assist ? this.archOf(assist) : '';
     if (assist) {
+      // a passing big runs the offence through himself: backdoor cuts off his high-post catch, hand-offs up top
+      if (aa === 'playbig' && !c.big) return c.rim ? 'highpost' : 'dho';
+      if (aa === 'general' && !c.rim && !c.big && c.r() < 0.4) return 'dho';
       if (c.three) {
         if (a === 'sniper') return c.r() < 0.7 ? 'offscreen' : 'kick';
         if (a === '3d') return 'kick';
@@ -1831,6 +1918,7 @@ export class PixelCourt {
     const andOne = next?.k === 'foul' && made && !!n2 && (n2.k === 'ft' || n2.k === 'ftm') && n2.s === off;
     // whatever the play, the shooter gets to his spot in time: the shot comes from where the play-by-play says
     const gatherAt = release - (rim ? 0.4 : 0.32);
+    add(0, () => { this.relAt = items[k].a + release; this.relBy = actor; });
     const abs = (t: number) => items[k].a + t;
     // a step-back starts a step closer to the basket and hops back to the spot
     const sb = motion === 'stepback';
@@ -1860,6 +1948,7 @@ export class PixelCourt {
       const da = DA(); if (!da) return;
       this.sayAt(made ? actor : da.pid, made ? 'TOUGH SHOT' : 'GREAT CONTEST', made ? '#ffd34d' : '#9fd3ff', 1.0);
     });
+    if (!made && !blocker && ['lockdown', 'twoway', '3d'].includes(this.archOf(dpid)) && r() < 0.5) add(Math.max(0, release + 0.1), () => this.sayAt(dpid, 'LOCKED UP', '#9fd3ff', 1.0));
     if (!rim && dq < 0.32 && ['kick', 'offscreen', 'pop', 'double', 'blitz'].includes(type) && r() < 0.55) add(Math.max(0, release - 0.35), () => this.sayAt(actor, 'WIDE OPEN', '#5dff8a', 0.9));
     // the stars improvise: a Eurostep on the way to the rim, a spin move on the drive, the lob
     const flashy = star > 0 || ath > 0.65;
@@ -1868,15 +1957,16 @@ export class PixelCourt {
       return { x: B.x + ux * back - ud * dist * sideSgn, d: Math.max(1, Math.min(49, B.d + ud * back + ux * dist * sideSgn)) };
     };
     const isGuard = actor ? this.posN(actor) <= 3.5 : false;
-    if (motion === 'layup' && isGuard && flashy && type !== 'putback' && r() < 0.5) {
+    const slasher = actor ? ['slasher', 'creator'].includes(this.archOf(actor)) : false;
+    if (motion === 'layup' && (isGuard || slasher) && (flashy || slasher) && type !== 'putback' && r() < (slasher ? 0.65 : 0.5)) {
       const sg = r() < 0.5 ? 1 : -1;
       add(release - 1.05, () => { const a = A(); if (!a) return; const p1 = perp(a, sg, 2.4, 7.5); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(release - 0.78) }; });
       add(release - 0.78, () => { const a = A(); if (!a) return; const p2 = perp(a, -sg, 2.6, 3.8); a.beh = { k: 'arrive', x: p2.x, d: p2.d, at: abs(release - 0.48) }; showOff('EUROSTEP'); });
-    } else if ((motion === 'layup' || motion === 'dunk' || motion === 'floater') && isGuard && flashy && ['drive', 'iso', 'pnrDrive', 'kickdrive'].includes(type) && r() < 0.4) {
+    } else if ((motion === 'layup' || motion === 'dunk' || motion === 'floater') && (isGuard || slasher) && (flashy || slasher) && ['drive', 'iso', 'pnrDrive', 'kickdrive'].includes(type) && r() < (slasher ? 0.6 : 0.4)) {
       add(release - 1.25, () => { const a = A(); if (!a) return; const p1 = perp(a, r() < 0.5 ? 1 : -1, 2.4, Math.max(5, hyp(a.x - B.x, a.d - B.d) - 4)); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(release - 0.85) }; a.spin = 0.32; showOff('SPIN MOVE'); });
     }
     // post moves: a fake to the baseline, a spin back to the middle – the Dream Shake – then the hook or the turnaround
-    if ((motion === 'hook' || motion === 'fade') && type === 'post' && (star > 0 || ath > 0.55 || r() < 0.35)) {
+    if ((motion === 'hook' || motion === 'fade') && type === 'post' && (star > 0 || ath > 0.55 || this.archOf(actor) === 'post' || r() < 0.35)) {
       add(Math.max(0, release - 1.15), () => { const a = A(); if (!a) return; const p1 = perp(a, a.d < 25 ? -1 : 1, 1.6, Math.max(3, hyp(a.x - B.x, a.d - B.d))); a.beh = { k: 'arrive', x: p1.x, d: p1.d, at: abs(release - 0.85) }; this.setPose(a, 'gather', 0.3); a.face = -a.face; });
       add(Math.max(0, release - 0.82), () => { const a = A(); if (!a) return; a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.4) }; a.spin = 0.32; showOff(star > 0 ? 'DREAM SHAKE' : 'DROP STEP'); const da = DA(); if (da) { da.stun = 0.35; this.setPose(da, 'stumble', 0.3); } });
     }
@@ -1942,7 +2032,7 @@ export class PixelCourt {
         const bp = this.P(blocker);
         if (bp && a) { this.go(bp, a.x + s * 1.2, a.d, SPRINT); this.jump(bp, 3.6, 0.6, 'block'); }
         this.flyBall((a?.x ?? S.x) + s * 1.2, a?.d ?? S.d, 11, 12, 0.18, () => {
-          this.sayAt(blocker, 'BLOCKED!', '#ff6b6b', 1.3);
+          this.sayAt(blocker, ['protector', 'unicorn'].includes(this.archOf(blocker)) ? (r() < 0.5 ? 'REJECTED!' : 'NOT IN MY HOUSE!') : 'BLOCKED!', '#ff6b6b', 1.3);
           this.flyBall((a?.x ?? S.x) - s * (3 + r() * 6), (a?.d ?? S.d) + (r() - 0.5) * 12, 0.5, 6, 0.55);
         });
         this.label2 = { pid: blocker, t: 1.5 };
@@ -1967,7 +2057,9 @@ export class PixelCourt {
     add(release + 0.15, () => {
       for (const p of this.on(off)) {
         if (p.pid === actor) continue;
-        if (this.posN(p.pid) >= 3.75) this.go(p, B.x - s * (4 + r() * 2), 25 + (r() - 0.5) * 12, RUN);
+        const ar = this.archOf(p.pid);
+        if (ar === 'glass' || ar === 'runner') this.go(p, B.x - s * (2.5 + r()), 25 + (r() - 0.5) * 8, SPRINT);   // glass cleaners and rim runners crash hard
+        else if (this.posN(p.pid) >= 3.75 && ar !== 'stretch') this.go(p, B.x - s * (4 + r() * 2), 25 + (r() - 0.5) * 12, RUN);
         else if (this.posN(p.pid) <= 2) this.go(p, B.x - s * 30, 25 + (r() - 0.5) * 16, JOG);
       }
       for (const [o, d] of this.match) { const dp = this.P(d), op = this.P(o); if (dp && op && dp.side === def && hyp(op.x - B.x, op.d - B.d) < 24) dp.beh = { k: 'box', man: o }; }
@@ -1987,11 +2079,12 @@ export class PixelCourt {
         if (motion === 'dunk') { const pz = this.poster === actor; this.poster = null; this.shake = pz ? 0.9 : oop || star > 0 || ath > 0.6 ? 0.7 : 0.35; this.cheer = 2; this.net[off] = 0.8; this.sayAt(actor, pz ? 'POSTERIZED!' : oop ? 'ALLEY-OOP!' : star > 0 ? 'SLAM!' : 'DUNK!', '#ffd34d', 1.5); }
         // a great pass gets its credit
         const ap = this.pidOf(e, 'ast');
-        if (ap && !oop && (this.starOf(ap) > 0 || (this.o.looks?.[ap]?.az ?? 0) > 1.2) && r() < 0.3 && (motion === 'layup' || motion === 'dunk')) this.sayAt(ap, 'DIME!', '#9fd3ff', 1.2);
+        const pm = ap ? ['general', 'playbig', 'pointfwd'].includes(this.archOf(ap)) : false;
+        if (ap && !oop && (this.starOf(ap) > 0 || pm || (this.o.looks?.[ap]?.az ?? 0) > 1.2) && r() < (pm ? 0.5 : 0.3) && (motion === 'layup' || motion === 'dunk' || pm)) this.sayAt(ap, pm && this.archOf(ap) === 'playbig' ? 'BIG-MAN DIME!' : 'DIME!', '#9fd3ff', 1.2);
         this.scored(actor, three ? 3 : 2, made);
         const lateClose = e.p >= 4 && e.c < 120 && Math.abs(e.hs - e.as) <= 5;
         const big = three || lateClose || type === 'fb' || andOne || motion === 'dunk';
-        if (three || lateClose || type === 'fb') { this.setPose(A(), three && (star > 0 || r() < 0.35) ? 'goggles' : 'celebrate', 1.4); if (lateClose) this.cheer = 2; }
+        if (three || lateClose || type === 'fb') { this.setPose(A(), three && (star > 0 || this.archOf(actor) === 'sniper' || r() < 0.35) ? 'goggles' : 'celebrate', 1.4); if (lateClose) this.cheer = 2; }
         if (andOne) { this.say('AND ONE!', '#ffd34d', false, 1.4, { x: S.x, d: S.d, z: 24 }); const a = A(); if (a) { this.setPose(a, 'stumble', 0.45); a.next = [r() < 0.6 ? 'flex' : 'celebrate', 1.0]; } const df = DA(); if (df) this.setPose(df, 'block', 0.4); }
         // the scorers jog back on defence
         const back = other(off);
@@ -2730,6 +2823,13 @@ export class PixelCourt {
     if (p.beh.k === 'guard' && this.ball.holder === p.beh.man) { const m = this.players.get(p.beh.man); if (m) { const dm = Math.hypot(m.x - p.x, m.d - p.d), v = Math.hypot(p.vx, p.vd); if (dm < 9 && v > 6 && dm > 4) return 'contest'; if (dm < 7) return 'stance'; } }
     // off the ball, a defender near the action stays down in his stance
     if (p.beh.k === 'guard' && Math.hypot(p.vx, p.vd) < 4) { const h = this.P(this.ball.holder); if (h && h.side !== p.side && Math.hypot(h.x - p.x, h.d - p.d) < 16) return 'stance'; }
+    // a defender staying with his man in the half court slides in his stance (feet apart, never crossing);
+    // he only turns and runs to recover – on a drive past him, a long closeout or getting back
+    if ((p.beh.k === 'guard' || p.beh.k === 'zone' || p.beh.k === 'follow') && !this.fbOn) {
+      const v = Math.hypot(p.vx, p.vd), man = this.P(p.beh.k === 'follow' ? p.beh.pid : p.beh.k === 'guard' ? p.beh.man : null);
+      const B = this.basket(other(p.side)), half = Math.abs(p.x - B.x) < 36;
+      if (half && v < 12 && (!man || Math.hypot(man.x - p.x, man.d - p.d) < 12)) return 'stance';
+    }
     if (p.beh.k === 'box') return 'boxout';
     if (p.beh.k === 'zone' && Math.hypot(p.vx, p.vd) < 5) return 'stance';
     if (p.beh.k === 'mark') return 'stance';
