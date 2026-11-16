@@ -466,7 +466,7 @@ export class PixelCourt {
     if (!pid) return;
     if (this.dbgTele && !this.ff) { const p = this.P(pid), bp = this.ballPos(); if (p && !this.ball.fly && hyp(p.x - bp.x, p.d - bp.d) > 3) this.dbgTele((new Error().stack ?? '') + '\nfly:' + this.flySrc); }
     this.ball.fly = null;
-    this.ball.holder = pid; this.lastGive = { pid, v: this.v };
+    this.ball.holder = pid; this.lastGive = { pid, v: this.v }; { const q = this.P(pid); if (q) this.giveAt = { x: q.x, d: q.d, v: this.v, how: this.curHow, src: (new Error().stack ?? '').split('\n').slice(2, 5).map(l => l.replace(/.*pixel\.ts:(\d+).*/, '$1')).join('<') } as any; }
     // whoever was sent after the loose ball and did not get it rejoins the play (he does not stand where it lay)
     for (const c of this.chasers) { const q = this.P(c); if (q && c !== pid && q.beh.k === 'spot') { const sp = this.spot(q.side, this.homeSpots(q.side).get(c) ?? 'lw'); this.go(q, sp.x, sp.d, RUN); } }
     this.chasers.clear();
@@ -641,6 +641,15 @@ export class PixelCourt {
     const it = this.tl.items[Math.min(this.cur, this.tl.items.length - 1)];
     if (!it || it.e.k === 'timeout' || it.e.k === 'period' || it.e.k === 'end') { this.looseT = 0; return; }
     const b = this.ball;
+    // a big who doesn't handle it never dribbles up the floor: once he is on the move with it, he gives it to a guard
+    if (b.holder && !b.fly && it.live && this.giveAt && b.holder !== this.inbPid) {
+      const hp = this.P(b.holder), ga = this.giveAt;
+      if (hp && hp.beh.k === 'spot' && this.posN(hp.pid) >= 4 && this.sk(hp.pid, 'handle') < 0.62 && hyp(hp.x - ga.x, hp.d - ga.d) > 9) {
+        const mates = this.on(hp.side).filter(q => q !== hp && (this.posN(q.pid) <= 3 || this.sk(q.pid, 'handle') >= 0.62));
+        const g = mates.sort((p, q) => this.posN(p.pid) - this.posN(q.pid) || hyp(p.x - hp.x, p.d - hp.d) - hyp(q.x - hp.x, q.d - hp.d))[0];
+        if (g && hyp(g.x - hp.x, g.d - hp.d) < 45) { this.giveAt = null; this.pass(g.pid, false, false, true); }
+      }
+    }
     if (!b.holder && !b.fly && b.z <= 1.2) {
       this.looseT += dt;
       // a live ball lying just over the line (left there by an inbound) is played back in: players may not step out for it
@@ -779,7 +788,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -795,9 +804,9 @@ export class PixelCourt {
   private crossed: Side | null = null;
   inbPid: string | null = null;
   chasers = new Set<string>();
-  lastGive: { pid: string; v: number } | null = null;
+  lastGive: { pid: string; v: number } | null = null; giveAt: { x: number; d: number } | null = null;
   private backT = 0; private backSide: Side | null = null;
-  curSet = '';
+  curSet = ''; curHow = '';
   private inspT = new Map<string, number>();
   private inPaint(x: number, d: number, B: { x: number; d: number }) { return Math.abs(x - (B.x < 47 ? 0 : LEN)) < 19 && Math.abs(d - 25) < 8; }
   /** The rules of the game, every step: players stay on the floor (only the inbounder steps out), nobody stays in the
@@ -830,8 +839,8 @@ export class PixelCourt {
         const B = this.basket(it.e.s as Side), fx = B.x - this.dir(it.e.s as Side) * FT_REL;
         if (hyp(p.tx - fx, p.td - 25) > 0.3 && !p.five) { p.tx = fx; p.td = 25; if (p.beh.k !== 'spot') p.beh = { k: 'spot' }; }
         const away = hyp(p.x - fx, p.d - 25);
-        if (away > 0.4) p.spd = Math.max(p.spd, it.b - this.v < 1.6 ? RUN : JOG);
-        if (it.b - this.v < 0.9 && away > 1.2) this.flag('ftLine', p, `off by ${away.toFixed(1)} ft`);
+        if (away > 0.4) p.spd = Math.max(p.spd, away > 5 ? SPRINT : RUN);   // he hurries to the line: he never shoots from short of it
+        if (it.b - this.v < 0.9 && away > 1.2) this.flag('ftLine', p, `off by ${away.toFixed(1)} ft pose=${p.pose} pt=${p.pt.toFixed(2)} spd=${p.spd.toFixed(0)} v=${hyp(p.vx, p.vd).toFixed(1)} t=${hyp(p.tx - fx, p.td - 25).toFixed(1)} stun=${(p.stun ?? 0).toFixed(2)} into=${(this.v - it.a).toFixed(2)} len=${(it.b - it.a).toFixed(2)} five=${!!p.five} beh=${p.beh.k}`);
       }
       if (ft && p.pid !== this.hl?.pid && p.z < 0.3 && this.v < it.b - 0.7) {
         for (const side of ['h', 'a'] as Side[]) {
@@ -865,6 +874,8 @@ export class PixelCourt {
       // 8 seconds to bring it over half court (10 before 2001–02)
       if (inBack && this.backSide === holder.side) { this.backT += h; if (this.backT > ((this.o.season ?? 2000) >= 2002 ? 8 : 10)) this.flag('eightSec', holder, `${this.backT.toFixed(1)} s`); }
       else { this.backSide = inBack ? holder.side : null; this.backT = 0; }
+      // a big man with no handle dribbling the length of the floor
+      if (this.giveAt && this.posN(holder.pid) >= 4 && this.sk(holder.pid, 'handle') < 0.62 && hyp(holder.x - this.giveAt.x, holder.d - this.giveAt.d) > 28) { this.flag('bigDribble', holder, `${hyp(holder.x - this.giveAt.x, holder.d - this.giveAt.d).toFixed(0)} ft set=${this.curSet} ev=${this.tl?.items[this.cur]?.e.k} fb=${this.fbOn} how=${(this.giveAt as any).how} dt=${(this.v-(this.giveAt as any).v).toFixed(1)} src=${(this.giveAt as any).src} beh=${holder.beh.k}`); this.giveAt = null; }
       // a driver who got to the rim does not stand there waiting for the defence
       { const B0 = this.basket(holder.side), dr = hyp(holder.x - B0.x, holder.d - B0.d), v0 = hyp(holder.vx, holder.vd);
         const k3 = 'w' + holder.pid, t3 = (this.inspT.get(k3) ?? 0) + h;
@@ -1452,7 +1463,7 @@ export class PixelCourt {
     const pg = o[0], big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
     const fb = !!opts.fb;
-    add(0, () => { this.fbOn = fb; this.pendPass = null; });
+    add(0, () => { this.fbOn = fb; this.pendPass = null; this.curHow = h.how; });
     const slow = call === 'milk' || call === 'hold';
     // who gets the ball first
     let holder = this.ball.holder && this.P(this.ball.holder)?.side === off ? this.ball.holder : null;
@@ -2413,6 +2424,26 @@ export class PixelCourt {
         else if (this.posN(p.pid) <= 2) this.go(p, B.x - s * 30, 25 + (r() - 0.5) * 16, JOG);
       }
       for (const [o, d] of this.match) { const dp = this.P(d), op = this.P(o); if (dp && op && dp.side === def && hyp(op.x - B.x, op.d - B.d) < 24) dp.beh = { k: 'box', man: o }; }
+      // the man who will get the board wins the position battle: inside, between his rival and the rim
+      const nx = this.tl!.items[k + 1]?.e;
+      if (!made && !blocker && nx && (nx.k === 'orb' || nx.k === 'drb')) {
+        const rp = this.P(this.pidOf(nx, nx.k));
+        if (rp && rp.pid !== actor && hyp(rp.x - B.x, rp.d - B.d) < 26) {
+          const side = rp.d < 25 ? -1 : 1, gx = B.x - s * (3.5 + r() * 2), gd = 25 + side * (2.5 + r() * 3);
+          this.go(rp, gx, gd, SPRINT);
+          if (nx.k === 'orb') {
+            // he beats his man inside: that defender is sealed on the wrong side (he does not get in front)
+            const dm = this.P(this.match.get(rp.pid));
+            if (dm) { dm.beh = { k: 'follow', pid: rp.pid, dx: -s * 2.2, dd: side * 1.2 }; }
+          } else {
+            // the defender boxes his man out and goes for it: his man is behind him
+            const om = [...this.match].find(([, d]) => d === rp.pid)?.[0]; const op = this.P(om);
+            if (op && op.beh.k === 'spot') this.go(op, gx - s * 2.4, gd + side * 1.2, RUN);
+          }
+          // nobody else gets between him and the ball
+          for (const q of this.players.values()) if (q !== rp && q.pid !== actor && hyp(q.tx - gx, q.td - gd) < 3.5 && q.beh.k === 'spot') this.go(q, gx - s * 4, gd - side * 5, RUN);
+        }
+      }
     });
     // result at the rim
     add(L, () => {
@@ -2463,7 +2494,7 @@ export class PixelCourt {
         // the rebound comes off toward the man who gets it
         const reb = next && (next.k === 'orb' || next.k === 'drb') ? this.P(this.pidOf(next, next.k)) : null;
         let tx = B.x - s * (3 + r() * 6), td = B.d + (r() - 0.5) * 12;
-        if (reb) { const dx = reb.x - B.x, dd = reb.d - B.d, dist = hyp(dx, dd) || 1; const g = Math.min(dist, 3 + r() * 7); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }
+        if (reb) { const dx = reb.x - B.x, dd = reb.d - B.d, dist = hyp(dx, dd) || 1; const g = dist <= 9 ? Math.max(2.5, dist - 0.5) : Math.min(15, dist * 0.8); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }   // to the man who gets it: a short one to the big inside, a long one over everybody to a man outside
         this.ball.holder = null;
         const b = this.ball;
         this.ball.fly = { x0: b.x, d0: b.d, z0: Math.max(10, b.z), x1: tx, d1: td, z1: 7, peak: 13 + r() * 2, t: 0, dur: 0.7, to: reb && hyp(reb.x - tx, reb.d - td) < 6 ? reb.pid : undefined };
@@ -2511,6 +2542,7 @@ export class PixelCourt {
     if (glass >= 0.75 && e.k === 'drb') add(L + 0.12, () => { const p = this.P(pid); if (p && this.ball.holder === pid) { p.next = undefined; this.setPose(p, 'chin', 0.5); } });
     add(L, () => {
       const p = this.P(pid);
+      if (p && !this.ff) { const bp = this.ballPos(), my = hyp(p.x - bp.x, p.d - bp.d); const best = [...this.players.values()].filter(q => q !== p).sort((a, c) => hyp(a.x - bp.x, a.d - bp.d) - hyp(c.x - bp.x, c.d - bp.d))[0]; if (best && hyp(best.x - bp.x, best.d - bp.d) + 2 < my) this.flag('rebBeat', p, `${e.k} me=${my.toFixed(1)} ${this.o.names[best.pid]}=${hyp(best.x - bp.x, best.d - bp.d).toFixed(1)} ${best.beh.k}`); }
       if (p && !this.ball.fly && hyp(p.x - this.ball.x, p.d - this.ball.d) > 3) { this.pickup = { pid: p.pid }; this.go(p, this.ball.x, this.ball.d, SPRINT); }
       else this.give(pid);
       if (e.k === 'orb') this.sayAt(pid, 'OFF. BOARD', '#9fd3ff', 0.9);
