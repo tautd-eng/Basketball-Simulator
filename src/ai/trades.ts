@@ -198,7 +198,14 @@ export function pickOwner(lg: League, season: number, round: number, orig: strin
 let stamp = '';
 const vCache = new Map<string, number>();
 let rankCache: { t: string; s: number }[] | null = null;
+let last: any[] = [];
 function fresh(lg: League) {
+  // (compared field by field first: building the string on every call was a measurable share of a season's sim)
+  const f = [lg, lg.seed, lg.season, lg.phase, lg.day, lg.trades?.length ?? 0, lg.fa?.stage ?? 0, lg.fa?.log.length ?? 0];
+  let same = last.length === f.length;
+  for (let i = 0; same && i < f.length; i++) same = last[i] === f[i];
+  if (same) return;
+  last = f;
   const st = `${lg.seed}|${lg.season}|${lg.phase}|${lg.day}|${lg.trades?.length ?? 0}|${lg.fa?.stage ?? 0}|${lg.fa?.log.length ?? 0}`;
   if (st !== stamp) { stamp = st; vCache.clear(); pCache.clear(); rankCache = null; }
 }
@@ -285,6 +292,16 @@ function erf(x: number) {
 
 export function pickValue(lg: League, p: { season: number; round: number; orig: string }, strategy: Horizon, moneyW = 0.45, t?: Team) {
   if (t) { const w = draftPickWorth(lg, p, t, strategy, moneyW); if (w !== null) return w; }
+  fresh(lg);
+  if (pkStamp !== stamp) { pkStamp = stamp; pkCache.clear(); }
+  const d = lg.draftDay, key = `${p.season}-${p.round}-${p.orig}|${strategy}|${moneyW}|${lg.draftClass?.year}|${lg.draftClass?.pool.length ?? 0}|${d ? `${d.year}${d.done}${d.order.length}` : ''}`;
+  let v = pkCache.get(key);
+  if (v === undefined) { v = pickValueRaw(lg, p, strategy, moneyW); pkCache.set(key, v); }
+  return v;
+}
+const pkCache = new Map<string, number>();
+let pkStamp = '';
+function pickValueRaw(lg: League, p: { season: number; round: number; orig: string }, strategy: Horizon, moneyW: number) {
   const years = Math.max(0, p.season - lg.season);
   const slot = Math.max(1, Math.round(expectedSlot(lg, p)));
   // future picks: further away, less certain, and not helping now
@@ -348,7 +365,7 @@ function teamValue(lg: League, t: Team, side: Side, moneyW: number) {
   const needW = h === 'allin' ? 0.7 : h === 'contend' ? 0.5 : h === 'tank' ? 0.1 : 0.3;
   v -= missing * needW * fifth;
   // roles that fit together (shooters around a creator, a rim protector, answers on defence) beat a pile of the same pieces
-  if (GMFIT.on) v += needW * 1.2 * fifth * rosterFit(ps.map(x => x.p).sort((a, b) => bpmOf(b.z) - bpmOf(a.z)));
+  if (GMFIT.on) v += needW * 1.2 * fifth * fitOf(ps.map(x => x.p));
   for (const pk of side.picks) v += pickValue(lg, pk, h, moneyW, t);
   for (const r of side.rights ?? []) v += (r.role === 'holder' ? 1 : -1) * rightValue(lg, r, h, moneyW);
   // tanking: a weaker roster this season moves the own pick up the lottery
@@ -356,12 +373,50 @@ function teamValue(lg: League, t: Team, side: Side, moneyW: number) {
     const own = side.picks.find(pk => pk.orig === t.tid && pk.round === 1 && pk.season === lg.season && (lg.phase === 'regular' || lg.phase === 'freeagency'));
     if (own) {
       const strength = ps.slice(0, 8).reduce((a, x, i) => a + bpmOf(x.p.z) * [36, 34, 32, 30, 28, 24, 20, 16][i], 0) / 240 * 5;
-      const others = Object.values(lg.teams).filter(x => x.active && x.tid !== t.tid).map(x => teamStrength(lg, x.tid));
+      const others = Object.values(lg.teams).filter(x => x.active && x.tid !== t.tid).map(x => strengthNow(lg, x));
       const slot = 1 + others.filter(s => s < strength).length;
       v += prospectValue(slot, h, moneyW) - pickValue(lg, own, h, moneyW);
     }
   }
   return v;
+}
+
+/** A team's value as it stands (the "before" of every trade it looks at): the same roster, picks and money weight
+ *  give the same number, so it is worked out once per day instead of once per proposal. Speed only. */
+const baseCache = new Map<string, number>();
+const topCache = new Map<string, string[]>();
+let baseStamp = '';
+function baseValue(lg: League, t: Team, side: Side, moneyW: number) {
+  fresh(lg);
+  if (baseStamp !== stamp) { baseStamp = stamp; baseCache.clear(); topCache.clear(); }
+  const k = `${t.tid}|${moneyW}|${t.mode}|${t.strategy}|${lg.capGrace}|${(lg.dead ?? []).length}|${lg.draftClass?.pool.length ?? 0}|${side.players.map(p => p.id).join(',')}|${side.picks.map(pkKey).join(',')}|${(side.rights ?? []).map(r => r.season + r.kind + r.a + r.b + r.role).join(',')}`;
+  let v = baseCache.get(k);
+  if (v === undefined) { v = teamValue(lg, t, side, moneyW); baseCache.set(k, v); }
+  return v;
+}
+
+/** rosterFit of a roster in box-score order, remembered for the day by who is on it (speed only: the same players
+ *  give the same number; ratings do not change within a day). */
+const fitCache = new Map<string, number>();
+let fitStamp = '';
+function fitOf(players: Player[]) {
+  if (fitStamp !== stamp) { fitStamp = stamp; fitCache.clear(); }
+  const b = players.map(p => ({ p, b: bpmOf(p.z) })).sort((x, y) => y.b - x.b).map(x => x.p);
+  const k = b.map(p => p.id).join(',');
+  let v = fitCache.get(k);
+  if (v === undefined) { v = rosterFit(b); fitCache.set(k, v); if (fitCache.size > 20000) fitCache.clear(); }
+  return v;
+}
+
+/** teamStrength, remembered while the roster and the day stay the same (speed only). */
+const strCache = new Map<string, { r: string; v: number }>();
+let strStamp = '';
+function strengthNow(lg: League, t: Team) {
+  fresh(lg);
+  if (strStamp !== stamp) { strStamp = stamp; strCache.clear(); }
+  const r = t.roster.join(','), c = strCache.get(t.tid);
+  if (c && c.r === r) return c.v;
+  const v = teamStrength(lg, t.tid); strCache.set(t.tid, { r, v }); return v;
 }
 
 function sideOf(lg: League, tid: string): Side {
@@ -449,7 +504,11 @@ function coreReluctance(lg: League, tid: string, out: Player[]) {
   if (!out.length) return 0;
   const t = lg.teams[tid];
   const h = horizonOf(t);
-  const top = t.roster.map(pid => lg.players[pid]).filter(p => (p as any).treq?.tid !== tid).sort((x, y) => pv(lg, y, h, tid) - pv(lg, x, h, tid)).slice(0, 3).map(p => p.id);
+  fresh(lg);
+  if (baseStamp !== stamp) { baseStamp = stamp; baseCache.clear(); topCache.clear(); }
+  const tk = `top|${tid}|${h}|${t.roster.join(',')}`;
+  let top = topCache.get(tk);
+  if (!top) { top = t.roster.map(pid => lg.players[pid]).filter(p => (p as any).treq?.tid !== tid).sort((x, y) => pv(lg, y, h, tid) - pv(lg, x, h, tid)).slice(0, 3).map(p => p.id); topCache.set(tk, top); if (topCache.size > 400) topCache.clear(); }
   const share = h === 'allin' || h === 'contend' ? 0.25 : h === 'middle' ? 0.15 : 0.05;
   // the plan's core and young pieces cost more to pry loose than just being among the top three
   const pl = !isHuman(lg, tid) ? planOf(lg, tid) : null;
@@ -472,8 +531,8 @@ export function evaluateTrade(lg: League, a: string, b: string, aGets: TradeAsse
   // money weight from the payroll after the trade (taking on salary over the cap hurts more)
   const wA = Math.max(moneyWeight(lg, a), afterPay(lg, a, inA, inB) > hardCap(lg) - 0.15 ? 0.6 : 0);
   const wB = Math.max(moneyWeight(lg, b), afterPay(lg, b, inB, inA) > hardCap(lg) - 0.15 ? 0.6 : 0);
-  const gainA = teamValue(lg, A, afterA, wA) - teamValue(lg, A, baseA, wA) - coreReluctance(lg, a, inB);
-  const gainB = teamValue(lg, B, afterB, wB) - teamValue(lg, B, baseB, wB) - coreReluctance(lg, b, inA);
+  const gainA = teamValue(lg, A, afterA, wA) - baseValue(lg, A, baseA, wA) - coreReluctance(lg, a, inB);
+  const gainB = teamValue(lg, B, afterB, wB) - baseValue(lg, B, baseB, wB) - coreReluctance(lg, b, inA);
   return { ok: !rule, gainA, gainB, reason: rule ?? undefined };
 }
 

@@ -7,6 +7,7 @@ import { colorsOf } from './art';
 import { Timeline } from './timeline';
 import { REPLAY } from './pixel';
 import { nav } from './nav';
+import { commentary, keyPlays, KeyPlays, ShotChart } from './recap';
 
 const SPEEDS = [[1, '×1'], [2, '×2'], [4, '×4'], [8, '×8'], [24, '×24'], [72, '×72'], [240, '×240']] as const;
 
@@ -81,7 +82,9 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
     return { st, on };
   }, [n, Math.floor(t)]);
 
-  const shots = shown.filter(e => e.x !== undefined).slice(-24);
+  const abbr = { h: home.abbr, a: away.abbr };
+  const line = useMemo(() => commentary(pbp, n, maps.names, abbr), [n]);
+  const plays = useMemo(() => keyPlays(pbp, maps.names, abbr, n), [n]);
   const feed = shown.slice(-40).reverse();
 
   const lead = useMemo(() => {
@@ -135,28 +138,14 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
             <button className="stage-full" title="Full screen" aria-label="Full screen" onClick={() => { const el: any = stage.current; try { if (document.fullscreenElement) document.exitFullscreen(); else el?.requestFullscreen?.(); } catch { /* not available */ } }}>⛶</button>
           </div>
         )}
+        {view !== 'chart' && line && <div className="commentary" aria-live="polite"><span className="cm-mic" aria-hidden="true">🎙</span>{line}</div>}
         <div className="live-grid">
           <div className="live-left">
-            {view !== 'chart' ? null : (
-              <div className="court-wrap">
-                <svg viewBox="-1 -1 52 36" className="court" role="img" aria-label="Shot chart">
-                  <rect x="0" y="0" width="50" height="34" className="floor" />
-                  <path d="M3 0 V14 A23.75 23.75 0 0 0 47 14 V0" className="cline" />
-                  <rect x="17" y="0" width="16" height="19" className="paint" />
-                  <circle cx="25" cy="19" r="6" className="cline" />
-                  <path d="M21 4 A4 4 0 0 0 29 4" className="cline" />
-                  <line x1="22" y1="4" x2="28" y2="4" className="cline" />
-                  <circle cx="25" cy="5.25" r="0.75" className="rim" />
-                  {shots.map((e, i) => {
-                    const made = e.k.startsWith('make');
-                    const cls = `shot ${e.s === 'h' ? 'h' : 'a'} ${made ? 'made' : 'miss'} ${i === shots.length - 1 ? 'latest' : ''}`;
-                    const y = Math.min(33, e.y);
-                    return made ? <circle key={i} cx={e.x} cy={y} r="0.9" className={cls} /> : <g key={i} className={cls}><line x1={e.x - 0.7} y1={y - 0.7} x2={e.x + 0.7} y2={y + 0.7} /><line x1={e.x - 0.7} y1={y + 0.7} x2={e.x + 0.7} y2={y - 0.7} /></g>;
-                  })}
-                </svg>
-                <div className="legend"><span className="k h"></span>{home.abbr} <span className="k a"></span>{away.abbr} · dot – made, cross – missed (last 24 shots)</div>
-              </div>
-            )}
+            {view === 'chart' && <ShotChart shown={shown} names={maps.names} sides={maps.sides} abbr={abbr} done={done} />}
+            <div className="key-box">
+              <h3>Key plays{!done && <span className="dim small-t"> · so far</span>}</h3>
+              <KeyPlays plays={plays} watch={p => { setT(Math.max(0, p.t - 7)); if (view === 'chart') setView('arena'); setSpeed(1); setPlaying(true); stage.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }} />
+            </div>
             <div className="lead">
               <div className="lead-head"><span>{home.abbr} lead ↑</span><span>↓ {away.abbr} lead</span></div>
               <svg viewBox={`0 0 ${LW} ${LH}`} preserveAspectRatio="none" role="img" aria-label="Score margin over the game">

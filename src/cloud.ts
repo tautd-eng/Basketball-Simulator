@@ -3,6 +3,7 @@
 // kept only in this browser).
 import { League } from './types';
 import { saveLeague, newSlotId, setSlot, saveHooks } from './api';
+import { download, inArtifact } from './ui/export';
 
 // ---------------------------------------------------------------- compression
 async function gzip(text: string): Promise<Uint8Array> {
@@ -27,11 +28,9 @@ export async function leagueBlob(lg: League) { return new Blob([await gzip(JSON.
 export const fileName = (lg: League) => `${((lg as any).saveName ?? 'league').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_')}_${lg.season - 1}-${String(lg.season).slice(2)}.nbasave`;
 
 export async function downloadLeague(lg: League) {
-  const url = URL.createObjectURL(await leagueBlob(lg));
-  const a = document.createElement('a');
-  a.href = url; a.download = fileName(lg);
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  // the artifact viewer saves only known file types: there the save is plain JSON (opens the same way)
+  if (inArtifact()) return download(fileName(lg).replace(/\.nbasave$/, '.json'), new Blob([JSON.stringify(lg)], { type: 'application/json' }));
+  return download(fileName(lg), await leagueBlob(lg));
 }
 
 function parseLeague(text: string): League {

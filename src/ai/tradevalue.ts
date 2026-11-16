@@ -139,8 +139,10 @@ function slotPath(slot: number) {
   };
 }
 /** Typical best season (box +/-) over the first five years of a pick at this slot. */
-export function slotPeak(slot: number) { return Math.max(...slotPath(slot).mean); }
+const PEAK = new Map<number, number>();
+export function slotPeak(slot: number) { let v = PEAK.get(slot); if (v === undefined) { v = Math.max(...slotPath(slot).mean); PEAK.set(slot, v); } return v; }
 const PCACHE: Record<string, number> = {};
+const MW = new Map<number, string>();
 
 /**
  * Expected value of the prospect taken at a slot: development from the
@@ -148,7 +150,8 @@ const PCACHE: Record<string, number> = {};
  * on a rookie contract for four years.
  */
 export function prospectValue(slot: number, strategy: Horizon, moneyW: number) {
-  const key = `${slot}|${strategy}|${moneyW.toFixed(2)}`;
+  let mw = MW.get(moneyW); if (mw === undefined) { mw = moneyW.toFixed(2); MW.set(moneyW, mw); }
+  const key = `${slot}|${strategy}|${mw}`;
   if (PCACHE[key] !== undefined) return PCACHE[key];
   const path = slotPath(slot);
   const mean = path.mean;

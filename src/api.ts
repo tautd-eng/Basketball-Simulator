@@ -58,14 +58,16 @@ export async function advance(lg: League, target: Target, onProgress: () => void
     }
   };
   let n = 0;
-  let last = performance.now();
+  let last = performance.now(), shown = last;
   // running through a whole year: the GM handles the user's own free agents (re-signs those worth keeping)
   (lg as any)._auto = target === 'nextSeason' || target === 'years5';
   while (!done()) {
     if (shouldStop()) break;
     if (!stepOnce(lg)) break;
     n++;
-    if (performance.now() - last > 120) { onProgress(); await tick(); last = performance.now(); }
+    // the page stays responsive (a breath every 120 ms), but the whole screen is redrawn only twice a second:
+    // redrawing it after every slice took about as long as the simulation itself
+    if (performance.now() - last > 120) { if (performance.now() - shown > 500) { onProgress(); shown = performance.now(); } await tick(); last = performance.now(); }
   }
   delete (lg as any)._auto;
   onProgress();

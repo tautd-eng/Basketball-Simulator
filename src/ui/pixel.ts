@@ -371,7 +371,7 @@ export class PixelCourt {
   /** Jump to time v: rebuild the scene at the start of its window and play forward quickly. */
   seek(v: number) {
     this.lagOv = null; this.dRing = null; this.tag = null;
-    this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null; this.pendPass = null; this.stillT = 0; this.fbOn = false; this.finalAt = -1;   // the referee starts fresh with the rebuilt scene
+    this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null; this.chasers.clear(); this.pendPass = null; this.stillT = 0; this.fbOn = false; this.finalAt = -1;   // the referee starts fresh with the rebuilt scene
     const tl = this.tl;
     if (!tl || !tl.items.length) { this.v = v; return; }
     v = Math.max(0, Math.min(tl.end + 1, v));
@@ -460,6 +460,9 @@ export class PixelCourt {
     if (this.dbgTele && !this.ff) { const p = this.P(pid), bp = this.ballPos(); if (p && !this.ball.fly && hyp(p.x - bp.x, p.d - bp.d) > 3) this.dbgTele((new Error().stack ?? '') + '\nfly:' + this.flySrc); }
     this.ball.fly = null;
     this.ball.holder = pid;
+    // whoever was sent after the loose ball and did not get it rejoins the play (he does not stand where it lay)
+    for (const c of this.chasers) { const q = this.P(c); if (q && c !== pid && q.beh.k === 'spot') { const sp = this.spot(q.side, this.homeSpots(q.side).get(c) ?? 'lw'); this.go(q, sp.x, sp.d, RUN); } }
+    this.chasers.clear();
     // a star touches the ball: the broadcast shows his line (not too often)
     if (!this.ff && this.arena && this.starOf(pid) > 0 && this.tl) {
       const t = this.tl.items[Math.min(this.cur, this.tl.items.length - 1)]?.e.t ?? 0;
@@ -572,7 +575,39 @@ export class PixelCourt {
     if (hd.ax !== undefined) { hd.ax = hd.tx; hd.ad = hd.td; }
   }
   private guardAll(off: Side) {
-    for (const [o, d] of this.match) { const dp = this.P(d); if (dp && dp.side !== off) dp.beh = { k: 'guard', man: o, tight: 0 }; }
+    const t = this.deny(other(off));
+    for (const [o, d] of this.match) { const dp = this.P(d); if (dp && dp.side !== off) dp.beh = { k: 'guard', man: o, tight: t }; }
+  }
+  /** A team's defensive identity (looks only – the engine decides the plays): how hard it plays the passing lanes,
+   *  from its defenders' hands and a coach's leaning that stays the same all season. 1 = deny every pass a step
+   *  into the lane, −0.6 = pack the paint and give the shooters a closeout. */
+  deny(side: Side) {
+    const on = this.on(side); if (!on.length) return 0;
+    const stl = on.reduce((a, p) => a + this.sk(p.pid, 'stl'), 0) / on.length;
+    const coach = hash01(`${this.tidOf(side)}|${this.o.season ?? 2000}|deny`);
+    return Math.max(-0.6, Math.min(1, (stl - 0.5) * 3 + (coach - 0.5) * 1.6));
+  }
+  /** How the screener's defender plays a pick and roll: drop back to the paint (a slow rim protector, the modern
+   *  default), meet it at the level of the screen, or show high (hedge) and recover (the older game, a quick big). */
+  cover(defPid: string | null | undefined, side: Side): 'drop' | 'level' | 'hedge' {
+    const ath = this.o.looks?.[defPid ?? '']?.ath ?? 0.5, blk = this.sk(defPid, 'blk');
+    const S = this.o.season ?? 2000, coach = hash01(`${this.tidOf(side)}|${S}|cover`);
+    const v = (blk - 0.5) * 1.4 - (ath - 0.5) * 1.6 + (S < 2008 ? -0.45 : 0.2) + (coach - 0.5) * 0.9;
+    return v > 0.15 ? 'drop' : v > -0.25 ? 'level' : 'hedge';
+  }
+  /** A coach's zone: most play the 2-3, some the 1-3-1 (the same all season). */
+  zoneShape(side: Side) { return hash01(`${this.tidOf(side)}|${this.o.season ?? 2000}|zone`) < 0.3 ? '1-3-1' : '2-3'; }
+  tidOf(side: Side) { return side === 'h' ? this.o.home.tid : this.o.away.tid; }
+  private idShown = new Set<string>();
+  /** Once a half, the broadcast names a team's defence. */
+  private sayDefence(def: Side) {
+    const per = this.tl?.items[Math.min(this.cur, this.tl.items.length - 1)]?.e.p ?? 1, k = `${def}|${per <= 2 ? 1 : 2}`;
+    if (this.idShown.has(k) || this.ff) return;
+    this.idShown.add(k);
+    const big = this.on(def).sort((a, b) => this.posN(b.pid) - this.posN(a.pid))[0];
+    const c = this.cover(big?.pid, def), d = this.deny(def);
+    const cv = { drop: 'drop coverage on the pick', level: 'big up to the level of the screen', hedge: 'bigs hedge hard on the pick' }[c];
+    this.call(def, `${this.abbr(def)} D: ${cv} · ${d > 0.35 ? 'denying the passing lanes' : d < -0.2 ? 'packing the paint' : 'solid man-to-man'}`);
   }
   /**
    * Keeps the picture honest between the scripted moments: a ball left on the floor gets picked up by the
@@ -591,7 +626,7 @@ export class PixelCourt {
         const p = this.on(side).sort((a, c) => hyp(a.x - b.x, a.d - b.d) - hyp(c.x - b.x, c.d - b.d))[0];
         if (p) {
           if (hyp(p.x - b.x, p.d - b.d) < 1.6) { this.give(p.pid); this.looseT = 0; }
-          else { p.beh = { k: 'spot' }; this.go(p, b.x, b.d, RUN); }
+          else { p.beh = { k: 'spot' }; this.go(p, b.x, b.d, RUN); this.chasers.add(p.pid); }
         }
       }
     } else this.looseT = 0;
@@ -724,6 +759,7 @@ export class PixelCourt {
   private outUntil = new Map<string, number>();
   private crossed: Side | null = null;
   inbPid: string | null = null;
+  chasers = new Set<string>();
   private backT = 0; private backSide: Side | null = null;
   curSet = '';
   private inspT = new Map<string, number>();
@@ -843,7 +879,7 @@ export class PixelCourt {
         if (p.leaving || p.pt > 0 || p === holder || p.five) continue;
         const wrong = (p.x - 47) * s2 < -14;
         if (!wrong) continue;
-        if ((p.tx - 47) * s2 < 4 && p.beh.k === 'spot') { p.tx = 47 + s2 * (p.side === holder.side ? 22 : 30); p.ax = p.tx; }
+        if ((p.tx - 47) * s2 < 4 && p.beh.k === 'spot') { p.tx = 47 + s2 * (p.side === holder.side ? 22 : 30); p.ax = p.tx; p.spd = Math.max(p.spd, RUN); }
         if (p.spd < SPRINT) { this.flag('late', p, `${p.side === holder.side ? 'off' : 'def'} x=${p.x.toFixed(0)} t=${p.tx.toFixed(0)} spd=${p.spd.toFixed(0)} into=${(this.v - it.a).toFixed(1)} v=${hyp(p.vx, p.vd).toFixed(1)} mul=${p.mul} stun=${(p.stun ?? 0).toFixed(1)}`); p.spd = SPRINT; }
       }
     }
@@ -912,7 +948,7 @@ export class PixelCourt {
           let f = 0.1 + 0.2 * Math.min(1, db / 28) + (ballRim < 12 ? 0.08 : 0) + (bigMan ? 0.06 : 0) - b.tight * 0.12 + (this.pre() ? -0.04 : (this.lagF(p.pid) - 1) * 0.1);
           if (dist > 50) f = 6 / dist;
           let tx = man.x + dx * f, td = man.d + dd * f;
-          const w = db > 18 ? 0.12 : 0.05;
+          const w = (db > 18 ? 0.12 : 0.05) + (this.pre() && db < 22 ? Math.max(0, b.tight) * 0.1 : 0);   // a denying team steps into the passing lane one pass away
           tx += (bp.x - tx) * w; td += (bp.d - td) * w;
           // never more than a long closeout away from his man (a big's man may be given a little more room)
           const gapMax = this.pre() ? (bigMan ? 8 : 5.5) : bigMan ? 10 : 7.5, gp = hyp(tx - man.x, td - man.d);
@@ -920,13 +956,15 @@ export class PixelCourt {
           // nobody guards a man 40 feet from the basket: the defence gets back and builds its wall first
           const fromB = hyp(tx - B.x, td - B.d), lim = this.v < this.pressUntil ? 90 : this.pre() ? 28 : 23; // pressing: pick up full court; in the half court shooters are guarded out past the arc
           if (fromB > lim) { tx = B.x + (tx - B.x) * lim / fromB; td = B.d + (td - B.d) * lim / fromB; }
-          p.tx = tx; p.td = td; p.spd = hyp(tx - p.x, td - p.d) > 12 ? SPRINT : RUN;
+          p.tx = tx; p.td = td; p.spd = hyp(tx - p.x, td - p.d) > (this.pre() ? 6 : 12) ? SPRINT : RUN;   // in the half court a man left behind sprints back to his man
         }
       } else if (b.k === 'zone') {
         // 2-3 zone: two up top, two on the wings/baseline, the centre in the middle; the whole shape shifts with
         // the ball and whoever's area the ball is in steps up to it
         const off = other(p.side), B = this.basket(off), s2 = this.dir(off);
-        const SL: [number, number][] = [[19, 17], [19, 33], [7, 8], [7, 42], [4.5, 25]];
+        // the team's zone: a 2-3 (two up top, three across the back) or a 1-3-1 (a guard at the point, a quick
+        // guard roaming the baseline, the forwards on the wings, the centre at the high post)
+        const SL: [number, number][] = this.zoneShape(p.side) === '1-3-1' ? [[23, 25], [5, 25], [13, 9], [13, 41], [14.5, 25]] : [[19, 17], [19, 33], [7, 8], [7, 42], [4.5, 25]];
         const [rel, dd0] = SL[b.slot % 5];
         let tx = B.x - s2 * rel, td = dd0;
         tx += (bp.x - tx) * 0.22; td += (bp.d - td) * 0.3;
@@ -1419,8 +1457,9 @@ export class PixelCourt {
       });
       add(tC, () => { this.pressUntil = -1; this.matchUp(off); this.guardAll(off); });
     }
-    if (scheme === 'zone' && !fb) add(Math.max(0.3, tC - 0.8 * sc), () => { this.setZone(def); this.call(def, `${this.abbr(def)} in a 2-3 zone`); });
+    if (scheme === 'zone' && !fb) add(Math.max(0.3, tC - 0.8 * sc), () => { this.setZone(def); this.call(def, `${this.abbr(def)} in a ${this.zoneShape(def)} zone`); });
     else if (scheme === 'switch' && !fb) add(Math.max(0.3, tC - 0.5 * sc), () => { if (r() < 0.18) this.call(def, `${this.abbr(def)} switching everything`); });
+    else if (scheme === 'man' && !fb) add(Math.max(0.3, tC - 0.5 * sc), () => this.sayDefence(def));
     // --- phase A: the ball comes in
     add(0, () => {
       if (h.how !== 'orb' && h.how !== 'steal') this.matchUp(off);
@@ -1497,6 +1536,8 @@ export class PixelCourt {
       if (f) this.go(f, topX, 25 + (r() - 0.5) * 8, bSpd / sc);
       if (inb) { const q = this.spot(off, 're', 3, r); this.go(inb, q.x, q.d, RUN / sc); }
     });
+    // no bring-up phase (a quick inbound into the front court): the inbounder still follows the play up the floor
+    else if (inb) add(Math.max(0.2, tB + 0.1), () => { const q = this.spot(off, 're', 3, r); if (this.ball.holder !== inb.pid) this.go(inb, q.x, q.d, RUN / sc); });
     // --- phase C: ball movement while the shot clock runs
     let vh: string | null = first ?? holder;
     let t = tC;
@@ -1746,7 +1787,12 @@ export class PixelCourt {
           if (dh && hnd) dh.beh = { k: 'follow', pid: hnd.pid, dx: -s * 2.6, dd: hnd.d < 25 ? -1 : 1 };
           // the big's coverage: show (hedge) on the ball in the older game, drop to the paint in the modern one
           const da = this.defOf(actor);
-          if (da && a && hnd && this.scheme !== 'switch') { if ((this.o.season ?? 2000) < 2008) { this.go(da, hnd.x - s * 1.5, hnd.d, SPRINT / c); this.setPose(da, 'stance', 0.5); } else this.go(da, B.x - s * 9, 25 + (hnd.d - 25) * 0.3, RUN / c); }
+          if (da && a && hnd && this.scheme !== 'switch') {
+            const cv = this.cover(da.pid, def);
+            if (cv === 'hedge') { this.go(da, hnd.x - s * 1.5, hnd.d, SPRINT / c); this.setPose(da, 'stance', 0.5); }
+            else if (cv === 'level') { this.go(da, hnd.x + s * 2.5, hnd.d + (hnd.d < 25 ? 2 : -2), RUN / c); this.setPose(da, 'stance', 0.4); }
+            else this.go(da, B.x - s * 9, 25 + (hnd.d - 25) * 0.3, RUN / c);
+          }
         });
         add(T(1.4), () => {
           const a = A(); this.go(a, S.x, S.d, (type === 'roll' ? RUN : JOG) / c);
@@ -1774,10 +1820,11 @@ export class PixelCourt {
           if (this.scheme === 'switch') { this.switchOn(actor, screener); return; }
           const da = DA(); if (da) da.beh = { k: 'follow', pid: a.pid, dx: -s * 2.4, dd: a.d < 25 ? -1 : 1 };
           const dx = this.defOf(screener);
-          if (dx) { if ((this.o.season ?? 2000) < 2008) { this.go(dx, a.x + s * 2, a.d, SPRINT / c); dx.next = undefined; } else this.go(dx, B.x - s * 9, 25, RUN / c); }
+          const cv = this.cover(dx?.pid, def);
+          if (dx) { if (cv === 'hedge') { this.go(dx, a.x + s * 2, a.d, SPRINT / c); dx.next = undefined; } else if (cv === 'level') this.go(dx, a.x + s * 4, a.d + (a.d < 25 ? 2 : -2), RUN / c); else this.go(dx, B.x - s * 9, 25, RUN / c); }
         });
-        // the hedging big recovers to his man
-        if ((this.o.season ?? 2000) < 2008) add(T(1.45), () => { const dx = this.defOf(screener); if (dx && screener && this.scheme !== 'switch') dx.beh = { k: 'guard', man: screener, tight: 0 }; });
+        // the hedging (or level) big recovers to his man
+        add(T(1.45), () => { const dx = this.defOf(screener); if (dx && screener && this.scheme !== 'switch' && this.cover(dx.pid, def) !== 'drop') dx.beh = { k: 'guard', man: screener, tight: 0 }; });
         if (type === 'pnrDrive') add(T(1.9), () => this.helpSide(off, actor, helper));
         break;
       }

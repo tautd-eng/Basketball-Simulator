@@ -47,12 +47,24 @@ export function toXlsx(rows: Cell[][], sheet = 'Sheet1') {
   ]);
 }
 
-export function download(name: string, blob: Blob) {
+/** Saves a file for the user. Inside the Claude artifact viewer a page may not download by itself, so there it goes
+ *  through the viewer's own save prompt; everywhere else it is an ordinary browser download. */
+export async function download(name: string, blob: Blob): Promise<void> {
+  const c: any = (globalThis as any).claude;
+  if (c?.use) {
+    const dl = await c.use('downloads').catch(() => null);
+    if (dl) {
+      try { await dl.save({ filename: name, data: blob }); return; }
+      catch (e: any) { if (e?.code === 'declined') throw new Error('Saving was cancelled.'); if (e?.code === 'rate_limited') throw new Error('A save prompt is already open – answer it first.'); }
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+/** The artifact viewer accepts only common extensions (not .nbasave). */
+export const inArtifact = () => !!(globalThis as any).claude?.use;
 
 /** What a table shows, read from the page (for tables without a registered exporter). */
 function domRows(t: HTMLTableElement): Cell[][] {
@@ -93,7 +105,7 @@ export function installTableExport() {
     if (!k || !cur) return;
     const rows = exporters.get(cur)?.() ?? domRows(cur);
     const name = titleOf(cur);
-    if (k === 'csv') download(`${name}.csv`, new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
-    else download(`${name}.xlsx`, toXlsx(rows, name));
+    if (k === 'csv') download(`${name}.csv`, new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' })).catch(() => {});
+    else download(`${name}.xlsx`, toXlsx(rows, name)).catch(() => {});
   });
 }

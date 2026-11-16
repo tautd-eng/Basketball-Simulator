@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { download } from './export';
 // Team management – only for the user's team: the rotation (automatic, with how deep and how much the young
 // play, or minutes by hand), the tactical set-up, and contract extensions.
 import { htDiff } from './units';
@@ -130,10 +131,7 @@ function SheetImport({ lg, onChange }: any) {
   const template = () => {
     const tids = humans(lg);
     const csv = rotationTemplate(lg, tids, (tid: string) => rotationPreview(lg, tid, lg.teams[tid].mgmt ?? { mode: 'auto', depth: 10, youth: 0, minutes: {} }));
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
-    a.download = `rotation-${lg.teams[lg.userTid].abbr}-${lg.season}.csv`;
-    a.click();
+    download(`rotation-${lg.teams[lg.userTid].abbr}-${lg.season}.csv`, new Blob(['\uFEFF' + csv], { type: 'text/csv' })).catch((e: any) => setErr(e.message));
   };
   const imported = Object.values(lg.teams).filter((t: any) => t.mgmt?.imported && !isHuman(lg, t.tid)) as any[];
   return (
