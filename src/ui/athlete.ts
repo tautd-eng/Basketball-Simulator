@@ -99,6 +99,18 @@ function vchain(ctx: Ctx, p: [number, number, number][], c: string, lit = 1) {
   };
   seg(0); seg(1); if (lit > 0 && p[0][2] > 5) seg(2);   // (the highlight only where it can be seen)
 }
+/** A tapered panel with square ends (cloth: shorts legs), shaded like a limb. */
+function vquad(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number, c: string, lit = 1) {
+  const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1e-6;
+  let nx = -dy / l, ny = dx / l;
+  if (nx * 0.8 + ny * 0.6 < 0) { nx = -nx; ny = -ny; }
+  const q = (k0: number, k1: number, off: number, col: string) => {
+    const ox0 = -nx * w0 * off, oy0 = -ny * w0 * off, ox1 = -nx * w1 * off, oy1 = -ny * w1 * off;
+    poly(ctx, [[x0 + ox0 + nx * w0 * k0 / 2, y0 + oy0 + ny * w0 * k0 / 2], [x1 + ox1 + nx * w1 * k1 / 2, y1 + oy1 + ny * w1 * k1 / 2], [x1 + ox1 - nx * w1 * k1 / 2, y1 + oy1 - ny * w1 * k1 / 2], [x0 + ox0 - nx * w0 * k0 / 2, y0 + oy0 - ny * w0 * k0 / 2]], col);
+  };
+  q(1, 1, 0, FLAT ? c : shade(c, 0.78));
+  if (!FLAT) { q(0.72, 0.72, 0.14, c); if (lit) q(0.16, 0.16, 0.32, shade(c, 1.1)); }
+}
 /** filled polygon */
 function poly(ctx: Ctx, pts: [number, number][], c: string) {
   ctx.fillStyle = c;
@@ -431,6 +443,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const x0 = side ? Math.min(heel, toe) : L.an.x - 2.9 * u, w0 = side ? Math.abs(toe - heel) + 0.5 * u : 5.8 * u;
     rect(ctx, x0, fy - 1.5 * u, w0, 1.5 * u, back ? '#8e8e8e' : b.sole ?? (shoe === '#f4f4f4' ? '#d6d6d6' : '#ececec'));
     if (!back) rect(ctx, x0, fy - 1.5 * u, w0, 0.45 * u, shade(shoe, 0.7));   // the line where the upper meets the sole
+    if (!back && side) limb(ctx, heel, L.an.y - 1 * u - hiT, L.an.x + 2 * u * f, L.an.y - 1.2 * u - hiT * 0.7, 0.6 * u, 0.6 * u, shade(shoe, 0.72));   // the collar
     if (!back && side) {
       limb(ctx, L.an.x + 0.4 * u * f, L.an.y - 0.6 * u, L.an.x + 2.6 * u * f, fy - 2.2 * u, 0.6 * u, 0.6 * u, shade(shoe, 0.6));
       limb(ctx, heel + 1.2 * u * f, fy - 2.2 * u, toe - 1.6 * u * f, fy - 1.6 * u, 0.9 * u, 0.9 * u, b.shoe2 ?? (shoe === '#f4f4f4' ? k.trim : '#f4f4f4'));
@@ -440,15 +453,17 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const t = o.shorts;
     const ex = L.h.x + (L.kn.x - L.h.x) * t, ey = L.h.y + (L.kn.y - L.h.y) * t;
     const col = back ? shade(k.shorts, 0.82) : k.shorts;
-    const w1 = (8.8 + 2.2 * t) * u * lw;
-    if (back || o.suit) limb(ctx, L.h.x, L.h.y - 1 * u, ex, ey, 9.6 * u * lw, w1, col);
-    else vchain(ctx, [[L.h.x, L.h.y - 1 * u, 9.6 * u * lw], [ex, ey, w1]], col, 0);
+    const w1 = (9.2 + 1.6 * t) * u * lw;
+    // a leg of the shorts: square at the hem, a little flare, not a sack
+    if (o.suit) limb(ctx, L.h.x, L.h.y - 1 * u, ex, ey, 9.6 * u * lw, w1, col);
+    else { vquad(ctx, L.h.x, L.h.y - 2.2 * u, ex, ey, 10.2 * u * lw, w1, col, back ? 0 : 1); }
     if (o.suit) { limb(ctx, L.h.x, L.h.y, L.kn.x, L.kn.y, 6.4 * u * lw, 5.6 * u * lw, col); limb(ctx, L.kn.x, L.kn.y, L.an.x, L.an.y + 1.4 * u, 5.6 * u * lw, 5.2 * u * lw, col); return; }
     if (!back) {
       // side stripe, hem and a fold
       const ox = (side ? -f : (L === LA ? 1 : -1)) * w1 * 0.36;
       limb(ctx, L.h.x + ox, L.h.y, ex + ox, ey - 0.6 * u, 1.5 * u, 1.5 * u, k.trim);
-      limb(ctx, ex - w1 * 0.45, ey + 0.3 * u, ex + w1 * 0.45, ey + 0.3 * u, 1 * u, 1 * u, shade(k.shorts, 0.75));
+      { const dl = Math.hypot(ex - L.h.x, ey - L.h.y) || 1, nx = -(ey - L.h.y) / dl, ny = (ex - L.h.x) / dl, bx = (ex - L.h.x) / dl, by = (ey - L.h.y) / dl;
+        limb(ctx, ex + nx * w1 * 0.46 - bx * 0.6 * u, ey + ny * w1 * 0.46 - by * 0.6 * u, ex - nx * w1 * 0.46 - bx * 0.6 * u, ey - ny * w1 * 0.46 - by * 0.6 * u, 0.9 * u, 0.9 * u, shade(k.shorts, 0.72)); }   // the hem
       limb(ctx, L.h.x - ox * 0.4, L.h.y + 3 * u, ex - ox * 0.3, ey - 1.5 * u, 0.7 * u, 0.7 * u, shade(k.shorts, 0.86));
     }
   };
@@ -492,8 +507,14 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   const drawTorso = () => {
     const s1 = shoulder(1), s2 = shoulder(-1);
     const lit = side ? (f > 0 ? s2 : s1) : (s1.x < s2.x ? s1 : s2);
-    oval(ctx, s1.x, s1.y + 1 * u, 3.8 * u * lw, 3.6 * u, s1 === lit ? skinL : skinD);
-    oval(ctx, s2.x, s2.y + 1 * u, 3.8 * u * lw, 3.6 * u, s2 === lit ? skinL : skinD);
+    // the trapezius sloping from the neck to the shoulders, then the deltoids (the jersey straps sit on them)
+    if (view !== 'back' || true) for (const S0 of [s1, s2]) {
+      const dir = Math.sign(S0.x - sh.x) || 1;
+      poly(ctx, [[sh.x + dir * 2.2 * u, sh.y - 3.4 * u], [S0.x - dir * 0.5 * u, S0.y - 1.3 * u], [S0.x, S0.y + 1.2 * u], [sh.x, sh.y + 1.2 * u]], S0 === lit ? skin : skinD);
+    }
+    oval(ctx, s1.x, s1.y + 0.9 * u, 3.1 * u * lw, 3.2 * u, s1 === lit ? skin : skinD);
+    oval(ctx, s2.x, s2.y + 0.9 * u, 3.1 * u * lw, 3.2 * u, s2 === lit ? skin : skinD);
+    if (!FLAT) { const L0 = lit; oval(ctx, L0.x - 0.6 * u, L0.y, 1.6 * u, 1.3 * u, skinL); }
     const wl = { x: hipC.x - hipW / 2, y: hipC.y - 1 * u }, wr = { x: hipC.x + hipW / 2, y: hipC.y - 1 * u };
     const tl = { x: sh.x - shW / 2 + 3 * u, y: sh.y - 0.5 * u }, tr = { x: sh.x + shW / 2 - 3 * u, y: sh.y - 0.5 * u };
     const al = { x: sh.x - shW / 2 + 1.2 * u, y: sh.y + 7.5 * u }, ar = { x: sh.x + shW / 2 - 1.2 * u, y: sh.y + 7.5 * u };
