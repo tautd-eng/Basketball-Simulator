@@ -557,7 +557,7 @@ export class PixelCourt {
     this.stillT += h;
     if (this.stillT < 1.1) return;
     // he has held it for a second: jab, a dribble at his man, or a re-set – a live ball is never a statue
-    this.stillT = 0; this.flag('hold', hd);
+    this.stillT = 0; this.flag('hold', hd, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} rel=${(this.relAt - this.v).toFixed(1)} actor=${this.relBy === hd.pid}`);
     const B = this.basket(hd.side), dx = B.x - hd.x, dd = B.d - hd.d, l = hyp(dx, dd) || 1;
     const u = hash01(hd.pid + '|' + Math.floor(this.v * 2)), side = u < 0.5 ? 1 : -1;
     const step = this.pre() ? 1 + u * 1.5 : 2.5 + u * 3;
@@ -2138,6 +2138,13 @@ export class PixelCourt {
     add(release - up, () => {
       const a = A(); if (!a) return;
       if (this.ball.holder !== actor && !this.ball.fly && !oop) this.getBall(actor);
+      // he rises facing the rim (coming off a screen he squares up first)
+      if (motion !== 'fade' && motion !== 'hook' && Math.abs(B.x - a.x) > 1) a.face = Math.sign(B.x - a.x) || a.face;
+      // a three is a three: if he is still a step inside the arc (late on the break), he takes the step back behind it
+      if (three) {
+        const fr = hyp(a.x - B.x, a.d - B.d), corner = Math.abs(a.d - 25) > 22 && Math.abs(a.x - B.x) < 14, arc = (corner ? 22 : 23.75) + 0.4;
+        if (fr < arc && fr > arc - 6) { const ux = (a.x - B.x) / (fr || 1), ud = (a.d - B.d) / (fr || 1); a.x = B.x + ux * arc; a.d = Math.max(0.6, Math.min(WID - 0.6, B.d + ud * arc)); a.tx = a.x; a.td = a.d; }
+      }
       this.label = { pid: a.pid, t: 1.6 }; this.hl = { pid: a.pid, t: 1.6 };
       switch (motion) {
         case 'dunk': {
