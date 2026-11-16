@@ -61,7 +61,7 @@ type Beh =
   | { k: 'follow'; pid: string; dx: number; dd: number }
   | { k: 'box'; man: string }
   | { k: 'mark'; pid: string; dist: number }
-  | { k: 'arrive'; x: number; d: number; at: number }  // get to a spot by a deadline (broadcast time)
+  | { k: 'arrive'; carry?: { x: number; d: number }; x: number; d: number; at: number }  // get to a spot by a deadline (broadcast time)
   | { k: 'zone'; slot: number; side: Side };           // 2-3 zone: guards a part of the floor, not a man
 interface PSprite {
   pid: string; side: Side; x: number; d: number; vx: number; vd: number; tx: number; td: number;
@@ -499,7 +499,9 @@ export class PixelCourt {
     const b = this.ball;
     const from = this.P(b.holder);
     const ha = this.arena && from && this.heldAt?.pid === from.pid && this.v - this.heldAt.v < 0.2 ? this.heldAt : null;
-    const x0 = ha ? ha.x : from ? from.x + from.face * 0.8 : b.x, d0 = from ? from.d + 0.4 : b.d, z0 = ha ? ha.z : from ? Math.max(5, b.z) : b.z;
+    const x0 = ha ? ha.x : from ? from.x + from.face * 0.8 : b.x, d0 = from ? from.d + 0.4 : b.d;
+    // in the air the ball leaves from his raised hands (a layup goes up over the rim, not up through the net)
+    const z0 = Math.max(ha ? ha.z : from ? Math.max(5, b.z) : b.z, from && from.z > 0.6 ? 7.6 + from.z : 0);
     if (!from && !b.fly && to && hyp(b.x - x1, b.d - d1) > 30) this.flag('flyLoose', this.P(to) ?? null, `${hyp(b.x - x1, b.d - d1).toFixed(0)} ft from a loose ball`);
     b.holder = null;
     b.fly = { x0, d0, z0, x1, d1, z1, peak, t: 0, dur, done, to };
@@ -777,7 +779,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -948,9 +950,12 @@ export class PixelCourt {
         continue;
       }
       if (b.k === 'arrive') {
-        const dist = hyp(b.x - p.x, b.d - p.d), left = b.at - this.v;
+        let dist = hyp(b.x - p.x, b.d - p.d); const left = b.at - this.v;
+        // a driver who is there early keeps going (at a jog, toward the rim) – he does not stop and wait
+        if (b.carry && dist < 1.4 && left > 0.04) { b.x = b.carry.x; b.d = b.carry.d; b.carry = undefined; b.at = this.v + Math.max(0.3, hyp(b.x - p.x, b.d - p.d) / JOG); dist = hyp(b.x - p.x, b.d - p.d); }
         p.tx = b.x; p.td = b.d;
-        p.spd = Math.max(3, Math.min(SPRINT * 1.3, dist / Math.max(0.12, left) * 1.25));   // (no floor at a jog: arriving early meant standing there)
+        // (a shooter dribbles hard into his pull-up – at least a jog; a driver's run to the rim is timed exactly)
+        p.spd = Math.max(b.carry ? 3 : JOG, Math.min(SPRINT * 1.3, dist / Math.max(0.12, left) * 1.25));
         if (left <= 0) p.beh = { k: 'spot' };
         continue;
       }
@@ -1157,6 +1162,8 @@ export class PixelCourt {
       const lin = f.z0 + (f.z1 - f.z0) * u;
       if (f.bounce) b.z = u < 0.62 ? f.z0 * (1 - u / 0.62) : f.z1 * (u - 0.62) / 0.38;
       else b.z = lin + 4 * (Math.max(f.peak, f.z0, f.z1) - Math.max(f.z0, f.z1)) * u * (1 - u);
+      // a ball rising up through the net (from under the rim) is wrong
+      if (!this.ff && u < 0.6) for (const sd of ['h', 'a'] as Side[]) { const B = this.basket(sd); if (hyp(b.x - B.x, b.d - B.d) < 0.85 && b.z > 6.5 && b.z < 9.9 && (f.z1 >= 9.5)) { this.flag('thruNet', this.P(this.relBy), `z=${b.z.toFixed(1)} u=${u.toFixed(2)} from=${hyp(f.x0 - B.x, f.d0 - B.d).toFixed(1)}ft z0=${f.z0.toFixed(1)}`); break; } }
       if (f.peak >= 11 && !this.ff) { const pp = this.proj(b.x, b.d, b.z); this.trail.push({ x: pp.x, y: pp.y, t: 0 }); }
       if (u >= 1) { b.fly = null; if (this.dbgTele) this.flySrc = (f as any).src ?? 'raw'; f.done?.(); this.flySrc = ''; }
     } else if (b.holder) {
@@ -2171,13 +2178,14 @@ export class PixelCourt {
     // an attack on the rim is timed to the take-off, a few steps out (not to a stop under the basket): the driver keeps
     // going and leaves his feet in stride
     const attack = (motion === 'layup' || motion === 'dunk') && type !== 'putback' && type !== 'tip';
-    const due = sb ? Math.max(0.3, release - 0.8) : attack ? release : gatherAt;
-    const gatherSpot = (a: PSprite) => { const dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1, r0 = motion === 'dunk' ? 5.5 : 6.5; void r0; return { x: B.x + dx / l * 1.0, d: Math.max(1, Math.min(49, B.d + dd / l * 1.0)) }; };   // he runs at the rim; the take-off comes a few steps out
+    const due = sb ? Math.max(0.3, release - 0.8) : attack ? release - (motion === 'dunk' ? 0.5 : 0.45) : gatherAt;   // a driver: at his take-off spot when he leaves his feet
+    const gatherSpot = (a: PSprite) => { const dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1, r0 = motion === 'dunk' ? 5.5 : 6.5; return l <= r0 ? { x: a.x, d: a.d } : { x: B.x + dx / l * r0, d: Math.max(1, Math.min(49, B.d + dd / l * r0)) }; };   // the take-off spot, a few steps out from the rim
     const P0at = (a: PSprite) => (attack ? gatherSpot(a) : P0);
+    const carryOf = (a: PSprite) => { const dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1; return { x: B.x + dx / l * 3.2, d: Math.max(1, Math.min(49, B.d + dd / l * 3.2)) }; };
     // far away (just got the ball back at the other end): head there right from the start
     // behind schedule at any point (he is still at the other end): he heads for his spot right away
-    for (let t0 = 0; t0 < due - 1.9; t0 += 1.2) { const tt = t0; add(tt, () => { const a = A(); if (!a) return; const Q = P0at(a); if (a.beh.k !== 'arrive' && hyp(a.x - Q.x, a.d - Q.d) / (RUN * 0.9) > due - tt - 1.6) a.beh = { k: 'arrive', x: Q.x, d: Q.d, at: abs(due) }; }); }
-    for (const lead of type === 'fb' ? [3.2, 1.9, 0.9] : (type === 'kickdrive' || type === 'double' || type === 'blitz') && rim ? [0.7] : [1.9, 0.9]) add(Math.max(0, due - lead), () => { const a = A(); if (!a) return; const Q = P0at(a); if (hyp(a.x - Q.x, a.d - Q.d) > 0.5) a.beh = { k: 'arrive', x: Q.x, d: Q.d, at: abs(due) }; });
+    for (let t0 = 0; t0 < due - 1.9; t0 += 1.2) { const tt = t0; add(tt, () => { const a = A(); if (!a) return; const Q = P0at(a); if (a.beh.k !== 'arrive' && hyp(a.x - Q.x, a.d - Q.d) / (RUN * 0.9) > due - tt - 1.6) a.beh = { k: 'arrive', x: Q.x, d: Q.d, at: abs(due), carry: attack ? carryOf(a) : undefined }; }); }
+    for (const lead of type === 'fb' ? [3.2, 1.9, 0.9] : (type === 'kickdrive' || type === 'double' || type === 'blitz') && rim ? [0.7] : [1.9, 0.9]) add(Math.max(0, due - lead), () => { const a = A(); if (!a) return; const Q = P0at(a); if (hyp(a.x - Q.x, a.d - Q.d) > 0.5) a.beh = { k: 'arrive', x: Q.x, d: Q.d, at: abs(due), carry: attack ? carryOf(a) : undefined }; });
     // the move into the shot
     const showOff = (txt: string) => { if (star > 0 || r() < 0.35) this.sayAt(actor, txt, '#ffd34d', 1.0); };
     let dunkStyle = '';
@@ -2212,7 +2220,8 @@ export class PixelCourt {
       da.stun = 0.55; this.setPose(da, 'stumble', 0.45);
       if (r() < 0.75) this.sayAt(actor, dq < 0.3 ? 'BLOW-BY' : 'BEATS HIS MAN', '#ffd34d', 1.0);
     });
-    if (!rim && !blocker && beaten && T.xover && r() < often && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type)) {
+    const ankleMove = !rim && !blocker && beaten && T.xover && r() < often && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type);
+    if (ankleMove && (motion === 'stepback' || motion === 'jumper') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type)) {
       const drop = T.ankles && (od == null ? edge >= 10 : od > 0.25) && r() < 0.55;
       const t0 = Math.max(0, release - (sb ? 1.35 : 1.15));
       // left, right – and the defender's hips go the wrong way
@@ -2223,6 +2232,14 @@ export class PixelCourt {
         if (drop) { da.stun = 1.2; this.setPose(da, 'fall', 1.0); this.sayAt(actor, 'ANKLES!', '#ffd34d', 1.3); this.cheer = Math.max(this.cheer, 1.5); }
         else { da.stun = 0.6; this.setPose(da, 'stumble', 0.45); if (T.double || r() < 0.4) this.sayAt(actor, 'CROSSOVER', '#ffd34d', 1.0); }
       });
+    }
+    // a pull-up is shot off the dribble: he has the ball early, takes a hard dribble or two sideways and rises
+    const pullUp = !rim && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && ['iso', 'pnrPull', 'pullup', 'drive', 'pnrDrive'].includes(type);
+    if (pullUp) add(Math.max(0, release - 1.7), () => { const a = A(); if (a && this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor)) this.pass(actor, false, false, true); });
+    if (pullUp && !ankleMove && motion !== 'stepback') {
+      const side0 = r() < 0.5 ? 1 : -1;
+      add(Math.max(0, release - 1.25), () => { const a = A(); if (!a || this.ball.holder !== actor) return; const dx = S.x - B.x, dd = S.d - B.d, l = hyp(dx, dd) || 1; a.beh = { k: 'arrive', x: S.x - (dd / l) * 3 * side0 + (dx / l) * 1.5, d: Math.max(1, Math.min(49, S.d + (dx / l) * 3 * side0 + (dd / l) * 1.5)), at: abs(release - 0.75) }; });
+      add(Math.max(0, release - 0.75), () => { const a = A(); if (!a || this.ball.holder !== actor) return; a.xover = 0.28; a.hand = -(a.hand ?? 1); a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(release - 0.36) }; });
     }
     if (false && !rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
       const da = DA(); if (!da) return;
@@ -2308,7 +2325,7 @@ export class PixelCourt {
         }
         case 'layup':
           if (reverse) { a.beh = { k: 'arrive', x: B.x - s * 0.2, d: B.d - Math.sign(a.d - B.d) * 1.6, at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); showOff('REVERSE'); }
-          else { a.beh = { k: 'arrive', x: B.x - s * 1.3, d: B.d + Math.max(-1.2, Math.min(1.2, (a.d - B.d) * 0.3)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); }
+          else { a.beh = { k: 'arrive', x: B.x - s * 2.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); }
           break;
         case 'floater': this.go(a, a.x + s * 1.5, a.d, JOG); this.jump(a, 1.9, 0.7, 'layup'); break;
         case 'hook': this.go(a, a.x + s * 0.6, a.d + (B.d - a.d) * 0.1, WALK); this.jump(a, 1.3, 0.6, 'hook'); break;
@@ -2336,6 +2353,7 @@ export class PixelCourt {
       if (dd < 5) this.jump(da, (rim ? 2.2 : 1.3) + dq2 * (rim ? 1.4 : 1.0), 0.6, rim ? 'block' : 'contest');
       else if (dd < 10) this.setPose(da, 'contest', 0.7);
     });
+    add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now() }; } catch { /* dev */ } });
     // the shooter has the ball before he shoots it: if it is still with somebody else, a quick pass now
     add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });   // a ball left lying somewhere comes to him first
     if (motion !== 'dunk' || !oop) add(Math.max(0, release - 0.42), () => { if (blocker && false) return; if (this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor) && A()) this.pass(actor, false, false, true); });
@@ -2353,6 +2371,7 @@ export class PixelCourt {
         if (!rim && hyp(a.x - S.x, a.d - S.d) > 2.5) this.flag('offSpot', a, `${hyp(a.x - S.x, a.d - S.d).toFixed(1)} ft ${type}`);
         if (Math.abs(B.x - a.x) > 3 && Math.sign(B.x - a.x) !== a.face && motion !== 'fade' && motion !== 'hook') this.flag('facing', a, type);
         if (motion === 'dunk' && fr > 6) this.flag('dunkFar', a, `${fr.toFixed(1)} ft`);
+        if ((motion === 'layup' || motion === 'floater') && type !== 'putback' && !reverse && fr < 2.0) this.flag('underRim', a, `${fr.toFixed(1)} ft ${type}`);
       }
       if (a && this.dbg) this.dbg({ beh: JSON.stringify(a.beh), tgt: [a.tx.toFixed(1), a.td.toFixed(1), S.x.toFixed(1), S.d.toFixed(1), a.x.toFixed(1), a.d.toFixed(1)].join(','), pose: a.pose, z: a.z.toFixed(1), L, release, type, three, rim, dist: hyp(a.x - S.x, a.d - S.d), fromRim: hyp(a.x - B.x, a.d - B.d), want: hyp(S.x - B.x, S.d - B.d) });
       if (blocker) {
