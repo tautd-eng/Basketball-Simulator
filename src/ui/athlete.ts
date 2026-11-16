@@ -453,16 +453,19 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const thW = 8.3 * u * lw, knW = 5.9 * u * lw;
     // calf: thicker below the knee, thin at the ankle
     const cx = L.kn.x + (L.an.x - L.kn.x) * 0.3, cy = L.kn.y + (L.an.y - L.kn.y) * 0.3;
-    vchain(ctx, [[L.h.x, L.h.y, thW], [L.h.x + (L.kn.x - L.h.x) * 0.45, L.h.y + (L.kn.y - L.h.y) * 0.45, thW * 0.97], [L.kn.x, L.kn.y, knW], [cx, cy, 6.9 * u * lw], [L.kn.x + (L.an.x - L.kn.x) * 0.72, L.kn.y + (L.an.y - L.kn.y) * 0.72, 4.6 * u * lw], [L.an.x, L.an.y, 3.7 * u]], sk, back ? 0 : 1);
+    // hip – thigh – above the knee – knee – the calf's belly – the lower calf – ankle: one smooth outline
+    const LP = (t: number, a: { x: number; y: number }, c: { x: number; y: number }) => [a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t];
+    const [t1x, t1y] = LP(0.45, L.h, L.kn), [t2x, t2y] = LP(0.82, L.h, L.kn), [c2x, c2y] = LP(0.72, L.kn, L.an);
+    smoothLimb(ctx, [[L.h.x, L.h.y, thW], [t1x, t1y, thW * 0.96], [t2x, t2y, thW * 0.8], [L.kn.x, L.kn.y, knW], [cx, cy, 6.9 * u * lw], [c2x, c2y, 4.6 * u * lw], [L.an.x, L.an.y, 3.6 * u]], sk, back ? 0 : 1);
     if (!back) limb(ctx, L.kn.x - 0.7 * u, L.kn.y - 0.4 * u, L.kn.x + 0.7 * u, L.kn.y - 0.4 * u, 1.3 * u, 1.3 * u, skinD); // kneecap
     if (b.legSleeve && (b.legSleeve > 0) === !back) { limb(ctx, L.h.x + (L.kn.x - L.h.x) * 0.55, L.h.y + (L.kn.y - L.h.y) * 0.55, L.kn.x, L.kn.y, 7.4 * u * lw, 5.8 * u * lw, back ? '#161616' : '#222'); limb(ctx, L.kn.x, L.kn.y, cx, cy, 5.8 * u * lw, 6.4 * u * lw, back ? '#161616' : '#222'); limb(ctx, cx, cy, L.an.x, L.an.y, 6.4 * u * lw, 4.2 * u, back ? '#161616' : '#222'); }
-    if (b.tights) { const tc = back ? shade(b.tights, 0.8) : b.tights; vchain(ctx, [[L.h.x, L.h.y, thW * 1.03], [L.kn.x, L.kn.y, knW * 1.06], [cx, cy, 6.9 * u * lw], [L.an.x, L.an.y - 1.5 * u, 4.4 * u]], tc, back ? 0 : 1); }
+    if (b.tights) { const tc = back ? shade(b.tights, 0.8) : b.tights; smoothLimb(ctx, [[L.h.x, L.h.y, thW * 1.03], [t1x, t1y, thW], [L.kn.x, L.kn.y, knW * 1.06], [cx, cy, 7.1 * u * lw], [L.an.x, L.an.y - 1.5 * u, 4.2 * u]], tc, back ? 0 : 1); }
     if (b.knee) limb(ctx, L.kn.x, L.kn.y - 1.2 * u, L.kn.x + Math.sin(L.sa) * 4 * u * f * sx, L.kn.y + 4 * u, 6.4 * u, 5.8 * u, back ? '#222' : '#333');
     // socks (tube socks with stripes in the early years)
     const sockH = (b.sockH ?? 6) * u;
     const sxk = L.an.x - Math.sin(L.sa) * sockH * f * sx, syk = L.an.y - Math.cos(L.sa) * sockH;
     const sc = b.teamSocks ? k.jersey === '#f4f4f4' || k.jersey === '#ffffff' ? k.trim : k.jersey : b.socks ?? '#f2f2f2';
-    limb(ctx, sxk, syk, L.an.x, L.an.y, 4.6 * u, 4.4 * u, back ? shade(sc, 0.86) : sc);
+    { const scol = sc === '#f2f2f2' || sc === '#f4f4f4' ? '#e6e6e3' : sc; limb(ctx, sxk, syk, L.an.x, L.an.y, 4.1 * u * Math.min(1.12, lw), 3.7 * u, back ? shade(scol, 0.86) : scol); limb(ctx, sxk - 2 * u, syk + 0.3 * u, sxk + 2 * u, syk + 0.3 * u, 0.6 * u, 0.6 * u, shade(scol, 0.82)); }   // the sock, a ribbed cuff on top
     if (sockH > 9 * u) for (const t of [0.12, 0.3]) { const yy = syk + (L.an.y - syk) * t, xx = sxk + (L.an.x - sxk) * t; limb(ctx, xx - 2.3 * u, yy, xx + 2.3 * u, yy, 1.1 * u, 1.1 * u, t < 0.2 ? k.trim : k.trim2 === '#ffffff' ? k.trim : shade(k.trim, 0.7)); }
     // shoe: upper, toe cap, sole, laces, accent stripe
     const shoe = b.shoe ?? '#f4f4f4';
@@ -472,8 +475,24 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const fy = L.an.y + 2.8 * u;
     const sh2 = back ? shade(shoe, 0.82) : shoe;
     const hiT = b.shoeHigh ? 2.4 * u : 0;   // a high-top's collar comes up over the ankle
-    if (side) poly(ctx, [[heel, L.an.y - 1 * u - hiT], [L.an.x + 2 * u * f, L.an.y - 1.2 * u - hiT * 0.7], [toe, fy - 1.8 * u], [toe + 0.5 * u * f, fy], [heel, fy]], sh2);
-    else poly(ctx, [[L.an.x - 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.6 * u, L.an.y - 1 * u], [L.an.x + 2.9 * u, fy], [L.an.x - 2.9 * u, fy]], sh2);
+    // the shoe's upper: a rounded heel counter, the collar, laces sloping down to a rounded toe box
+    ctx.fillStyle = sh2; ctx.beginPath();
+    if (side) {
+      ctx.moveTo(heel, fy);
+      ctx.quadraticCurveTo(heel - 0.6 * u * f, fy - 1.8 * u, heel + 0.2 * u * f, L.an.y - 0.8 * u - hiT);
+      ctx.lineTo(L.an.x + 1.6 * u * f, L.an.y - 1.1 * u - hiT * 0.7);
+      ctx.quadraticCurveTo(L.an.x + 3.4 * u * f, fy - 2.6 * u, toe - 0.4 * u * f, fy - 2.1 * u);
+      ctx.quadraticCurveTo(toe + 0.9 * u * f, fy - 1.6 * u, toe + 0.5 * u * f, fy);
+    } else {
+      // from the front: the toe box, wider than the ankle, round on top
+      ctx.moveTo(L.an.x - 2.9 * u, fy);
+      ctx.lineTo(L.an.x - 2.5 * u, fy - 1.6 * u);
+      ctx.quadraticCurveTo(L.an.x - 2.2 * u, L.an.y - 1.1 * u - hiT, L.an.x, L.an.y - 1.1 * u - hiT);
+      ctx.quadraticCurveTo(L.an.x + 2.2 * u, L.an.y - 1.1 * u - hiT, L.an.x + 2.5 * u, fy - 1.6 * u);
+      ctx.lineTo(L.an.x + 2.9 * u, fy);
+    }
+    ctx.closePath(); ctx.fill();
+    if (!side && !back) limb(ctx, L.an.x - 1.6 * u, L.an.y - 0.9 * u - hiT, L.an.x + 1.6 * u, L.an.y - 0.9 * u - hiT, 0.5 * u, 0.5 * u, shade(shoe, 0.7));   // the collar, from the front
     const x0 = side ? Math.min(heel, toe) : L.an.x - 2.9 * u, w0 = side ? Math.abs(toe - heel) + 0.5 * u : 5.8 * u;
     rect(ctx, x0, fy - 1.5 * u, w0, 1.5 * u, back ? '#8e8e8e' : b.sole ?? (shoe === '#f4f4f4' ? '#d6d6d6' : '#ececec'));
     if (!back) rect(ctx, x0, fy - 1.5 * u, w0, 0.45 * u, shade(shoe, 0.7));   // the line where the upper meets the sole
@@ -563,8 +582,14 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     if (!FLAT) {
       const gx = ctx.createLinearGradient(sh.x - shW / 2, sh.y, sh.x + shW / 2, hipC.y);
       gx.addColorStop(0, shade(k.jersey, 1.07)); gx.addColorStop(0.55, k.jersey); gx.addColorStop(1, shade(k.jersey, 0.86));
+      // the jersey: straps over the shoulders, armholes cut in a curve, the sides falling straight from the lats
       ctx.fillStyle = gx; ctx.beginPath();
-      for (const [i, [x, y]] of ([[tl.x, tl.y], [tr.x, tr.y], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wl.x - 0.6 * u, wl.y + 1.5 * u], [al.x, al.y]] as [number, number][]).entries()) i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.quadraticCurveTo(tr.x - 0.6 * u, ar.y - 2.4 * u, ar.x, ar.y);
+      ctx.quadraticCurveTo(ar.x + 0.3 * u, (ar.y + wr.y) / 2, wr.x + 0.6 * u, wr.y + 1.5 * u);
+      ctx.lineTo(wl.x - 0.6 * u, wl.y + 1.5 * u);
+      ctx.quadraticCurveTo(al.x - 0.3 * u, (al.y + wl.y) / 2, al.x, al.y);
+      ctx.quadraticCurveTo(tl.x + 0.6 * u, al.y - 2.4 * u, tl.x, tl.y);
       ctx.closePath(); ctx.fill();
     } else poly(ctx, [[tl.x, tl.y], [tr.x, tr.y], [ar.x, ar.y], [wr.x + 0.6 * u, wr.y + 1.5 * u], [wl.x - 0.6 * u, wl.y + 1.5 * u], [al.x, al.y]], k.jersey);
     // light from the upper left: shade the right side, highlight the left, folds at the waist
@@ -611,7 +636,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     drawTorso();
   }
   // neck and head
-  vlimb(ctx, sh.x + (side ? 0.5 * u * f : 0), sh.y + 1 * u, head.x, head.y + 5 * u, 5.2 * u, 4.6 * u, skinD, 0);
+  smoothLimb(ctx, [[sh.x + (side ? 0.5 * u * f : 0), sh.y + 1 * u, 5.6 * u], [head.x + (side ? -0.3 * u * f : 0), head.y + 5 * u, 4.4 * u]], skinD, 0);
   if (view !== 'back') limb(ctx, sh.x + (side ? 1.4 * u * f : 0), sh.y, head.x + (side ? 1.4 * u * f : 0), head.y + 5 * u, 1.1 * u, 1.1 * u, skinDD);
   if (b.tee && view !== 'back') limb(ctx, sh.x - 2.6 * u, sh.y + 0.4 * u, sh.x + 2.6 * u, sh.y + 0.4 * u, 1.2 * u, 1.2 * u, b.tee);
   if (b.neckTat && view !== 'back') { const ink = shade(skin, 0.55); oval(ctx, sh.x + (side ? 1.2 * u * f : 1.2 * u), sh.y - 1.6 * u, 1.1 * u, 0.9 * u, ink); oval(ctx, sh.x + (side ? 0.2 * u * f : -1.4 * u), sh.y - 2.6 * u, 0.7 * u, 0.6 * u, ink); }
