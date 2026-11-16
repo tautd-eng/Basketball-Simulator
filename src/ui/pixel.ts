@@ -607,6 +607,23 @@ export class PixelCourt {
       }
     }
   }
+  /** Half-court man-to-man between plays: every offensive player has exactly one defender, and defenders left on
+   *  someone else (help, a rotation, a closeout from the last action) go back to their own man. */
+  private honest(off: Side) {
+    if (this.scheme === 'zone' || this.v < this.pressUntil) return;
+    const O = this.on(off), D = this.on(other(off));
+    for (const p of O) {
+      if (this.defOf(p.pid) && !this.defOf(p.pid)!.leaving) continue;
+      const used = new Set([...this.match.values()]);
+      const free = D.filter(d => !used.has(d.pid)).sort((a, b) => hyp(a.x - p.x, a.d - p.d) - hyp(b.x - p.x, b.d - p.d))[0];
+      if (free) this.match.set(p.pid, free.pid);
+    }
+    for (const [o, d] of this.match) {
+      const dp = this.P(d);
+      if (!dp || dp.side === off || !this.players.has(o)) continue;
+      if (dp.beh.k !== 'guard' || dp.beh.man !== o) dp.beh = { k: 'guard', man: o, tight: 0 };
+    }
+  }
   private retreat(def: Side) {
     // the defence sprints back, then picks up its man
     this.ord(def).forEach((p, i) => {
@@ -793,19 +810,21 @@ export class PixelCourt {
     if (live && this.pre()) for (const p of this.players.values()) {
       if (p.beh.k !== 'mark' || p.leaving) { this.inspT.delete('m' + p.pid); continue; }
       const t = (this.inspT.get('m' + p.pid) ?? 0) + h; this.inspT.set('m' + p.pid, t);
-      if (t > 1.6) { const man = [...this.match].find(([, d]) => d === p.pid)?.[0]; if (man && this.players.has(man)) { p.beh = { k: 'guard', man, tight: 0.5 }; this.flag('staleMark', p); } this.inspT.delete('m' + p.pid); }
+      if (t > 0.8) { const man = [...this.match].find(([, d]) => d === p.pid)?.[0]; if (man && this.players.has(man)) { p.beh = { k: 'guard', man, tight: 0.5 }; this.flag('staleMark', p); } this.inspT.delete('m' + p.pid); }
     }
     for (const p of this.players.values()) if (!p.leaving && hyp(p.vx, p.vd) > 31) this.flag('speed', p, hyp(p.vx, p.vd).toFixed(0));
     // 5. transition: once the ball is over half court, a teammate still in the back court and a defender still
     //    on the wrong end sprint (a stale target in the wrong half is replaced)
     if (live && holder && !this.ball.fly) {
       const s2 = this.dir(holder.side);
-      if ((holder.x - 47) * s2 > 2) for (const p of this.players.values()) {
+      // (a trailer a few steps behind half court as the ball crosses is normal basketball: only a man still deep in
+      //  the back court when the ball is well into the front court is late)
+      if ((holder.x - 47) * s2 > 10) for (const p of this.players.values()) {
         if (p.leaving || p.pt > 0 || p === holder || p.five) continue;
-        const wrong = p.side === holder.side ? (p.x - 47) * s2 < -4 : (p.x - 47) * s2 < -4;
+        const wrong = (p.x - 47) * s2 < -14;
         if (!wrong) continue;
         if ((p.tx - 47) * s2 < 4 && p.beh.k === 'spot') { p.tx = 47 + s2 * (p.side === holder.side ? 22 : 30); p.ax = p.tx; }
-        if (p.spd < SPRINT) { p.spd = SPRINT; this.flag('late', p); }
+        if (p.spd < SPRINT) { this.flag('late', p, `${p.side === holder.side ? 'off' : 'def'} x=${p.x.toFixed(0)} t=${p.tx.toFixed(0)} spd=${p.spd.toFixed(0)} into=${(this.v - it.a).toFixed(1)} v=${hyp(p.vx, p.vd).toFixed(1)} mul=${p.mul} stun=${(p.stun ?? 0).toFixed(1)}`); p.spd = SPRINT; }
       }
     }
     // 4. back court: once the ball handler has brought it over half court he does not take it back
@@ -1429,7 +1448,8 @@ export class PixelCourt {
       }
       // everyone else runs to the front court
       const hs = this.homeSpots(off);
-      others.forEach(p => { const q = this.spot(off, hs.get(p.pid) ?? 'lc', 3, r); this.go(p, q.x, q.d, (fb ? SPRINT : slow ? JOG : RUN) / sc); });
+      // the whole floor in transition: a man far from his spot (the other end) runs hard, he does not trail the ball
+      others.forEach(p => { const q = this.spot(off, hs.get(p.pid) ?? 'lc', 3, r); const far = hyp(q.x - p.x, q.d - p.d) > 40; this.go(p, q.x, q.d, (fb ? SPRINT : slow ? (far ? RUN : JOG) : far ? SPRINT * 0.92 : RUN) / sc); });
       if (fb) this.call(off, `${this.abbr(off)} on the break!`);
       else if (call === 'milk') this.call(off, `${this.abbr(off)} milk the clock`);
       else if (call === 'hold') this.call(off, `${this.abbr(off)} hold for the last shot`);
@@ -1440,6 +1460,11 @@ export class PixelCourt {
     });
     add(0, () => { if (h.how !== 'inbound' && h.how !== 'side' && h.how !== 'period') this.inbPid = null; });
     add(tB + 1.2 * sc, () => { this.inbPid = null; });   // the ball is in: everybody plays inside the lines
+    // the man who grabbed the board (or the steal) and gave it up runs the floor like everyone else – he does not stay home
+    if (holder && first && holder !== first && (h.how === 'rebound' || h.how === 'steal' || h.how === 'orb')) add(Math.max(0.4, tB + 0.1), () => {
+      const hp = this.P(holder); if (!hp || this.ball.holder === holder) return;
+      const q = this.spot(off, this.homeSpots(off).get(holder) ?? 'lw', 3, r); this.go(hp, q.x, q.d, (fb ? SPRINT : RUN) / sc);
+    });
     if (first && holder !== first && h.how !== 'tip') add(Math.max(0.15, tB - 0.35 * sc), () => {
       if (this.pickup && !this.ball.holder && !this.ball.fly) { const f1 = first; this.pickup.then = () => this.pass(f1); return; } // he passes it in as soon as he has it
       if (this.ball.holder !== first) this.pass(first);
@@ -1486,6 +1511,7 @@ export class PixelCourt {
     let lastSet = '';
     while (left() > 2.1) {
       const at = t;
+      add(Math.max(0, at - 0.05), () => this.honest(off));
       const mates = this.ord(off).filter(p => p.pid !== vh);
       const bigs = mates.filter(p => this.posN(p.pid) >= 3.75).sort((p, q) => this.posN(q.pid) - this.posN(p.pid));
       const wings = mates.filter(p => this.posN(p.pid) <= 3.5);
@@ -2199,7 +2225,7 @@ export class PixelCourt {
         if (andOne) { this.say('AND ONE!', '#ffd34d', false, 1.4, { x: S.x, d: S.d, z: 24 }); const a = A(); if (a) { this.setPose(a, 'stumble', 0.45); a.next = [r() < 0.6 ? 'flex' : 'celebrate', 1.0]; } const df = DA(); if (df) this.setPose(df, 'block', 0.4); }
         // the scorers jog back on defence
         const back = other(off);
-        for (const p of this.on(off)) if (p.pid !== actor || !andOne) this.go(p, this.basket(back).x - this.dir(back) * (10 + r() * 14), 12 + r() * 26, JOG);
+        for (const p of this.on(off)) if (p.pid !== actor || !andOne) { const tx = this.basket(back).x - this.dir(back) * (10 + r() * 14); this.go(p, tx, 12 + r() * 26, Math.abs(tx - p.x) > 45 ? RUN : JOG); }
         // the closest teammate comes over to celebrate a big one with him
         const sc = A();
         if (sc && big && !this.ff && (r() < 0.75 || lateClose)) {
