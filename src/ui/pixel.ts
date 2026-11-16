@@ -370,7 +370,7 @@ export class PixelCourt {
 
   /** Jump to time v: rebuild the scene at the start of its window and play forward quickly. */
   seek(v: number) {
-    this.lagOv = null;
+    this.lagOv = null; this.dRing = null; this.tag = null;
     this.crossed = null; this.laneT.clear(); this.outUntil.clear(); this.inbPid = null; this.pendPass = null; this.stillT = 0; this.fbOn = false; this.finalAt = -1;   // the referee starts fresh with the rebuilt scene
     const tl = this.tl;
     if (!tl || !tl.items.length) { this.v = v; return; }
@@ -676,6 +676,9 @@ export class PixelCourt {
   }
   /** this play's defender: beaten (he trails, far behind) or on top of it (right there) – as the engine decided */
   private lagOv: { pid: string; f: number; from: number; until: number } | null = null;
+  /** the shot's defender and how he did (ring under his feet), and the tag at the release */
+  private dRing: { pid: string; v: 'beaten' | 'even' | 'on'; from: number; until: number } | null = null;
+  private tag: { pid: string; text: string; color: string; t: number; dur: number } | null = null;
   archOf(pid: string | null | undefined) { return this.o.looks?.[pid ?? '']?.arch ?? 'role'; }
   /** 0..1 skills from the ratings: every move's frequency and quality grows with them gradually (archetypes add a little) */
   private zOf(pid: string | null | undefined, k: string) { return this.o.looks?.[pid ?? '']?.zs?.[k] ?? 0; }
@@ -2088,17 +2091,25 @@ export class PixelCourt {
     const beaten = od != null ? od > 0.06 : dq < 0.38 || edge >= 12;
     const onIt = od != null ? od < -0.1 : dq > 0.72;
     if (od != null && dpid) add(0, () => { this.lagOv = { pid: dpid, f: beaten ? 1.85 : onIt ? 0.55 : 1, from: this.finalAt, until: items[k].a + release + 0.6 }; });
+    // what the defence did on this shot, readable at a glance: a ring under his defender during the play (red beaten,
+    // yellow there, green on top of it) and a tag at the release: OPEN / CONTESTED / SMOTHERED
+    const verdict: 'beaten' | 'even' | 'on' = beaten ? 'beaten' : onIt ? 'on' : 'even';
+    if (dpid && type !== 'putback') add(0, () => { this.dRing = { pid: dpid, v: verdict, from: this.finalAt, until: items[k].a + release + 0.7 }; });
+    if (!blocker && type !== 'putback' && motion !== 'dunk') add(Math.max(0, release - 0.05), () => {
+      const [t2, c2] = verdict === 'beaten' ? (rim ? ['BEAT HIS MAN', '#7dff9a'] : ['OPEN', '#7dff9a']) : verdict === 'on' ? ['SMOTHERED', '#ff8a7a'] : ['CONTESTED', '#ffd34d'];
+      this.tag = { pid: actor ?? '', text: t2, color: c2, t: 0, dur: 1.1 };
+    });
     if (rim && ['drive', 'iso', 'pnrDrive', 'kickdrive'].includes(type) && beaten) add(Math.max(0, release - 1.0), () => {
       const da = DA(); if (!da || da.side === A()?.side) return;
       da.stun = 0.55; this.setPose(da, 'stumble', 0.45);
       if (r() < 0.75) this.sayAt(actor, dq < 0.3 ? 'BLOW-BY' : 'BEATS HIS MAN', '#ffd34d', 1.0);
     });
-    if (!rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
+    if (false && !rim && !blocker && onIt && (motion === 'jumper' || motion === 'stepback' || motion === 'fade') && r() < 0.6) add(Math.max(0, release - 0.05), () => {
       const da = DA(); if (!da) return;
       this.sayAt(made ? actor : da.pid, made ? 'TOUGH SHOT' : 'GREAT CONTEST', made ? '#ffd34d' : '#9fd3ff', 1.0);
     });
     if (!made && !blocker && this.sk(dpid, 'def') > 0.68 && r() < this.sk(dpid, 'def') - 0.25) add(Math.max(0, release + 0.1), () => this.sayAt(dpid, 'LOCKED UP', '#9fd3ff', 1.0));
-    if (!rim && (od != null ? beaten : dq < 0.32) && ['kick', 'offscreen', 'pop', 'double', 'blitz', 'dho'].includes(type) && r() < 0.55) add(Math.max(0, release - 0.35), () => this.sayAt(actor, 'WIDE OPEN', '#5dff8a', 0.9));
+    if (od == null && !rim && dq < 0.32 && ['kick', 'offscreen', 'pop', 'double', 'blitz', 'dho'].includes(type) && r() < 0.55) add(Math.max(0, release - 0.35), () => this.sayAt(actor, 'WIDE OPEN', '#5dff8a', 0.9));
     // the stars improvise: a Eurostep on the way to the rim, a spin move on the drive, the lob
     const flashy = star > 0 || ath > 0.65;
     const perp = (a: PSprite, sideSgn: number, dist: number, back: number) => {
@@ -2996,7 +3007,12 @@ export class PixelCourt {
     if ((p.beh.k === 'guard' || p.beh.k === 'zone' || p.beh.k === 'follow') && !this.fbOn) {
       const v = Math.hypot(p.vx, p.vd), man = this.P(p.beh.k === 'follow' ? p.beh.pid : p.beh.k === 'guard' ? p.beh.man : null);
       const B = this.basket(other(p.side)), half = Math.abs(p.x - B.x) < 36;
-      if (half && v < 12 && (!man || Math.hypot(man.x - p.x, man.d - p.d) < 12)) return 'stance';
+      if (half && v < 12 && (!man || Math.hypot(man.x - p.x, man.d - p.d) < 12)) {
+        const q = this.defQ(p.pid), onBall = man && this.ball.holder === man.pid;
+        if (!onBall && q < 0.36 && hash01(p.pid + Math.floor(this.v / 1.5)) < 0.6) return 'stand';   // a weak defender stands up and ball-watches
+        if (onBall && q > 0.68 && Math.hypot(man!.x - p.x, man!.d - p.d) < 6 && hash01(p.pid + Math.floor(this.v * 2.5)) < 0.3) return 'contest'; // active hands
+        return 'stance';
+      }
     }
     if (p.beh.k === 'box') return 'boxout';
     if (p.beh.k === 'zone' && Math.hypot(p.vx, p.vd) < 5) return 'stance';
@@ -3175,7 +3191,32 @@ export class PixelCourt {
   /** crisp overlays drawn at full resolution: the ball handler's name, labels, floaters */
   private drawOverlays(time: number) {
     const b = this.ball;
-    const topOf = (p: PSprite) => { const q = this.proj(p.x, p.d); return { x: q.x, y: q.y - ((this.looksOf(p.pid).ht || 79) / 12) * VZ * depthScale(p.d) - p.z * VZ * depthScale(p.d) }; };
+    const effH = (pid: string) => { const ht = this.looksOf(pid).ht || 79; return 79 + (ht - 79) * 2.1; };   // as drawn (heights exaggerated)
+    const topOf = (p: PSprite) => { const q = this.proj(p.x, p.d); return { x: q.x, y: q.y - (effH(p.pid) / 12) * VZ * depthScale(p.d) * 1.08 - p.z * VZ * depthScale(p.d) }; };
+    // stars wear a star over their head (a superstar two): where the best players are, at a glance
+    for (const p of this.players.values()) {
+      if (p.leaving) continue;
+      const st = this.starOf(p.pid); if (!st) continue;
+      const t = topOf(p), yy = t.y - (b.holder === p.pid && !b.fly ? 11 : 3);
+      // a small pixel star (a plus with a bright centre); a superstar wears two
+      const spark = (x: number, y: number) => { this.px(x - 1, y, 3, 1, '#ffd34d'); this.px(x, y - 1, 1, 3, '#ffd34d'); this.px(x, y, 1, 1, '#fff6c8'); };
+      if (st >= 2) { spark(t.x - 2, yy); spark(t.x + 2, yy); } else spark(t.x, yy);
+    }
+    // the defender of the shot: a ring at his feet in the colour of how he is doing
+    const dr = this.dRing;
+    if (dr && this.v >= dr.from && this.v <= dr.until) {
+      const p = this.players.get(dr.pid);
+      if (p) {
+        const q = this.proj(p.x, p.d), c = dr.v === 'beaten' ? '#ff5a4a' : dr.v === 'on' ? '#5dff8a' : '#ffd34d', rr = 4 * depthScale(p.d);
+        for (let i = 0; i < 20; i++) { const a = Math.PI * 2 * i / 20; this.px(q.x + Math.cos(a) * rr * 1.6, q.y + Math.sin(a) * rr * 0.55, 1, 1, c); }
+      }
+    }
+    if (this.tag) {
+      const tg = this.tag; tg.t += 1 / 60;
+      const p = this.players.get(tg.pid);
+      if (!p || tg.t > tg.dur) this.tag = null;
+      else { const t = topOf(p); this.text(tg.text, t.x, t.y - 12 - tg.t * 4, tg.color, 6, true, 1 - Math.max(0, tg.t / tg.dur - 0.7) / 0.3); }
+    }
     if (b.holder && !b.fly) {
       const p = this.players.get(b.holder);
       if (p) {
