@@ -313,7 +313,7 @@ export class PixelCourt {
     if (this.rimFx && (this.rimFx.t += dt) > 0.7) this.rimFx = null;
     if (this.hl && (this.hl.t -= dt) <= 0) this.hl = null;
     if (this.caption) this.caption.t += dt;
-    if (this.tl) { if (this.introT < 0) this.introT = this.v < 3 ? 0 : 99; else if (this.introT < 99) this.introT += dt; }
+    if (this.tl) { if (this.introT < 0) this.introT = this.v < 3 ? 0 : 99; else if (this.introT < 99) { this.introT += dt; if (this.v > 5 && this.introT < 6) this.introT = 6; } }   // the card is gone by the tip, at any speed
     if (this.label) { this.label.t -= dt; if (this.label.t <= 0) this.label = null; }
     if (this.label2) { this.label2.t -= dt; if (this.label2.t <= 0) this.label2 = null; }
     this.cheer = Math.max(0, this.cheer - dt);
@@ -2631,7 +2631,13 @@ export class PixelCourt {
         const a = A(), st = this.P(stl);
         if (!a || !tgt) return;
         this.setPose(a, 'pass', 0.3);
-        if (v === 'pick' && st) { const ix = a.x + (tgt.x - a.x) * 0.55, id = a.d + (tgt.d - a.d) * 0.55; this.go(st, ix, id, SPRINT * 1.2); this.flyBall(ix, id, 4.2, 4.8, 0.45); if (this.sk(stl, 'stl') >= 0.78) { this.setPose(st, 'swipe', 0.45); if (this.traits(stl).ath >= 0.75) st.ghost = this.v + 0.7; } }   // a great thief dives into the lane
+        if (v === 'pick' && st) {
+          // he jumps the lane where it passes closest to him (he was guarding the receiver, a step off toward the ball)
+          const bp = this.ballPos(), lx = tgt.x - bp.x, ld = tgt.d - bp.d, ll = lx * lx + ld * ld || 1;
+          const u = Math.max(0.35, Math.min(0.9, ((st.x - bp.x) * lx + (st.d - bp.d) * ld) / ll));
+          const ix = bp.x + lx * u, id = bp.d + ld * u, fl = Math.max(0.3, Math.min(0.6, 0.12 + Math.sqrt(ll) * u / 45));
+          this.go(st, ix, id, SPRINT * 1.2); st.beh = { k: 'spot' };
+          this.flyBall(ix, id, 4.2, 4.8, fl, () => { const q = this.P(stl); if (q && hyp(q.x - ix, q.d - id) < 4.5) this.give(stl); }, stl ?? undefined); if (this.sk(stl, 'stl') >= 0.78) { this.setPose(st, 'swipe', 0.45); if (this.traits(stl).ath >= 0.75) st.ghost = this.v + 0.7; } }   // a great thief dives into the lane
         else { const outD = tgt.d < 25 ? -5 : WID + 5; this.flyBall(tgt.x - s * 5, outD, 3, 9, 0.55); this.jump(tgt, 1.8, 0.5, 'reb'); }
       });
     }
