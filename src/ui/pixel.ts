@@ -788,7 +788,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -806,7 +806,7 @@ export class PixelCourt {
   chasers = new Set<string>();
   lastGive: { pid: string; v: number } | null = null; giveAt: { x: number; d: number } | null = null;
   private backT = 0; private backSide: Side | null = null;
-  curSet = ''; curHow = '';
+  curSet = ''; curHow = ''; crowdT = 0;
   private inspT = new Map<string, number>();
   private inPaint(x: number, d: number, B: { x: number; d: number }) { return Math.abs(x - (B.x < 47 ? 0 : LEN)) < 19 && Math.abs(d - 25) < 8; }
   /** The rules of the game, every step: players stay on the floor (only the inbounder steps out), nobody stays in the
@@ -822,6 +822,12 @@ export class PixelCourt {
     const ft = kind === 'ft' || kind === 'ftm';
     const counts: Record<string, number> = { h: 0, a: 0 };
     const v = this.v;
+    // spacing: in the half court no more than one team-mate stands within 9 ft of the man with the ball (a screener)
+    if (live && holder && off && !this.fbOn && Math.abs(holder.x - this.basket(off).x) < 40) {
+      const near = this.on(off).filter(q => q !== holder && hyp(q.x - holder.x, q.d - holder.d) < 9 && hyp(q.tx - holder.x, q.td - holder.d) < 9);   // parked there, not running past
+      this.crowdT = near.length >= 2 ? this.crowdT + h : 0;
+      if (this.crowdT > 1.0) { this.crowdT = -3; this.flag('crowd', holder, `${near.map(q => `${this.o.names[q.pid]}:${q.beh.k} d=${hyp(q.x - holder.x, q.d - holder.d).toFixed(1)} t=${hyp(q.tx - holder.x, q.td - holder.d).toFixed(1)} rel=${(this.v - ((q as any).relocT ?? -99)).toFixed(1)} pose=${q.pose} v=${hyp(q.vx, q.vd).toFixed(0)}`).join(' ')} set=${this.curSet} how=${this.curHow} hv=${hyp(holder.vx, holder.vd).toFixed(0)} hx=${holder.x.toFixed(0)},${holder.d.toFixed(0)}`); }
+    } else this.crowdT = 0;
     for (const p of this.players.values()) {
       if (p.leaving) continue;
       counts[p.side]++;
@@ -953,6 +959,22 @@ export class PixelCourt {
       if (this.scheme === 'zone' && p.zslot !== undefined && (p.beh.k === 'guard' || p.beh.k === 'follow') && this.ball.holder && this.P(this.ball.holder)?.side !== p.side) p.beh = { k: 'zone', slot: p.zslot, side: p.side };
       const b = p.beh;
       if (b.k === 'spot') {
+        // spacing: an off-ball team-mate does not park on top of the man with the ball – he clears out (not a
+        // screener, not the man about to get the ball, not in a hand-off set)
+        const hd = this.P(this.ball.holder);
+        if (hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && this.curSet !== 'dho' && p.pose !== 'screen' && this.pendPass?.to !== p.pid
+          && this.v - ((p as any).relocT ?? -9) > 1.2 && Math.abs(hd.x - this.basket(p.side).x) < 40 && hyp(p.x - hd.x, p.d - hd.d) < 7.5 && hyp(p.tx - hd.x, p.td - hd.d) < 9) {
+          const B = this.basket(p.side), s = this.dir(p.side);
+          let ux = p.x - hd.x, ud = p.d - hd.d; const l = hyp(ux, ud);
+          if (l < 1) { ux = 0; ud = p.d < 25 ? -1 : 1; } else { ux /= l; ud /= l; }
+          let nx = hd.x + ux * 12, nd = hd.d + ud * 12;
+          if ((nx - 47) * s < 6) nx = 47 + s * 6;                 // stays in the front court
+          if ((B.x - nx) * s < 1.5) nx = B.x - s * 1.5;            // not behind the backboard
+          nd = Math.max(2, Math.min(WID - 2, nd));
+          if ((B.x - nx) * s < 19.5 && Math.abs(nd - 25) < 8.5) nd = 25 + (nd < 25 ? -9.5 : 9.5);   // not into the lane (3 seconds)
+          (p as any).relocT = this.v; p.ax = nx; p.ad = nd; this.go(p, nx, nd, RUN);
+          continue;
+        }
         // nobody stands like a statue in live play: small shuffles around his spot
         if (p.ax !== undefined && this.ball.holder && this.ball.holder !== p.pid && p.pt <= 0 && hyp(p.tx - p.x, p.td - p.d) < 0.6) {
           const bucket = Math.floor(this.v / 1.7 + hash01(p.pid) * 7);
