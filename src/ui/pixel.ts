@@ -939,7 +939,7 @@ export class PixelCourt {
         const wrong = (p.x - 47) * s2 < -14;
         if (!wrong) continue;
         if ((p.tx - 47) * s2 < 4 && p.beh.k === 'spot') { p.tx = 47 + s2 * (p.side === holder.side ? 22 : 30); p.ax = p.tx; p.spd = Math.max(p.spd, RUN); }
-        if (p.spd < SPRINT) { this.flag('late', p, `${p.side === holder.side ? 'off' : 'def'} x=${p.x.toFixed(0)} t=${p.tx.toFixed(0)} spd=${p.spd.toFixed(0)} into=${(this.v - it.a).toFixed(1)} v=${hyp(p.vx, p.vd).toFixed(1)} mul=${p.mul} stun=${(p.stun ?? 0).toFixed(1)}`); p.spd = SPRINT; }
+        if (p.spd < SPRINT) { this.flag('late', p, `${p.side === holder.side ? 'off' : 'def'} x=${p.x.toFixed(0)} t=${p.tx.toFixed(0)} spd=${p.spd.toFixed(0)} into=${(this.v - it.a).toFixed(1)} v=${hyp(p.vx, p.vd).toFixed(1)} mul=${p.mul} stun=${(p.stun ?? 0).toFixed(1)} pose=${p.pose}:${p.pt.toFixed(1)} beh=${p.beh.k} ev=${this.curHow}`); p.spd = SPRINT; }
       }
     }
     // 4. back court: once the ball handler has brought it over half court he does not take it back
@@ -1574,6 +1574,9 @@ export class PixelCourt {
           add(0.05, () => { this.pickup = { pid: I.pid }; });
         }
         const f = this.P(first); if (f) this.go(f, sx + s * 5, 9, RUN / sc);
+        // during the dead ball the rest walk up to their spots – nobody is still standing at the other end
+        const hs = this.homeSpots(off);
+        for (const q of o) if (q !== I && q.pid !== first && (q.x - 47) * s < 10) { const sp = this.spot(off, hs.get(q.pid) ?? 'lw'); this.go(q, sp.x, sp.d, (q.x - 47) * s < -10 ? RUN : JOG); }
         this.guardAll(off);
       } else if (h.how === 'tip') {
         const c1 = big, c2 = this.ord(def).at(-1);
@@ -1604,6 +1607,14 @@ export class PixelCourt {
     });
     add(0, () => { if (h.how !== 'inbound' && h.how !== 'side' && h.how !== 'period') this.inbPid = null; });
     add(tB + 1.2 * sc, () => { this.inbPid = null; });   // the ball is in: everybody plays inside the lines
+    // as the ball comes up, nobody on offence is left parked in the back court on an old target: they run to their spots
+    add(tB + 0.3 * sc, () => {
+      const hs = this.homeSpots(off);
+      for (const q of this.on(off)) {
+        if (q.pid === this.ball.holder || q.pid === first || q.pid === this.inbPid || q.beh.k !== 'spot' || (q.tx - 47) * s > 4) continue;
+        const sp = this.spot(off, hs.get(q.pid) ?? 'lw', 3, r); this.go(q, sp.x, sp.d, ((q.x - 47) * s < -15 ? SPRINT : RUN) / sc);
+      }
+    });
     // the man who grabbed the board (or the steal) and gave it up runs the floor like everyone else – he does not stay home
     if (holder && first && holder !== first && (h.how === 'rebound' || h.how === 'steal' || h.how === 'orb')) add(Math.max(0.4, tB + 0.1), () => {
       const hp = this.P(holder); if (!hp || this.ball.holder === holder) return;
