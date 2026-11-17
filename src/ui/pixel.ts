@@ -2534,7 +2534,8 @@ export class PixelCourt {
         // the rebound comes off toward the man who gets it
         const reb = next && (next.k === 'orb' || next.k === 'drb') ? this.P(this.pidOf(next, next.k)) : null;
         let tx = B.x - s * (3 + r() * 6), td = B.d + (r() - 0.5) * 12;
-        if (reb) { const dx = reb.x - B.x, dd = reb.d - B.d, dist = hyp(dx, dd) || 1; const g = dist <= 16 ? Math.max(2.5, dist - 0.8) : Math.min(16, dist * 0.8); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }   // to the man who gets it: a short one to the big inside, a long one over everybody to a man outside
+        if (reb) { const tg = hyp(reb.tx - reb.x, reb.td - reb.d), kk = tg > 0.5 ? Math.min(1, 0.8 * reb.spd * reb.mul / tg) : 0, rx = reb.x + (reb.tx - reb.x) * kk, rd = reb.d + (reb.td - reb.d) * kk;   // where he will be when it comes down
+          const dx = rx - B.x, dd = rd - B.d, dist = hyp(dx, dd) || 1; const g = dist <= 16 ? Math.max(2.5, dist - 0.8) : Math.min(16, dist * 0.8); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }   // to the man who gets it: a short one to the big inside, a long one over everybody to a man outside
         this.ball.holder = null;
         const b = this.ball;
         this.ball.fly = { x0: b.x, d0: b.d, z0: Math.max(10, b.z), x1: tx, d1: td, z1: 7, peak: 13 + r() * 2, t: 0, dur: 0.7, to: reb && hyp(reb.x - tx, reb.d - td) < 6 ? reb.pid : undefined };
