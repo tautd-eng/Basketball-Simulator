@@ -900,7 +900,7 @@ export class PixelCourt {
             if (!near && t > 0.8 && hyp(p.x - B.x, p.d - B.d) < 30) {
               // nobody left alone in the half court before the play: his man (or the nearest free defender) picks him up
               let d0 = this.defOf(p.pid);
-              this.flag('unguarded', p, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} ` + (d0 ? `def=${this.o.names[d0.pid]} ${d0.beh.k}${(d0.beh as any).man ? '→' + this.o.names[(d0.beh as any).man] : ''} ${hyp(d0.x - p.x, d0.d - p.d).toFixed(0)}ft scheme=${this.scheme}` : 'no def'));
+              this.flag('unguarded', p, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} ` + (d0 ? `def=${this.o.names[d0.pid]} ${d0.beh.k}${(d0.beh as any).man ? '→' + this.o.names[(d0.beh as any).man] : ''} ${hyp(d0.x - p.x, d0.d - p.d).toFixed(0)}ft tgt=${hyp(d0.tx - p.x, d0.td - p.d).toFixed(0)} dv=${hyp(d0.vx, d0.vd).toFixed(0)} spd=${d0.spd.toFixed(0)} pose=${d0.pose}:${d0.pt.toFixed(1)} stun=${(d0.stun ?? 0).toFixed(1)} mv=${hyp(p.vx, p.vd).toFixed(0)} pre=${this.pre()} fromB=${hyp(p.x - B.x, p.d - B.d).toFixed(0)} scheme=${this.scheme}` : 'no def'));
               if (!d0 || d0.leaving) { d0 = [...this.players.values()].filter(q => q.side !== p.side && !q.leaving && !(q.beh.k === 'guard' && q.beh.man === holder.pid)).sort((q1, q2) => hyp(q1.x - p.x, q1.d - p.d) - hyp(q2.x - p.x, q2.d - p.d))[0] ?? null; if (d0) this.assign(p.pid, d0.pid); }
               if (d0 && !(d0.beh.k === 'guard' && d0.beh.man === holder.pid)) d0.beh = { k: 'guard', man: p.pid, tight: 0.5 };
               this.inspT.set(k2, 0);
@@ -1001,7 +1001,7 @@ export class PixelCourt {
           const slots = [[9, 25], [15, 14], [15, 36], [20, 21], [21, 30]];
           const [rel, dd] = slots[b.slot % 5];
           p.tx = B.x - s * rel; p.td = dd; p.spd = SPRINT;
-          const ballNear = Math.abs(bp.x - B.x) < 42;
+          const ballNear = Math.abs(bp.x - B.x) < 56;   // as the ball crosses half court he finds his man (no 1.5 s of an open shooter while he leaves the paint)
           if (man && (ballNear || hyp(p.tx - p.x, p.td - p.d) < 3)) p.beh = { k: 'guard', man: man.pid, tight: 0 };
           continue;
         }
@@ -1034,7 +1034,7 @@ export class PixelCourt {
           // nobody guards a man 40 feet from the basket: the defence gets back and builds its wall first
           const fromB = hyp(tx - B.x, td - B.d), lim = this.v < this.pressUntil ? 90 : this.pre() ? 28 : 23; // pressing: pick up full court; in the half court shooters are guarded out past the arc
           if (fromB > lim) { tx = B.x + (tx - B.x) * lim / fromB; td = B.d + (td - B.d) * lim / fromB; }
-          p.tx = tx; p.td = td; p.spd = hyp(tx - p.x, td - p.d) > (this.pre() ? 6 : 12) ? SPRINT : RUN;   // in the half court a man left behind sprints back to his man
+          p.tx = tx; p.td = td; p.spd = hyp(tx - p.x, td - p.d) > (this.pre() ? 3.5 : 12) ? SPRINT : hyp(man.vx, man.vd) > RUN * 0.8 ? Math.max(RUN, hyp(man.vx, man.vd) * 1.1) : RUN;   // in the half court a man left behind sprints back to his man
         }
       } else if (b.k === 'zone') {
         // 2-3 zone: two up top, two on the wings/baseline, the centre in the middle; the whole shape shifts with
