@@ -1913,9 +1913,12 @@ export class PixelCourt {
       }
       case 'pnrDrive': case 'pnrPull': {
         cap(`${name(actor)} off the pick${screener ? ' from ' + name(screener) : ''}`);
-        add(T(0), () => { const a = A(), x = this.P(screener); if (a && x) this.go(x, a.x + s * 2, a.d + (a.d < 25 ? 2.5 : -2.5), RUN / c); });
-        add(T(0.7), () => this.setPose(this.P(screener), 'screen', 0.8 * c));
-        add(T(0.9), () => {
+        // the ball handler takes it out top (an offensive rebound in the paint is no place for a pick) and the big comes up
+        let slot0: { x: number; d: number } | null = null;
+        add(T(0), () => { const a = A(); if (!a) return; slot0 = this.faceUp(a, B, 23); this.go(a, slot0.x, slot0.d, RUN / c); const x = this.P(screener); if (x) this.go(x, slot0.x + s * 2, slot0.d + (slot0.d < 25 ? 2.5 : -2.5), RUN / c); });
+        add(T(0.55), () => { const a = A(), x = this.P(screener); if (a && x) this.go(x, a.x + s * 2, a.d + (a.d < 25 ? 2.5 : -2.5), RUN / c); });
+        add(T(1.05), () => this.setPose(this.P(screener), 'screen', 0.8 * c));
+        add(T(1.25), () => {
           const a = A(); if (!a) return;
           this.go(a, S.x, S.d, (type === 'pnrDrive' ? SPRINT : RUN) / c);
           if (this.scheme === 'switch') { this.switchOn(actor, screener); return; }
@@ -1925,8 +1928,9 @@ export class PixelCourt {
           if (dx) { if (cv === 'hedge') { this.go(dx, a.x + s * 2, a.d, SPRINT / c); dx.next = undefined; } else if (cv === 'level') this.go(dx, a.x + s * 4, a.d + (a.d < 25 ? 2 : -2), RUN / c); else this.go(dx, B.x - s * 9, 25, RUN / c); }
         });
         // the hedging (or level) big recovers to his man
-        add(T(1.45), () => { const dx = this.defOf(screener); if (dx && screener && this.scheme !== 'switch' && this.cover(dx.pid, def) !== 'drop') dx.beh = { k: 'guard', man: screener, tight: 0 }; });
-        if (type === 'pnrDrive') add(T(1.9), () => this.helpSide(off, actor, helper));
+        add(T(1.8), () => { const dx = this.defOf(screener); if (dx && screener && this.scheme !== 'switch' && this.cover(dx.pid, def) !== 'drop') dx.beh = { k: 'guard', man: screener, tight: 0 }; });
+        if (type === 'pnrDrive') add(T(2.25), () => this.helpSide(off, actor, helper));
+        else this.hardStop(add, release, A, DA, S, B, s);   // off the pick into the pull-up
         break;
       }
       case 'drive': {
@@ -2098,8 +2102,18 @@ export class PixelCourt {
         add(T(0), () => this.go(A(), S.x, S.d, JOG / c));
         add(T(0.25), () => { const hnd = this.P(creator); if (hnd) this.go(hnd, B.x - s * 8, 25 + (r() - 0.5) * 8, SPRINT / c); });
         add(T(0.6), () => { const da = DA(), a = A(); if (da && a) this.go(da, (a.x + B.x) / 2, (a.d + 25) / 2, RUN / c); });
-        add(CT(1.3), () => this.pass(actor));
-        add(CT(1.3) + 0.05, () => { const da = DA(); if (da && actor) da.beh = { k: 'mark', pid: actor, dist: 3 }; });
+        // a scorer does not always fire on the catch: he attacks the closeout – a hard dribble or two by the flying
+        // defender and he pulls up (a three: one dribble to the side and up)
+        const attack = !rim && actor && this.sk(actor, 'handle') > 0.5 && r() < (three ? 0.25 : 0.45) && release - CT(1.3) > 0.4;
+        add(attack ? Math.min(CT(1.3), release - 1.6) : CT(1.3), () => this.pass(actor));
+        if (attack) {
+          const dS = hyp(S.x - B.x, S.d - B.d) || 1, ux = (S.x - B.x) / dS, ud = (S.d - B.d) / dS, sg = S.d < 25 ? 1 : -1;
+          const c0 = three ? { x: S.x - ud * 4 * sg, d: S.d + ux * 4 * sg } : { x: S.x + ux * 7, d: S.d + ud * 7 };
+          add(T(0), () => this.go(A(), c0.x, c0.d, RUN / c));
+          add(Math.max(0, release - 1.45), () => { const da = DA(), a = A(); if (da && a) { this.go(da, a.x + (B.x - a.x) * 0.12, a.d + (B.d - a.d) * 0.12, SPRINT); this.setPose(da, 'contest', 0.4); } });   // the closeout flies at him
+          add(Math.max(0, release - 1.1), () => { const a = A(); if (!a || this.ball.holder !== actor) return; this.go(a, S.x, S.d, three ? RUN : SPRINT); a.xover = 0.28; a.hand = -(a.hand ?? 1); this.sayAt(actor, three ? 'SIDE-STEP' : 'ATTACKS THE CLOSEOUT', '#ffd34d', 0.9); const da = DA(); if (da) { da.stun = 0.35; this.setPose(da, 'stumble', 0.3); } });
+          this.hardStop(add, release, A, DA, S, B, s);
+        } else add(CT(1.3) + 0.05, () => { const da = DA(); if (da && actor) da.beh = { k: 'mark', pid: actor, dist: 3 }; });
         break;
       }
       case 'offscreen': {
