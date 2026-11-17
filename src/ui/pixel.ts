@@ -788,7 +788,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0, blkFar: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -806,7 +806,7 @@ export class PixelCourt {
   chasers = new Set<string>();
   lastGive: { pid: string; v: number } | null = null; giveAt: { x: number; d: number } | null = null;
   private backT = 0; private backSide: Side | null = null;
-  curSet = ''; curHow = ''; crowdT = 0;
+  curSet = ''; curHow = ''; crowdT = 0; blkPid: string | null = null;
   private inspT = new Map<string, number>();
   private inPaint(x: number, d: number, B: { x: number; d: number }) { return Math.abs(x - (B.x < 47 ? 0 : LEN)) < 19 && Math.abs(d - 25) < 8; }
   /** The rules of the game, every step: players stay on the floor (only the inbounder steps out), nobody stays in the
@@ -902,7 +902,7 @@ export class PixelCourt {
               let d0 = this.defOf(p.pid);
               this.flag('unguarded', p, `set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} ` + (d0 ? `def=${this.o.names[d0.pid]} ${d0.beh.k}${(d0.beh as any).man ? '→' + this.o.names[(d0.beh as any).man] : ''} ${hyp(d0.x - p.x, d0.d - p.d).toFixed(0)}ft tgt=${hyp(d0.tx - p.x, d0.td - p.d).toFixed(0)} dv=${hyp(d0.vx, d0.vd).toFixed(0)} spd=${d0.spd.toFixed(0)} pose=${d0.pose}:${d0.pt.toFixed(1)} stun=${(d0.stun ?? 0).toFixed(1)} mv=${hyp(p.vx, p.vd).toFixed(0)} pre=${this.pre()} fromB=${hyp(p.x - B.x, p.d - B.d).toFixed(0)} scheme=${this.scheme}` : 'no def'));
               if (!d0 || d0.leaving) { d0 = [...this.players.values()].filter(q => q.side !== p.side && !q.leaving && !(q.beh.k === 'guard' && q.beh.man === holder.pid)).sort((q1, q2) => hyp(q1.x - p.x, q1.d - p.d) - hyp(q2.x - p.x, q2.d - p.d))[0] ?? null; if (d0) this.assign(p.pid, d0.pid); }
-              if (d0 && !(d0.beh.k === 'guard' && d0.beh.man === holder.pid)) d0.beh = { k: 'guard', man: p.pid, tight: 0.5 };
+              if (d0 && d0.pid !== this.blkPid && !(d0.beh.k === 'guard' && d0.beh.man === holder.pid)) d0.beh = { k: 'guard', man: p.pid, tight: 0.5 };
               this.inspT.set(k2, 0);
             }
           } else if (p.beh.k === 'guard' && p.beh.man === holder.pid) {
@@ -2218,6 +2218,14 @@ export class PixelCourt {
     const next = items[k + 1]?.e;
     const n2 = items[k + 2]?.e;
     const andOne = next?.k === 'foul' && made && !!n2 && (n2.k === 'ft' || n2.k === 'ftm') && n2.s === off;
+    // and-one: the man who fouls him is on him as he goes up – a body or an arm across him at the release
+    if (andOne && next) {
+      const fouler = this.pidOf(next, 'pf');
+      if (fouler && fouler !== this.blkPid) {
+        add(Math.max(0, release - 0.9), () => { const f = this.P(fouler); if (f && actor) { f.beh = { k: 'mark', pid: actor, dist: 0.9 }; f.spd = SPRINT; f.stun = 0; } });
+        add(Math.max(0, release - 0.12), () => { const f = this.P(fouler), a = A(); if (f && a) { this.setPose(f, hyp(f.x - a.x, f.d - a.d) < 3.5 ? 'swipe' : 'contest', 0.5); if (hyp(f.x - a.x, f.d - a.d) < 3) this.jump(f, 1.6, 0.45, 'block'); } });
+      }
+    }
     // whatever the play, the shooter gets to his spot in time: the shot comes from where the play-by-play says
     const gatherAt = release - (rim ? 0.4 : 0.32);
     add(0, () => { this.relAt = items[k].a + release; this.relBy = actor; });
@@ -2407,6 +2415,14 @@ export class PixelCourt {
     add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now() }; } catch { /* dev */ } });
     // the shooter has the ball before he shoots it: if it is still with somebody else, a quick pass now
     add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });   // a ball left lying somewhere comes to him first
+    // the shot-blocker is there when it goes up: he rotates over (or stays down on his man) and meets him at the spot
+    add(0, () => { this.blkPid = blocker; });
+    if (blocker) for (const lead of [1.7, 0.8]) add(Math.max(0, release - lead), () => {
+      const bp = this.P(blocker); if (!bp) return;
+      const chase = type === 'fb' && this.traits(blocker).ath >= 0.72 && this.posN(blocker) <= 3.5;
+      const tx = S.x + s * (chase ? -2.5 : 1.8), td = S.d + (chase ? 1 : (25 - S.d) * 0.08);
+      if (hyp(bp.x - tx, bp.d - td) > 1.5) { this.go(bp, tx, td, SPRINT * 1.2); bp.stun = 0; }
+    });
     if (motion !== 'dunk' || !oop) add(Math.max(0, release - 0.42), () => { if (blocker && false) return; if (this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor) && A()) { const hp = this.P(this.ball.holder), a = A()!; if (hp && hyp(hp.x - a.x, hp.d - a.d) > 30) this.flag('crossPass', a, `${hyp(hp.x - a.x, hp.d - a.d).toFixed(0)} ft from ${this.o.names[hp.pid]} how=${this.curHow} type=${type} L=${L.toFixed(1)}`); this.pass(actor, false, false, true); } });
     // the shot
     add(release, () => {
@@ -2430,6 +2446,7 @@ export class PixelCourt {
         // on the break an athletic wing chases the shooter down from behind; an elite shot-blocker spikes it away
         const chase = type === 'fb' && !!bp && this.traits(blocker).ath >= 0.72 && this.posN(blocker!) <= 3.5;
         const spike = this.sk(blocker, 'blk') >= 0.8;
+        if (bp && a && !this.ff && hyp(bp.x - a.x, bp.d - a.d) > 4.5) this.flag('blkFar', bp, `${hyp(bp.x - a.x, bp.d - a.d).toFixed(1)} ft ${type} ${motion}`);
         if (bp && a) { this.go(bp, a.x + s * (chase ? -1.0 : 1.2), a.d + (chase ? 0.6 : 0), SPRINT); this.jump(bp, 2.8 + 1.4 * this.sk(blocker, 'blk') * (this.o.looks?.[blocker!]?.ath ?? 0.5) * 2, 0.6, 'block'); }
         this.flyBall((a?.x ?? S.x) + s * 1.2, a?.d ?? S.d, 11, 12, 0.18, () => {
           const bs = this.sk(blocker, 'blk'); this.sayAt(blocker, chase ? 'CHASE-DOWN BLOCK!' : bs > 0.7 ? (r() < 0.5 ? 'REJECTED!' : 'NOT IN MY HOUSE!') : 'BLOCKED!', '#ff6b6b', 1.3);
