@@ -1960,7 +1960,11 @@ export class PixelCourt {
       case 'post': {
         cap(`${name(actor)} posts up`);
         const blk = S.d < 25 ? 'lb' : 'rb';
-        add(T(0), () => { const q = this.spot(off, blk); this.go(A(), q.x, q.d, RUN / c); const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1 }; });
+        const Bk = this.basket(off), sd = hyp(S.x - Bk.x, S.d - Bk.d);
+        // a post-up for a jumper starts where the jumper comes from (the elbow, the short corner) – back to the basket a
+        // step inside his spot, then the turnaround; only a shot at the rim starts down on the block
+        const pq = sd > 11 ? { x: S.x + (Bk.x - S.x) / sd * 3.5, d: S.d + (Bk.d - S.d) / sd * 3.5 } : null;
+        add(T(0), () => { const q = pq ?? this.spot(off, blk); this.go(A(), q.x, q.d, RUN / c); const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1 }; });
         add(T(0.9), () => this.pass(actor));
         add(T(1.3), () => { const a = A(); if (a) { this.go(a, a.x + s * 2.5, a.d, WALK * 0.7); a.face = -s; } });
         add(T(2.15), () => this.go(A(), S.x, S.d, RUN / c));
