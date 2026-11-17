@@ -43,7 +43,7 @@ export class Timeline {
       } else if (k === 'orb' || k === 'drb') { len = prev && (prev.k === 'ftm') ? 1.0 : 1.1; debt += len; }
       else if (k === 'foul') len = prev && isShot(prev.k) ? 0.9 : 1.1;
       else if (k === 'ft' || k === 'ftm') len = prev && (prev.k === 'ft' || prev.k === 'ftm') ? 2.7 : 3.2;
-      else if (k === 'timeout') len = 4.5;
+      else if (k === 'timeout') len = 7;   // a real stop: they walk to the huddle and back
       else if (k === 'period' || k === 'end') len = 2.8;
       else if (k === 'inj') len = 1.6;
       else if (k === 'sub') len = i === 0 ? 0.2 : prev && (prev.k === 'period' || prev.k === 'timeout') ? 1.2 : 2.8; // the subs need a moment to come on and the others to walk off

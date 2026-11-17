@@ -319,7 +319,12 @@ export class PixelCourt {
     this.cheer = Math.max(0, this.cheer - dt);
     for (const sd of ['h', 'a'] as Side[]) { const m = this.coachMood[sd]; if (m) { m.t -= dt; if (m.t <= 0) this.coachMood[sd] = null; } }
     if (this.lower && (this.lower.t += dt) > 3.6) this.lower = null;
-    if (this.card && (this.card.t += dt) > 3.2) this.card = null;
+    if (this.card) {
+      // the card belongs to the stoppage: at a high speed it goes when play resumes, not seconds into the next possession
+      const it = this.tl?.items[this.card.k];
+      if (it && this.v > it.b + 0.2 && this.card.t < 2.75) this.card.t = 2.75;
+      if ((this.card.t += dt) > 3.2) this.card = null;
+    }
     this.net.h = Math.max(0, this.net.h - dt); this.net.a = Math.max(0, this.net.a - dt);
     const bp = this.proj(this.ball.x, this.ball.d);
     if (this.arena) {
