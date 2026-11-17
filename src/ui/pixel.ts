@@ -788,7 +788,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -1462,7 +1462,10 @@ export class PixelCourt {
     const o = this.ord(off);
     const pg = o[0], big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
-    const fb = !!opts.fb;
+    // no time for the walk-up (the next shot comes a few seconds after the ball changes hands): they push it
+    // up the floor like a break – the inbound or outlet goes long, nobody dribbles in the back court
+    const rushed = (h.how === 'inbound' || h.how === 'rebound' || h.how === 'steal') && end < finDur + 1.2 + 40 / (RUN * 0.8);
+    const fb = !!opts.fb || rushed;
     add(0, () => { this.fbOn = fb; this.pendPass = null; this.curHow = h.how; });
     const slow = call === 'milk' || call === 'hold';
     // who gets the ball first
@@ -2367,7 +2370,7 @@ export class PixelCourt {
     add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now() }; } catch { /* dev */ } });
     // the shooter has the ball before he shoots it: if it is still with somebody else, a quick pass now
     add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });   // a ball left lying somewhere comes to him first
-    if (motion !== 'dunk' || !oop) add(Math.max(0, release - 0.42), () => { if (blocker && false) return; if (this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor) && A()) this.pass(actor, false, false, true); });
+    if (motion !== 'dunk' || !oop) add(Math.max(0, release - 0.42), () => { if (blocker && false) return; if (this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor) && A()) { const hp = this.P(this.ball.holder), a = A()!; if (hp && hyp(hp.x - a.x, hp.d - a.d) > 30) this.flag('crossPass', a, `${hyp(hp.x - a.x, hp.d - a.d).toFixed(0)} ft from ${this.o.names[hp.pid]} how=${this.curHow} type=${type} L=${L.toFixed(1)}`); this.pass(actor, false, false, true); } });
     // the shot
     add(release, () => {
       const a = A();
@@ -2494,7 +2497,7 @@ export class PixelCourt {
         // the rebound comes off toward the man who gets it
         const reb = next && (next.k === 'orb' || next.k === 'drb') ? this.P(this.pidOf(next, next.k)) : null;
         let tx = B.x - s * (3 + r() * 6), td = B.d + (r() - 0.5) * 12;
-        if (reb) { const dx = reb.x - B.x, dd = reb.d - B.d, dist = hyp(dx, dd) || 1; const g = dist <= 9 ? Math.max(2.5, dist - 0.5) : Math.min(15, dist * 0.8); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }   // to the man who gets it: a short one to the big inside, a long one over everybody to a man outside
+        if (reb) { const dx = reb.x - B.x, dd = reb.d - B.d, dist = hyp(dx, dd) || 1; const g = dist <= 16 ? Math.max(2.5, dist - 0.8) : Math.min(16, dist * 0.8); tx = B.x + dx / dist * g; td = B.d + dd / dist * g; }   // to the man who gets it: a short one to the big inside, a long one over everybody to a man outside
         this.ball.holder = null;
         const b = this.ball;
         this.ball.fly = { x0: b.x, d0: b.d, z0: Math.max(10, b.z), x1: tx, d1: td, z1: 7, peak: 13 + r() * 2, t: 0, dur: 0.7, to: reb && hyp(reb.x - tx, reb.d - td) < 6 ? reb.pid : undefined };
