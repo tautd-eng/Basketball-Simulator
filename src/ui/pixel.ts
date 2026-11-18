@@ -1869,7 +1869,8 @@ export class PixelCourt {
     if (actor && md && type !== 'roll' && type !== 'pop') add(0, () => this.assign(actor, md));
     const A = () => this.P(actor);
     const DA = () => this.P(md) ?? this.defOf(actor);
-    const name = (p: string | null) => surname(this.o.names[p ?? ''] ?? '').toLowerCase().replace(/(^|[ -'])\w/g, ch => ch.toUpperCase());
+    // the name as it is written (McDaniels, Gilgeous-Alexander); only an all-caps one is title-cased
+    const name = (p: string | null) => { const n = surname(this.o.names[p ?? ''] ?? ''); return n === n.toUpperCase() ? n.toLowerCase().replace(/(^|[ '\-])\w/g, ch => ch.toUpperCase()) : n; };
     const cap = (txt: string) => add(P.tD, () => this.call(off, txt));
     if (type !== 'fb' && type !== 'putback' && type !== 'drive') add(P.tD, () => this.respace(off, [actor, creator, screener], JOG, r));
     // ---- the final action
@@ -2100,8 +2101,10 @@ export class PixelCourt {
       case 'kick': {
         cap(`${name(creator)} drives and kicks to ${name(actor)}`);
         add(T(0), () => this.go(A(), S.x, S.d, JOG / c));
-        add(T(0.25), () => { const hnd = this.P(creator); if (hnd) this.go(hnd, B.x - s * 8, 25 + (r() - 0.5) * 8, SPRINT / c); });
-        add(T(0.6), () => { const da = DA(), a = A(); if (da && a) this.go(da, (a.x + B.x) / 2, (a.d + 25) / 2, RUN / c); });
+        // he gets into the paint before he kicks it out (said again in case the set was still moving him)
+        const dIn = 25 + (r() - 0.5) * 8;
+        for (const t of [0.25, 0.7]) add(T(t), () => { const hnd = this.P(creator); if (hnd && this.ball.holder === creator) { this.go(hnd, B.x - s * 8, dIn, SPRINT / c); if (t === 0.25) this.sayAt(creator, 'DRIVES', '#ffd34d', 0.7); } });
+        add(T(0.6), () => { const da = DA(), a = A(); if (da && a) this.go(da, (a.x + B.x) / 2, (a.d + 25) / 2, RUN / c); const hd = this.defOf(creator); const hnd = this.P(creator); if (hd && hnd) hd.beh = { k: 'follow', pid: hnd.pid, dx: -s * 1.8, dd: hnd.d < 25 ? -1 : 1 }; });
         // a scorer does not always fire on the catch: he attacks the closeout – a hard dribble or two by the flying
         // defender and he pulls up (a three: one dribble to the side and up)
         const attack = !rim && actor && this.sk(actor, 'handle') > 0.5 && r() < (three ? 0.25 : 0.45) && release - CT(1.3) > 0.4;
@@ -2464,9 +2467,21 @@ export class PixelCourt {
         }
         case 'layup':
           if (reverse) { a.beh = { k: 'arrive', x: B.x - s * 0.2, d: B.d - Math.sign(a.d - B.d) * 1.6, at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); showOff('REVERSE'); }
-          else { a.beh = { k: 'arrive', x: B.x - s * 2.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); }
+          else if (isGuard && ath > 0.68 && !blocker && r() < 0.3) {
+            // the double clutch: he hangs, brings it down past the help and lays it in on the way down
+            a.beh = { k: 'arrive', x: B.x - s * 1.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release + 0.1) };
+            this.jump(a, 3.0 + ath * 0.7, 0.98, 'layup'); showOff('DOUBLE CLUTCH');
+            const hp = this.on(def).filter(q => q.pid !== DA()?.pid).sort((p, q) => hyp(p.x - B.x, p.d - B.d) - hyp(q.x - B.x, q.d - B.d))[0]; if (hp && hyp(hp.x - B.x, hp.d - B.d) < 12) { this.go(hp, B.x - s * 3, a.d + (B.d - a.d) * 0.4, SPRINT); this.jump(hp, 2.6, 0.55, 'block'); }
+          } else { a.beh = { k: 'arrive', x: B.x - s * 2.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); }
           break;
-        case 'floater': this.go(a, a.x + s * 1.5, a.d, JOG); this.jump(a, 1.9, 0.7, 'layup'); break;
+        case 'floater': {
+          // the help big steps up to the rim and the guard lofts it over him from the lane
+          this.go(a, a.x + s * 1.5, a.d, JOG); this.jump(a, 1.9, 0.7, 'layup');
+          const hp = blocker ? null : this.on(def).filter(q => q.pid !== DA()?.pid).sort((p, q) => (this.posN(q.pid) - this.posN(p.pid)) * 3 + hyp(p.x - B.x, p.d - B.d) - hyp(q.x - B.x, q.d - B.d))[0];
+          if (hp && !blocker && hp.pid !== DA()?.pid) { this.go(hp, a.x + s * 4, a.d + (B.d - a.d) * 0.3, SPRINT); this.jump(hp, 2.0, 0.6, 'contest'); }
+          if (this.sk(actor, 'finish') > 0.55 || star > 0) this.sayAt(actor, 'FLOATER', '#ffd34d', 1.0);
+          break;
+        }
         case 'hook': this.go(a, a.x + s * 0.6, a.d + (B.d - a.d) * 0.1, WALK); this.jump(a, 1.3, 0.6, 'hook'); break;
         case 'tip': a.beh = { k: 'arrive', x: B.x - s * 1.1, d: B.d, at: abs(release) }; this.jump(a, 3.0, 0.6, 'reb'); break;
         case 'fade': { const kick = T.fadekick && r() < often; this.go(a, a.x - s * 2.2, a.d, JOG); this.jump(a, 1.9 + (kick ? 0.3 : 0), 0.68 + (kick ? 0.08 : 0), kick ? 'fadekick' : 'fade'); break; }
