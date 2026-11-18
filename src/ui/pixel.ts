@@ -1941,7 +1941,7 @@ export class PixelCourt {
         this.clearOut(add, T(0), off, actor, r);
         // he faces up his man on the perimeter, shakes him (a jab, a crossover) and goes downhill
         add(T(0), () => { const a = A(); if (!a) return; const q = this.faceUp(a, B, 22); this.go(a, q.x, q.d, RUN / c); const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1.6 }; });
-        this.sizeUp(add, T, A, B, s, 0.75, r);
+        this.sizeUp(add, T, A, B, s, 0.75, r, DA);
         add(T(1.75), () => {
           const a = A(); if (!a) return;
           this.go(a, S.x, S.d, SPRINT / c); a.xover = 0.28; a.hand = -(a.hand ?? 1);
@@ -1987,7 +1987,7 @@ export class PixelCourt {
         const out = three ? 5 : 8, lat = three ? 6 : 4;
         const q0 = { x: S.x + ux * out - ud * lat * sg, d: Math.max(3, Math.min(47, S.d + ud * out + ux * lat * sg)) };
         add(T(0), () => { const a = A(); if (a) this.go(a, q0.x, q0.d, RUN / c); const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1.4 }; });
-        this.sizeUp(add, T, A, B, s, 0.8, r);
+        this.sizeUp(add, T, A, B, s, 0.8, r, DA);
         add(T(1.8), () => {
           const a = A(); if (!a) return;
           const tgt = three ? S : { x: S.x - ux * 1.5, d: S.d - ud * 1.5 };
@@ -2266,12 +2266,28 @@ export class PixelCourt {
     return { x: B.x + dx * k, d: Math.max(4, Math.min(46, B.d + dd * k)) };
   }
   /** the size-up: a jab, a hesitation, a crossover – his man is in his stance, waiting */
-  private sizeUp(add: Add, T: (x: number) => number, A: () => PSprite | null, B: { x: number; d: number }, s: number, t0: number, r: () => number) {
+  private sizeUp(add: Add, T: (x: number) => number, A: () => PSprite | null, B: { x: number; d: number }, s: number, t0: number, r: () => number, D?: () => PSprite | null) {
+    // what he has in his bag: an elite handle strings moves together (between the legs, the in-and-out, the hesi),
+    // an average one has a jab and a crossover, a poor one just puts his head down and goes
+    const a0 = A(), T0 = this.traits(a0?.pid), hnd = T0.hnd;
     const xo = () => { const a = A(); if (a && this.ball.holder === a.pid) { a.xover = 0.28; a.hand = -(a.hand ?? 1); } };
-    add(T(t0), () => { const a = A(); if (!a) return; const dx = B.x - a.x, dd = B.d - a.d, l = hyp(dx, dd) || 1; this.go(a, a.x + dx / l * 1.3, a.d + dd / l * 1.3, WALK * 1.5); });   // jab
-    add(T(t0 + 0.3), () => { const a = A(); if (!a) return; const dx = B.x - a.x, dd = B.d - a.d, l = hyp(dx, dd) || 1; this.go(a, a.x - dx / l * 1.1, a.d - dd / l * 1.1, WALK); xo(); });
-    add(T(t0 + 0.65), () => { const a = A(); if (!a) return; this.go(a, a.x, a.d + (r() < 0.5 ? 1.6 : -1.6), WALK); xo(); });   // the crossover
-    void s;
+    const toward = (k: number) => { const a = A(); if (!a) return; const dx = B.x - a.x, dd = B.d - a.d, l = hyp(dx, dd) || 1; this.go(a, a.x + dx / l * k, a.d + dd / l * k, WALK * 1.5); };
+    const lean = (sg: number) => { const d = D?.(); if (d) { d.tx = d.x; d.td = d.d + sg * 1.1; d.spd = RUN; this.setPose(d, 'stance', 0.35); } };   // he bites the wrong way
+    const a = A();
+    if (hnd < 0.55) { add(T(t0), () => toward(1.3)); return; }
+    add(T(t0), () => toward(1.3));                                                         // the jab
+    add(T(t0 + 0.3), () => { toward(-1.1); xo(); });
+    const side = r() < 0.5 ? 1 : -1;
+    add(T(t0 + 0.65), () => { const a = A(); if (!a) return; this.go(a, a.x, a.d + side * 1.6, WALK); xo(); lean(side); });   // the crossover – his man follows it
+    if (hnd >= 0.72) {
+      const hesi = r() < 0.5;
+      add(T(t0 + 0.95), () => {
+        const a = A(); if (!a) return;
+        if (hesi) { a.spd = 0; a.tx = a.x; a.td = a.d; this.setPose(D?.() ?? null, 'stand', 0.3); if (T0.ankles || r() < 0.4) this.sayAt(a.pid, 'HESI', '#ffd34d', 0.7); }   // the hesitation: his man stands up
+        else { this.go(a, a.x, a.d - side * 1.2, WALK); xo(); lean(-side); if (T0.ankles || r() < 0.4) this.sayAt(a.pid, 'IN-AND-OUT', '#ffd34d', 0.7); }
+      });
+    }
+    void s; void a;
   }
   /** the drive ends in a jumper: he stops dead at his spot, his man slides on by and has to recover */
   private hardStop(add: Add, release: number, A: () => PSprite | null, DA: () => PSprite | null, S: { x: number; d: number }, B: { x: number; d: number }, s: number) {
