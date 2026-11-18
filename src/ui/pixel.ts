@@ -1487,7 +1487,13 @@ export class PixelCourt {
     const B = this.basket(off), O = this.basket(def), s = this.dir(off);
     const h = this.how(k);
     const o = this.ord(off);
-    const pg = o[0], big = o[o.length - 1];
+    // who brings it up and runs the offence: the lead guard by handle and by status – a star point guard, not his
+    // backup; at winning time (a close game, last five minutes, overtime) the ball is in the star's hands
+    const mrg = Math.abs((e.hs ?? 0) - (e.as ?? 0));
+    const winTime = (e.p >= 4 && e.c < 300 && mrg <= 10) || e.p > 4;
+    const lead = (p: PSprite) => this.sk(p.pid, 'handle') + this.starOf(p.pid) * (winTime ? 0.45 : 0.2) - Math.max(0, this.posN(p.pid) - 2) * (winTime ? 0.1 : 0.22);
+    const pg = [...o].filter(p => this.posN(p.pid) <= 3.5 || this.sk(p.pid, 'handle') >= 0.7).sort((p, q) => lead(q) - lead(p))[0] ?? o[0];
+    const big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
     // no time for the walk-up (the next shot comes a few seconds after the ball changes hands): they push it
     // up the floor like a break – the inbound or outlet goes long, nobody dribbles in the back court
@@ -1508,10 +1514,10 @@ export class PixelCourt {
       first = opts.receiver ?? (inb === pg ? o[1]?.pid : pg?.pid) ?? null; pA = 1.7;
     } else if (h.how === 'rebound') {
       holder = h.pid ?? holder;
-      first = handles(holder) && (this.posN(holder) <= 2 || fb) ? holder : (opts.receiver ?? pg?.pid ?? null); pA = first === holder ? 0.1 : 0.8;
+      first = handles(holder) && (this.posN(holder) <= 2 || fb) && (fb || !winTime || holder === pg?.pid) ? holder : (opts.receiver ?? pg?.pid ?? null); pA = first === holder ? 0.1 : 0.8;
     } else if (h.how === 'steal') {
       holder = h.pid ?? holder;
-      first = (fb && handles(holder)) || this.posN(holder) <= 2 ? holder : (pg?.pid ?? holder); pA = first === holder ? 0.1 : 0.6;
+      first = (fb && handles(holder)) || (this.posN(holder) <= 2 && (!winTime || holder === pg?.pid)) ? holder : (pg?.pid ?? holder); pA = first === holder ? 0.1 : 0.6;
     } else if (h.how === 'orb') {
       holder = h.pid ?? holder; first = holder; pA = 0;
       // a big who grabs an offensive board and does not go right back up kicks it out
