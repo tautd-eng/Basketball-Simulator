@@ -1845,6 +1845,11 @@ export class PixelCourt {
     if (sc0 <= 2.5 && gap > 8 && !['putback', 'fb', 'post', 'roll', 'cut'].includes(type)) type = rim ? (big(actor) ? 'post' : 'drive') : (big(actor) ? 'pop' : 'pullup');
     // the stars get their isolations: the floor cleared, his man in front of him, the whole bag of moves
     if ((type === 'pullup' || type === 'drive') && !assist && !fb && gap > 6 && actor && this.starOf(actor) > 0 && !big(actor) && r() < (type === 'pullup' ? 0.5 : 0.35)) type = 'iso';
+    // winning time: the star wants it – his own shot, one on one, the others in the corners
+    let clutchCall = false;
+    { const ev = items[k].e, mg = Math.abs((ev.hs ?? 0) - (ev.as ?? 0)), win = (ev.p >= 4 && ev.c < 300 && mg <= 10) || ev.p > 4;
+      if (win && actor && !assist && !fb && type !== 'putback' && !big(actor) && this.starOf(actor) > 0 && ['pullup', 'drive', 'pnrDrive', 'pnrPull'].includes(type) && r() < 0.75) type = 'iso';
+      clutchCall = win && !!actor && ev.c <= 35 && mg <= 3 && type !== 'putback' && this.starOf(actor) > 0; }
     // a big man without a handle does not run the pick and roll as the ball handler: he scores it from the post
     if ((type === 'pnrDrive' || type === 'pnrPull' || type === 'iso') && big(actor) && this.sk(actor, 'handle') < 0.6) type = three ? 'pullup' : 'post';
     // the shot itself, as the play-by-play describes it
@@ -1854,6 +1859,7 @@ export class PixelCourt {
     const FL: Record<string, number> = { dunk: 0.14, tip: 0.35, layup: 0.45, floater: 0.7, hook: 0.62 };
     const fl = Math.min(L * 0.45, FL[motion] ?? 0.62 + dist0 * 0.017);
     const release = L - fl;
+    if (clutchCall && actor) add(Math.max(0, release - 2.4), () => this.call(off, `${this.o.names[actor]} – the game in his hands`));
     // an athletic finisher rolling or cutting to the rim with a passer finding him: the lob, finished in the air
     const athA = actor ? this.looksOf(actor).ath ?? 0.5 : 0.5;
     const oop = motion === 'dunk' && made && (type === 'roll' || type === 'cut' || type === 'highpost') && !!assist && r() < 0.2 + 0.75 * athA * this.sk(actor, 'finish') * 1.4;
