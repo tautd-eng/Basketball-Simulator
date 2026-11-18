@@ -9,6 +9,9 @@ import { REPLAY } from './pixel';
 import { nav } from './nav';
 import { commentary, keyPlays, KeyPlays, ShotChart } from './recap';
 
+/** where the open live game is (read when it is closed from outside, e.g. by opening a team) */
+export const LIVE_AT = { t: 0, done: false };
+
 const SPEEDS = [[1, '×1'], [2, '×2'], [4, '×4'], [8, '×8'], [24, '×24'], [72, '×72'], [240, '×240']] as const;
 
 export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
@@ -61,7 +64,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   const shown = pbp.slice(0, n);
   const lastEv = shown[shown.length - 1] ?? { hs: 0, as: 0 };
   const done = v >= endV - 1e-6;
-  at.current = { t, done };
+  at.current = { t, done }; LIVE_AT.t = t; LIVE_AT.done = done;
   const endT = pbp[pbp.length - 1].t;
   const { period, left } = done ? { period: pbp[pbp.length - 1].p, left: 0 } : tl.clockAt(v);
 

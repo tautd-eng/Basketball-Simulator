@@ -43,7 +43,7 @@ import { AwardsStep } from './awardsstep';
 import { TeamMgmt } from './mgmt';
 import { ensurePicks, deadlineDay, boardScore, pickUsed, pickTied, expectedSlot, describeRight } from '../ai/trades';
 import { planOf } from '../ai/plan';
-import { LiveGame } from './live';
+import { LiveGame, LIVE_AT } from './live';
 
 /** the game the user stopped watching: pick it up where he left it */
 function ResumeWatch({ lg, open, dismiss }: { lg: any; open: () => void; dismiss: () => void }) {
@@ -295,7 +295,7 @@ function App() {
     bump();
     setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
-  async function closeLive(t?: number, done?: boolean) {
+  async function closeLive(t: number = LIVE_AT.t, done: boolean = LIVE_AT.done) {
     if (live?.commit) { live.commit(); sendResult(live.home, live.away, live.res); }
     // stopped part-way through a game (not a replay of an old one): keep it to pick up later from that moment
     if (lg && live?.pbp && live.home && typeof t === 'number') {
