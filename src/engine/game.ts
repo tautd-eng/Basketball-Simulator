@@ -748,7 +748,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // winning time: the ball goes to the stars (a close game in the last five minutes, overtime) – the role players
     // spot up and the go-to men take the shots
     const winTime = (curPeriod >= 4 && curRem < 300 && Math.abs(off.pts - def.pts) <= 10) || curPeriod > 4;
-    let actor = on[rng.weighted(on.map(g => Math.pow(g.usg / 0.2, 1 + 0.6 * fo + (winTime ? 0.9 : 0)) * postW(g) * pnrW(g) * (0.6 + 0.4 * g.e) * Math.exp(edge(g)) * (offCall === 'three' ? Math.max(0.03, g.tpr) ** 1.5 * 6 : 1)))];
+    let actor = on[rng.weighted(on.map(g => Math.pow(g.usg / 0.2, 1 + 0.6 * fo + (winTime ? 1.5 : 0)) * postW(g) * pnrW(g) * (0.6 + 0.4 * g.e) * Math.exp(edge(g)) * (offCall === 'three' ? Math.max(0.03, g.tpr) ** 1.5 * 6 : 1)))];
     // doubling their star: the ball either stays with him in traffic (turnovers) or goes out to an open shooter
     const star = on.reduce((a, g) => (g.usg > a.usg ? g : a), on[0]);
     let kick = false, dblTov = 0;
