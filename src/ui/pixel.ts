@@ -1837,6 +1837,8 @@ export class PixelCourt {
     // a real double team (the engine's): the star is trapped and the ball comes out to this man
     if (kk && type !== 'putback' && type !== 'fb') type = big(kk) ? 'double' : 'blitz';
     if (sc0 <= 2.5 && gap > 8 && !['putback', 'fb', 'post', 'roll', 'cut'].includes(type)) type = rim ? (big(actor) ? 'post' : 'drive') : (big(actor) ? 'pop' : 'pullup');
+    // the stars get their isolations: the floor cleared, his man in front of him, the whole bag of moves
+    if ((type === 'pullup' || type === 'drive') && !assist && !fb && gap > 6 && actor && this.starOf(actor) > 0 && !big(actor) && r() < (type === 'pullup' ? 0.5 : 0.35)) type = 'iso';
     // a big man without a handle does not run the pick and roll as the ball handler: he scores it from the post
     if ((type === 'pnrDrive' || type === 'pnrPull' || type === 'iso') && big(actor) && this.sk(actor, 'handle') < 0.6) type = three ? 'pullup' : 'post';
     // the shot itself, as the play-by-play describes it
@@ -1988,6 +1990,7 @@ export class PixelCourt {
         const q0 = { x: S.x + ux * out - ud * lat * sg, d: Math.max(3, Math.min(47, S.d + ud * out + ux * lat * sg)) };
         add(T(0), () => { const a = A(); if (a) this.go(a, q0.x, q0.d, RUN / c); const da = DA(); if (da && actor) da.beh = { k: 'guard', man: actor, tight: 1.4 }; });
         this.sizeUp(add, T, A, B, s, 0.8, r, DA);
+        this.clearOut(add, T(0.35), off, actor, r);   // the floor is his: they clear the side
         add(T(1.8), () => {
           const a = A(); if (!a) return;
           const tgt = three ? S : { x: S.x - ux * 1.5, d: S.d - ud * 1.5 };
@@ -2313,7 +2316,7 @@ export class PixelCourt {
     const items = this.tl!.items, e = items[k].e;
     const lk = actor ? this.looksOf(actor) : null;
     const ath = lk?.ath ?? 0.5, star = actor ? this.starOf(actor) : 0;
-    const name2 = (p: string | null) => surname(this.o.names[p ?? ''] ?? '').toLowerCase().replace(/(^|[ -'])\w/g, ch => ch.toUpperCase());
+    const name2 = (p: string | null) => { const n = surname(this.o.names[p ?? ''] ?? ''); return n === n.toUpperCase() ? n.toLowerCase().replace(/(^|[ '\-])\w/g, ch => ch.toUpperCase()) : n; };
     const A = () => this.P(actor);
     const DA = () => this.P(md) ?? this.defOf(actor);
     const next = items[k + 1]?.e;
