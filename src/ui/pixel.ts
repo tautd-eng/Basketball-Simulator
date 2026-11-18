@@ -93,7 +93,7 @@ interface Key { at: number; fn: () => void; done?: boolean }
 interface Floater { text: string; color: string; t: number; dur: number; big: boolean; at?: { x: number; d: number; z: number } }
 interface Mark { x: number; d: number; made: boolean; side: Side; t: number; three: boolean }
 type Add = (at: number, fn: () => void) => void;
-interface How { how: 'inbound' | 'rebound' | 'orb' | 'steal' | 'side' | 'period' | 'tip'; pid?: string | null }
+interface How { how: 'inbound' | 'rebound' | 'orb' | 'steal' | 'side' | 'period' | 'tip'; pid?: string | null; back?: boolean }
 
 // running speeds, feet per second
 const WALK = 5, JOG = 11, RUN = 16, SPRINT = 22, ACC = 32;
@@ -856,7 +856,8 @@ export class PixelCourt {
       if (ft && p.pid !== this.hl?.pid && p.z < 0.3 && this.v < it.b - 0.7) {
         for (const side of ['h', 'a'] as Side[]) {
           const B = this.basket(side);
-          if (this.inPaint(p.tx, p.td, B) && hyp(p.tx - B.x, p.td - B.d) > 2) { this.flag('ftLane', p, `t=${p.tx.toFixed(1)},${p.td.toFixed(1)}`); p.td = p.td < 25 ? 16.2 : 33.8; }
+          if (!p.five && this.inPaint(p.tx, p.td, B) && hyp(p.tx - B.x, p.td - B.d) > 2) {   // (the team-mate slapping his hand between free throws may step in)
+ this.flag('ftLane', p, `t=${p.tx.toFixed(1)},${p.td.toFixed(1)}`); p.td = p.td < 25 ? 16.2 : 33.8; }
         }
       }
       // 2. three seconds
@@ -1227,19 +1228,26 @@ export class PixelCourt {
   /** how the team with the ball in window k got it */
   how(k: number): How {
     const items = this.tl!.items;
-    let dead = false;
+    let dead = false, foul = false, tmo = false;
+    // where the ball comes back in after a stoppage: after a timeout in the last two minutes of the 4th (and in
+    // overtime) the team may advance it to the front court; otherwise it goes in where the play stopped – a
+    // timeout after a basket is a baseline inbound, a foul or a violation before they crossed half court is a
+    // side-out in their own back court
+    const ek = items[k].e, advance = tmo0(ek);
+    function tmo0(e: PbpEv) { return (e.p >= 4 && e.c <= 120); }
+    const sideAt = (crossed: boolean): How => (tmo && advance) || crossed ? { how: 'side' } : { how: 'side', back: true };
     for (let j = k - 1; j >= 0; j--) {
       const e = items[j].e;
       switch (e.k) {
         case 'sub': case 'inj': continue;
-        case 'timeout': dead = true; continue;
-        case 'foul': dead = true; continue;
-        case 'make2': case 'make3': return { how: dead ? 'side' : 'inbound' };
-        case 'ft': return { how: dead || !this.tl!.lastFt(j) ? 'side' : 'inbound' };
+        case 'timeout': dead = true; tmo = true; continue;
+        case 'foul': dead = true; foul = true; continue;
+        case 'make2': case 'make3': return !dead ? { how: 'inbound' } : !foul && !(tmo && advance) ? { how: 'inbound' } : sideAt(false);
+        case 'ft': { const last = this.tl!.lastFt(j); if (!last) return { how: 'side' }; return !dead ? { how: 'inbound' } : !foul && !(tmo && advance) ? { how: 'inbound' } : sideAt(false); }
         case 'ftm': return { how: 'side' };
-        case 'drb': return { how: dead ? 'side' : 'rebound', pid: this.pidOf(e, 'drb') };
+        case 'drb': return dead ? sideAt(false) : { how: 'rebound', pid: this.pidOf(e, 'drb') };
         case 'orb': return { how: dead ? 'side' : 'orb', pid: this.pidOf(e, 'orb') };
-        case 'tov': { const st = this.pidOf(e, 'stl'); return st && !dead ? { how: 'steal', pid: st } : { how: 'side' }; }
+        case 'tov': { const st = this.pidOf(e, 'stl'); return st && !dead ? { how: 'steal', pid: st } : sideAt(false); }
         case 'period': return { how: 'period' };
         case 'end': return { how: 'period' };
         default: return { how: 'side' };
@@ -1530,7 +1538,7 @@ export class PixelCourt {
     }
     // bring-up: the ball handler from his start to the top of the key
     const f0 = this.P(first) ?? this.P(holder);
-    const startX = h.how === 'inbound' ? O.x + s * 10 : h.how === 'side' || h.how === 'period' ? 47 + s * 14 : f0 ? f0.x : 47;
+    const startX = h.how === 'inbound' ? O.x + s * 10 : h.how === 'side' && h.back ? 47 - s * 14 : h.how === 'side' || h.how === 'period' ? 47 + s * 14 : f0 ? f0.x : 47;
     const topX = B.x - s * 26;
     const dist = Math.max(0, (topX - startX) * s);
     const bSpd = fb ? SPRINT * 0.95 : slow ? WALK + 2 : opts.quick ? RUN : RUN * 0.8;
@@ -1574,7 +1582,7 @@ export class PixelCourt {
         const f = this.P(first); if (f) this.go(f, O.x + s * 9, 25 + (r() < 0.5 ? -8 : 8), RUN / sc);
         this.retreat(def);
       } else if (h.how === 'side' || h.how === 'period') {
-        const I = inb, sx = h.how === 'period' ? 47 : 47 + s * 12;
+        const I = inb, sx = h.how === 'period' ? 47 : h.back ? 47 - s * 16 : 47 + s * 12;   // a back-court side-out, or the front court
         this.inbPid = I?.pid ?? null;
         // the official hands the ball to the inbounder on the sideline
         if (I) {
@@ -1584,7 +1592,7 @@ export class PixelCourt {
           else this.flyBall(sx, -1.6, 3, 6, Math.min(0.9, 0.3 + hyp(this.ball.x - sx, this.ball.d + 1.6) / 60));
           add(0.05, () => { this.pickup = { pid: I.pid }; });
         }
-        const f = this.P(first); if (f) this.go(f, sx + s * 5, 9, RUN / sc);
+        const f = this.P(first); if (f) this.go(f, sx + s * (h.back ? 3 : 5), 9, RUN / sc);
         // during the dead ball the rest walk up to their spots – nobody is still standing at the other end
         const hs = this.homeSpots(off);
         for (const q of o) if (q !== I && q.pid !== first && (q.x - 47) * s < 10) { const sp = this.spot(off, hs.get(q.pid) ?? 'lw'); this.go(q, sp.x, sp.d, (q.x - 47) * s < -10 ? RUN : JOG); }
@@ -2910,7 +2918,7 @@ export class PixelCourt {
     const last = this.tl!.lastFt(k);
     const next = items[k + 1]?.e;
     const firstFt = !items[k - 1] || (items[k - 1].e.k !== 'ft' && items[k - 1].e.k !== 'ftm');
-    add(0, () => { this.ftFormation(side, sh, firstFt ? JOG : WALK); if (this.ball.holder !== sh) { const p = this.P(sh); if (p) { this.ball.holder = null; this.ball.fly = { x0: this.ball.x, d0: this.ball.d, z0: this.ball.z, x1: p.x, d1: p.d, z1: 5, peak: 7, t: 0, dur: Math.min(0.8, L * 0.3), done: () => this.give(sh), to: sh ?? undefined }; } } this.label = sh ? { pid: sh, t: 1.6 } : null; this.hl = sh ? { pid: sh, t: L } : null; });
+    add(0, () => { const sp = this.P(sh), far = sp ? hyp(sp.x - (B.x - s * FT_REL), sp.d - 25) : 0; this.ftFormation(side, sh, firstFt ? (far > 30 ? RUN : JOG) : WALK); if (this.ball.holder !== sh) { const p = this.P(sh); if (p) { this.ball.holder = null; this.ball.fly = { x0: this.ball.x, d0: this.ball.d, z0: this.ball.z, x1: p.x, d1: p.d, z1: 5, peak: 7, t: 0, dur: Math.min(0.8, L * 0.3), done: () => this.give(sh), to: sh ?? undefined }; } } this.label = sh ? { pid: sh, t: 1.6 } : null; this.hl = sh ? { pid: sh, t: L } : null; });
     // between free throws a teammate from the lane comes over to slap his hand, then goes back
     if (!firstFt) {
       add(0.05, () => {

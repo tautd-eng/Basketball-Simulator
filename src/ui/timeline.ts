@@ -42,7 +42,7 @@ export class Timeline {
         if (len < min) { debt += min - len; len = min; }
       } else if (k === 'orb' || k === 'drb') { len = prev && (prev.k === 'ftm') ? 1.0 : 1.1; debt += len; }
       else if (k === 'foul') len = prev && isShot(prev.k) ? 0.9 : 1.1;
-      else if (k === 'ft' || k === 'ftm') len = prev && (prev.k === 'ft' || prev.k === 'ftm') ? 2.7 : 3.2;
+      else if (k === 'ft' || k === 'ftm') len = prev && (prev.k === 'ft' || prev.k === 'ftm') ? 2.7 : prev && prev.k === 'foul' && /^Intentional/.test(prev.txt) ? 5.5 : 3.2;   // fouled in the back court: he has the length of the floor to walk
       else if (k === 'timeout') len = 7;   // a real stop: they walk to the huddle and back
       else if (k === 'period' || k === 'end') len = 2.8;
       else if (k === 'inj') len = 1.6;

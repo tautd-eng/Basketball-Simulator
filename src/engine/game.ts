@@ -691,7 +691,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       else if (late && d >= 0 && d <= 2 && rem < 24) offCall = 'milk';
       else if (late && d === 3 && rem < 45) offCall = 'three';
       else if (late && d >= 4 && d <= 6 && rem < 22) offCall = 'three';
-      else if (late && d >= 4 && d <= 6 && rem < 50) offCall = 'quick';
+      else if (late && d >= 4 && d <= 6 && rem < 75) offCall = 'quick';   // two possessions down: no time to run the whole clock
       else if (late && d >= 7 && rem < 45) offCall = 'three';
       else if (late && d >= 7 && rem < 100) offCall = 'quick';
       // end of a quarter: take a quick shot to get the ball back (2-for-1), or hold for the last shot
@@ -702,6 +702,8 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       // trailing late: foul to stop the clock and send a poor shooter to the line
       // (down one or two with the shot clock off: foul at once and hope for misses; down three, foul only before a tying three can be set up)
       if (((lead >= 4 && lead <= 10 && rem < 60) || (lead >= 1 && lead <= 2 && rem < 24) || (lead === 3 && rem < 40 && rem > 12)) && rem > 1.5) defCall = 'foul';
+      // up three with a few seconds left: foul before they can get a tying three up (they get two free throws at most)
+      else if (lead === -3 && rem < 5 && rem > 1 && rng.chance(0.5)) defCall = 'foul';
       // down two to four possessions in the last three minutes: press full court after scores
       else if (lead >= 5 && lead <= 14 && rem < 180 && rem > 45 && (ended === 'make' || stopped) && cr.chance(0.55)) defCall = 'pressure';
     }
@@ -711,7 +713,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     dsc = defCall === 'pressure' ? 'press' : cr.chance(zRate) ? 'zone' : cr.chance(id.sw) ? 'switch' : 'man';
   }
   function callDuration(dur: number, rem: number, trail = 0) {
-    if (defCall === 'foul') return 1.5 + 2.5 * rng.next();
+    if (defCall === 'foul') return Math.min(1.5 + 2.5 * rng.next(), Math.max(0.6, rem - 0.6));
     // last possession: tied → the very last shot; behind by one or two → attack with a few seconds left (time for a rebound)
     if (offCall === 'milk') { const behind = trail > 0; return rem <= 24 ? Math.max(1, rem - (behind ? 4 + rng.next() * 3 : 1 + rng.next() * 1.5)) : 18 + rng.next() * 5; }
     // chasing threes: set one up quickly, never let the clock run out on it
@@ -723,7 +725,9 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     return dur;
   }
   function intentionalFoul(off: Side, def: Side): 'end' | 'orb' {
-    const target = off.on[rng.weighted(off.on.map(g => Math.pow(1.05 - g.pft, 3)))];
+    // in the last two minutes a foul away from the ball is a free throw and the ball: they foul whoever catches it,
+    // and the offence gets it to its best free-throw shooters; earlier they can hack the worst one off the ball
+    const target = off.on[rng.weighted(off.on.map(g => curRem < 120 && curPeriod >= 4 ? Math.pow(g.pft, 4) * (0.15 + g.usg) : Math.pow(1.05 - g.pft, 3)))];
     const f = def.on[rng.weighted(def.on.map(g => g.pf))];
     f.fouls++; inc(f, 'pf');
     ev('foul', def, `Intentional foul: ${short(f.p.name)} (${f.fouls}) on ${short(target.p.name)}`);
