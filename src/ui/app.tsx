@@ -38,7 +38,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { loadHistory, H, RATING_LABELS, shownOvr as ovrOf, shownFromRaw, shownFromBpm, ratingOf, seasonInfo, bpmOf, LAST_SEASON, attrOf } from '../data';
 import { setEraCal } from '../engine/game';
-import { newLeague, standings, playoffFormat, realChampion, simDayWatching, watchableToday, playedToday, seasonGames, applySettings, startClutch, finishClutch, todayIndex, awaitingPlayoffs } from '../league/league';
+import { newLeague, standings, playoffFormat, realChampion, simDayWatching, commitWatched, watchableToday, playedToday, seasonGames, applySettings, startClutch, finishClutch, todayIndex, awaitingPlayoffs } from '../league/league';
 import { AwardsStep } from './awardsstep';
 import { TeamMgmt } from './mgmt';
 import { ensurePicks, deadlineDay, boardScore, pickUsed, pickTied, expectedSlot, describeRight } from '../ai/trades';
@@ -296,11 +296,13 @@ function App() {
     setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
   async function closeLive(t: number = LIVE_AT.t, done: boolean = LIVE_AT.done) {
-    if (live?.commit) { live.commit(); sendResult(live.home, live.away, live.res); }
-    // stopped part-way through a game (not a replay of an old one): keep it to pick up later from that moment
-    if (lg && live?.pbp && live.home && typeof t === 'number') {
-      if (!done && t > 30) lg.watching = { home: live.home, away: live.away, res: live.res, pbp: live.pbp, t: Math.floor(t), before: live.before, at: Date.now() };
-      else if (lg.watching?.res?.id === live.res?.id) lg.watching = undefined;
+    // stopped part-way (not a replay of an old game): the game is not finished – it waits, unplayed, to be picked
+    // up from that moment (it goes into the books when it is watched to the end, simmed, or the day moves on)
+    const part = !!(lg && live?.pbp && live.home && !done && t > 30 && !lg.online);
+    if (part && lg) lg.watching = { home: live.home, away: live.away, res: live.res, pbp: live.pbp, t: Math.floor(t), before: live.before, at: Date.now(), pending: !!live.commit || !!lg.watching?.pending };
+    else {
+      if (live?.commit) { live.commit(); sendResult(live.home, live.away, live.res); }
+      if (lg && lg.watching?.res?.id === live?.res?.id) lg.watching = undefined;
     }
     setLive(null);
     bump();
@@ -409,7 +411,7 @@ function App() {
       </div>}
       <main className={tab === 'free-agents' || lg.phase === 'fantasy' || (tab === 'overview' && (lg.phase === 'freeagency' || lg.phase === 'draft')) ? 'wide' : ''}>
         {lg.phase === 'fantasy' && <FantasyRoom lg={lg} openPlayer={openPlayer} onTick={bump} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
-        {lg.phase !== 'fantasy' && tab === 'overview' && lg.watching && !live && <ResumeWatch lg={lg} open={() => { const w = lg.watching!; setLive({ res: w.res, pbp: w.pbp, before: w.before, startAt: w.t, home: w.home, away: w.away }); }} dismiss={async () => { lg.watching = undefined; bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'overview' && lg.watching && !live && <ResumeWatch lg={lg} open={() => { const w = lg.watching!; setLive({ res: w.res, pbp: w.pbp, before: w.before, startAt: w.t, home: w.home, away: w.away, commit: w.pending ? () => commitWatched(lg) : undefined }); }} dismiss={async () => { commitWatched(lg); lg.watching = undefined; bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'overview' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={!lg.online && humans(lg).length <= 1 ? clutchStart : null} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('free-agents')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'management' && <TeamMgmt key={lg.userTid ?? ''} lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'rankings' && <Rankings lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}

@@ -594,7 +594,29 @@ export function currentRound(lg: League): number | null {
  * Play one of today's games for watching. With `defer` the result is not recorded yet: the viewer
  * calls commit() when it closes, so nothing (box scores, series, a title) is known before it is seen.
  */
+/** a game the user stopped watching part-way is not played yet: it goes into the books (exactly as he saw it) when
+ *  he finishes it, sims it, or the day moves on */
+export function commitWatched(lg: League): boolean {
+  const w = lg.watching;
+  if (!w?.pending) return false;
+  w.pending = false;
+  const d = findTodayGame(lg, w.home, w.away);
+  if (!d) return false;
+  const rng = rngOf(lg);
+  recordResult(lg, w.res, rng);
+  if ((lg as any).online && w.pbp) keepReplay(lg, w.res, w.pbp);
+  applyDeferred(lg, d, w.res, rng);
+  saveRng(lg, rng);
+  return true;
+}
+
 export function playSingle(lg: League, home: string, away: string, opts: { defer?: boolean } = {}): { res: GameResult; pbp: PbpEv[]; before?: string; commit: () => void } | null {
+  const w = lg.watching;
+  if (w?.pending && w.home === home && w.away === away && findTodayGame(lg, home, away)) {
+    // the half-watched game: the same game again, not a new one
+    if (!opts.defer) commitWatched(lg);
+    return { res: w.res, pbp: w.pbp, before: w.before, commit: () => { commitWatched(lg); } };
+  }
   const d = findTodayGame(lg, home, away);
   if (!d) return null;
   const rng = rngOf(lg);
@@ -773,6 +795,7 @@ export function playedToday(lg: League): GameResult[] {
 
 /** Simulate one day. Returns false when nothing was left to play in the current phase. */
 export function simDay(lg: League): boolean {
+  commitWatched(lg);   // a half-watched game counts as it was going to end, before the rest of the day is played
   const rng = rngOf(lg);
   let played = false;
   if (lg.phase === 'regular' || lg.phase === 'playoffs') offDayInjuries(lg, nextCal(lg, todayIndex(lg)), rng);
