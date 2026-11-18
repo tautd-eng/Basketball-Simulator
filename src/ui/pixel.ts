@@ -1837,6 +1837,8 @@ export class PixelCourt {
     // a real double team (the engine's): the star is trapped and the ball comes out to this man
     if (kk && type !== 'putback' && type !== 'fb') type = big(kk) ? 'double' : 'blitz';
     if (sc0 <= 2.5 && gap > 8 && !['putback', 'fb', 'post', 'roll', 'cut'].includes(type)) type = rim ? (big(actor) ? 'post' : 'drive') : (big(actor) ? 'pop' : 'pullup');
+    // a big man without a handle does not run the pick and roll as the ball handler: he scores it from the post
+    if ((type === 'pnrDrive' || type === 'pnrPull' || type === 'iso') && big(actor) && this.sk(actor, 'handle') < 0.6) type = three ? 'pullup' : 'post';
     // the shot itself, as the play-by-play describes it
     const sk = e.sk ?? (rim ? 'layup' : three ? 'three' : 'jumper');
     const motion = type === 'putback' ? (sk === 'dunk' ? 'dunk' : 'tip') : sk === 'dunk' ? 'dunk' : sk === 'layup' || sk === 'putback' ? 'layup' : sk === 'floater' ? 'floater' : sk === 'hook' ? 'hook' : sk === 'fadeaway' || sk === 'turnaround' ? 'fade' : sk === 'stepback' ? 'stepback' : 'jumper';
@@ -2472,7 +2474,16 @@ export class PixelCourt {
             a.beh = { k: 'arrive', x: B.x - s * 1.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release + 0.1) };
             this.jump(a, 3.0 + ath * 0.7, 0.98, 'layup'); showOff('DOUBLE CLUTCH');
             const hp = this.on(def).filter(q => q.pid !== DA()?.pid).sort((p, q) => hyp(p.x - B.x, p.d - B.d) - hyp(q.x - B.x, q.d - B.d))[0]; if (hp && hyp(hp.x - B.x, hp.d - B.d) < 12) { this.go(hp, B.x - s * 3, a.d + (B.d - a.d) * 0.4, SPRINT); this.jump(hp, 2.6, 0.55, 'block'); }
-          } else { a.beh = { k: 'arrive', x: B.x - s * 2.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup'); }
+          } else {
+            a.beh = { k: 'arrive', x: B.x - s * 2.6, d: B.d + Math.max(-1.6, Math.min(1.6, (a.d - B.d) * 0.4)), at: abs(release) }; this.jump(a, 2.6 + ath * 0.6, 0.8, 'layup');
+            // a strong finisher goes right into the help big: the bodies meet in the air, he still lays it in
+            const hp = blocker || type === 'putback' ? null : this.on(def).filter(q => q.pid !== DA()?.pid && hyp(q.x - B.x, q.d - B.d) < 11).sort((p, q) => hyp(p.x - B.x, p.d - B.d) - hyp(q.x - B.x, q.d - B.d))[0];
+            if (hp && made && this.sk(actor, 'finish') > 0.6 && this.posN(actor!) >= 2 && r() < 0.45) {
+              this.go(hp, B.x - s * 2.2, a.d + (B.d - a.d) * 0.5, SPRINT); this.jump(hp, 2.3, 0.6, 'block'); hp.next = ['stumble', 0.35];
+              a.next = ['land', 0.3];
+              this.sayAt(actor, 'THROUGH CONTACT', '#ffd34d', 1.1);
+            }
+          }
           break;
         case 'floater': {
           // the help big steps up to the rim and the guard lofts it over him from the lane
