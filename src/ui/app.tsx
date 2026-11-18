@@ -44,6 +44,29 @@ import { TeamMgmt } from './mgmt';
 import { ensurePicks, deadlineDay, boardScore, pickUsed, pickTied, expectedSlot, describeRight } from '../ai/trades';
 import { planOf } from '../ai/plan';
 import { LiveGame } from './live';
+
+/** the game the user stopped watching: pick it up where he left it */
+function ResumeWatch({ lg, open, dismiss }: { lg: any; open: () => void; dismiss: () => void }) {
+  const w = lg.watching; if (!w) return null;
+  const h = lg.teams[w.home], a = lg.teams[w.away];
+  const per = w.t < 2880 ? Math.min(4, Math.floor(w.t / 720) + 1) : 5 + Math.floor((w.t - 2880) / 300);
+  const left = w.t < 2880 ? per * 720 - w.t : 2880 + (per - 4) * 300 - w.t;
+  const clock = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+  const pname = per <= 4 ? `Q${per}` : per === 5 ? 'OT' : `${per - 4}OT`;
+  // the score at that moment (no spoilers beyond it)
+  let hs = 0, as = 0; for (const e of w.pbp) { if (e.t > w.t) break; hs = e.hs; as = e.as; }
+  return (
+    <div className="resume-watch" role="region" aria-label="Continue watching">
+      <span className="rw-icon" aria-hidden="true">▶</span>
+      <div className="rw-text">
+        <strong>Continue watching</strong>
+        <span>{a?.abbr ?? w.away} {as} – {hs} {h?.abbr ?? w.home} · {pname} {clock}{w.before ? ` · ${w.before}` : ''}</span>
+      </div>
+      <button className="primary" onClick={open}>Resume</button>
+      <button className="ghost" onClick={dismiss} aria-label="Dismiss">✕</button>
+    </div>
+  );
+}
 import { SortTable, f1 } from './sorttable';
 import { ClutchGame } from './clutch';
 import { FantasyRoom } from './fantasy';
@@ -272,8 +295,13 @@ function App() {
     bump();
     setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
-  async function closeLive() {
+  async function closeLive(t?: number, done?: boolean) {
     if (live?.commit) { live.commit(); sendResult(live.home, live.away, live.res); }
+    // stopped part-way through a game (not a replay of an old one): keep it to pick up later from that moment
+    if (lg && live?.pbp && live.home && typeof t === 'number') {
+      if (!done && t > 30) lg.watching = { home: live.home, away: live.away, res: live.res, pbp: live.pbp, t: Math.floor(t), before: live.before, at: Date.now() };
+      else if (lg.watching?.res?.id === live.res?.id) lg.watching = undefined;
+    }
     setLive(null);
     bump();
     if (lg) setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
@@ -381,6 +409,7 @@ function App() {
       </div>}
       <main className={tab === 'free-agents' || lg.phase === 'fantasy' || (tab === 'overview' && (lg.phase === 'freeagency' || lg.phase === 'draft')) ? 'wide' : ''}>
         {lg.phase === 'fantasy' && <FantasyRoom lg={lg} openPlayer={openPlayer} onTick={bump} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+        {lg.phase !== 'fantasy' && tab === 'overview' && lg.watching && !live && <ResumeWatch lg={lg} open={() => { const w = lg.watching!; setLive({ res: w.res, pbp: w.pbp, before: w.before, startAt: w.t, home: w.home, away: w.away }); }} dismiss={async () => { lg.watching = undefined; bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'overview' && <Overview lg={lg} openTeam={openTeam} openPlayer={openPlayer} openGame={openGame} watch={watch} clutch={!lg.online && humans(lg).length <= 1 ? clutchStart : null} busy={!!busy || !!clutch} playable={playable} replay={(r: any) => setLive({ res: r, pbp: lg.replays?.games?.[r.id], startAt: 0 })} sampler={sampler} goFA={() => go('free-agents')} onTick={bump} onSaved={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'management' && <TeamMgmt key={lg.userTid ?? ''} lg={lg} openPlayer={openPlayer} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
         {lg.phase !== 'fantasy' && tab === 'rankings' && <Rankings lg={lg} openPlayer={openPlayer} openTeam={openTeam} />}

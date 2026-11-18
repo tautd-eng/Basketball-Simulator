@@ -1240,3 +1240,10 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .chart-filters { flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .chart-filters select { max-width: 12em; }
 .zone-split { margin-top: 6px; max-width: 320px; }
+
+/* continue watching: a game the user closed part-way */
+.resume-watch { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; }
+.resume-watch .rw-icon { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+.resume-watch .rw-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.resume-watch .rw-text span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.resume-watch .ghost { padding: 4px 8px; }

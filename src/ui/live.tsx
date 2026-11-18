@@ -30,6 +30,9 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   const stage = useRef<HTMLDivElement>(null);
   const holdRef = useRef(hold);
   holdRef.current = hold;
+  // where the viewer is when he closes (the main screen offers to pick up from there)
+  const at = useRef({ t: 0, done: false });
+  const shut = () => close(at.current.t, at.current.done);
 
   useEffect(() => {
     if (!playing || hold) return; // paused while a player card is open on top
@@ -49,7 +52,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   }, [playing, speed, hold]);
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (holdRef.current) return; if (e.key === 'Escape') close(); if (e.key === ' ') { e.preventDefault(); setPlaying(p => !p); } };
+    const k = (e: KeyboardEvent) => { if (holdRef.current) return; if (e.key === 'Escape') shut(); if (e.key === ' ') { e.preventDefault(); setPlaying(p => !p); } };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, []);
@@ -58,6 +61,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   const shown = pbp.slice(0, n);
   const lastEv = shown[shown.length - 1] ?? { hs: 0, as: 0 };
   const done = v >= endV - 1e-6;
+  at.current = { t, done };
   const endT = pbp[pbp.length - 1].t;
   const { period, left } = done ? { period: pbp[pbp.length - 1].p, left: 0 } : tl.clockAt(v);
 
@@ -105,7 +109,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
     .sort((a: any, b: any) => Number(b.on) - Number(a.on) || b.st.min - a.st.min);
 
   return (
-    <div className="overlay live-overlay" onClick={close}>
+    <div className="overlay live-overlay" onClick={shut}>
       <div className="live" role="dialog" aria-label="Live game" onClick={e => e.stopPropagation()}>
         <div className="scoreboard">
           <div className="sb-team away"><span className="sb-name"><span className="full">{away.name}</span><span className="abbr">{away.abbr}</span></span><span className="sb-pts">{lastEv.as}</span></div>
@@ -130,7 +134,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
           <button disabled={done} onClick={() => { const nx = period < 4 ? period * 720 : period === 4 ? 2880 : 2880 + (period - 4) * 300; setT(Math.min(endT, nx)); }}>Next quarter ⏭</button>
           <button disabled={done || t >= 2580} onClick={() => { setT(Math.min(endT, 2580)); setView('arena'); setSpeed(2); }}>Last 5 min</button>
           <button onClick={() => { setV(endV); setPlaying(false); }}>To the end</button>
-          <button className="ghost" onClick={close}>Close</button>
+          <button className="ghost" onClick={shut}>Close</button>
         </div>
         {view !== 'chart' && (
           <div className="live-stage" ref={stage}>

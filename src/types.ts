@@ -204,6 +204,8 @@ export interface FantasyDraft {
 
 export interface League {
   version: number;
+  /** a game the user stopped watching part-way: offered on the main screen to pick up from that moment */
+  watching?: { home: string; away: string; res: any; pbp: any[]; t: number; before?: string; at: number };
   /** free-agency moves of past summers, by season: [pid, kind, to tid, from tid, salary, last season, OVR (shown), age] */
   faHist?: Record<number, [string, string, string, string, number, number, number, number][]>;
   seed: number;
