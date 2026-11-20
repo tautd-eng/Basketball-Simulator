@@ -698,12 +698,15 @@ function drawHead(ctx: Ctx, cx: number, cy: number, u: number, f: number, b: Bod
       const F = (x: number) => cx + f * x;
       ctx.moveTo(F(-rx * 0.95), cy - 0.5 * u);
       ctx.bezierCurveTo(F(-rx * 1.05), cy - ry * 1.15, F(rx * 0.95), cy - ry * 1.2, F(rx * 0.98), cy - 2.2 * u);   // crown to brow
-      ctx.lineTo(F(rx * 0.92), cy - 0.6 * u);                                                                    // the eye socket
-      ctx.lineTo(F(rx + 1.5 * u), cy + 2.1 * u);                                                                 // the nose tip
-      ctx.lineTo(F(rx * 0.98), cy + 2.6 * u);
-      ctx.lineTo(F(rx * 1.02), cy + 4.4 * u);                                                                    // the lips
-      ctx.lineTo(F(rx * 0.86 * jw), cy + 5.9 * u);                                                               // the chin
-      ctx.quadraticCurveTo(F(rx * 0.2), cy + 6.4 * u, F(-rx * 0.35), cy + 4.6 * u);                              // under the jaw to its angle
+      ctx.quadraticCurveTo(F(rx * 1.06), cy - 1.5 * u, F(rx * 0.93), cy - 0.7 * u);                           // the brow ridge over the eye socket
+      ctx.quadraticCurveTo(F(rx * 1.02), cy + 0.2 * u, F(rx + 1.35 * u), cy + 1.9 * u);                         // the bridge down to the tip
+      ctx.quadraticCurveTo(F(rx + 1.5 * u), cy + 2.5 * u, F(rx + 0.4 * u), cy + 2.65 * u);                       // the nostril underneath
+      ctx.quadraticCurveTo(F(rx * 0.98), cy + 3.1 * u, F(rx + 0.35 * u), cy + 3.55 * u);                         // the philtrum to the upper lip
+      ctx.lineTo(F(rx * 0.99), cy + 3.95 * u);                                                                   // between the lips
+      ctx.quadraticCurveTo(F(rx + 0.4 * u), cy + 4.35 * u, F(rx * 0.95), cy + 4.85 * u);                         // the lower lip
+      ctx.quadraticCurveTo(F(rx * 0.86), cy + 5.1 * u, F(rx * 0.92 * jw), cy + 5.6 * u);                         // the chin's crease and point
+      ctx.quadraticCurveTo(F(rx * 0.95 * jw), cy + 6.1 * u, F(rx * 0.7 * jw), cy + 6.2 * u);
+      ctx.quadraticCurveTo(F(rx * 0.1), cy + 6.4 * u, F(-rx * 0.35), cy + 4.6 * u);                              // under the jaw to its angle
       ctx.lineTo(F(-rx * 0.62), cy + 1.6 * u);
       ctx.closePath();
     } else {
@@ -798,7 +801,7 @@ function drawHead(ctx: Ctx, cx: number, cy: number, u: number, f: number, b: Bod
     oval(ctx, cx - 0.7 * u, cy + 2.45 * u, 0.42 * u, 0.26 * u, deep); oval(ctx, cx + 0.7 * u, cy + 2.45 * u, 0.42 * u, 0.26 * u, deep);
   }
   const fac = b.facial;
-  const mx = side ? cx + f * (rx - 0.2 * u) : cx, mw = side ? 1.2 * u : 2.0 * u, my = cy + 3.9 * u;
+  const mx = side ? cx + f * (rx - 0.75 * u) : cx, mw = side ? 1.05 * u : 2.0 * u, my = cy + 3.9 * u;
   // facial hair follows the jaw (clipped to the head's outline)
   ctx.save(); head(); ctx.clip();
   if (fac === 'beard' || fac === 'longbeard') {
