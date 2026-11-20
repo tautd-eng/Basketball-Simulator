@@ -2813,6 +2813,15 @@ export class PixelCourt {
     add(0, () => {
       const p = this.P(pid);
       const f = this.ball.fly;
+      // a long rebound: if he cannot get to where it comes down in time, it caroms further out – toward him
+      if (p && f && !f.to && f.dur - f.t > 0.05) {
+        const left = Math.max(0.3, Math.min(L, f.dur - f.t + 0.25)), reach = left * SPRINT * 0.85, far = hyp(p.x - f.x1, p.d - f.d1);
+        if (far > reach + 1) {
+          const k2 = Math.min(1, (far - reach) / far) * 0.85, nx = f.x1 + (p.x - f.x1) * k2, nd = f.d1 + (p.d - f.d1) * k2;
+          const u = Math.min(0.95, f.t / f.dur), cx = this.ball.x, cd = this.ball.d;
+          f.x1 = nx; f.d1 = nd; f.x0 = (cx - nx * u) / (1 - u); f.d0 = (cd - nd * u) / (1 - u);   // from where it is now, no jump
+        }
+      }
       const lx = f ? f.x1 : this.ball.x, ld = f ? f.d1 : this.ball.d;
       if (p) this.go(p, lx, ld, SPRINT);
       // the others give him the spot: whoever stands where it comes down is sealed off it
