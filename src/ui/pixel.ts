@@ -955,7 +955,7 @@ export class PixelCourt {
       if (front) this.crossed = holder.side;
       else if (this.crossed === holder.side && (holder.x - 47) * s2 < -0.3) { holder.x = Math.max(holder.x * s2, (47 + s2 * 1.2) * s2) * s2; if ((holder.tx - 47) * s2 < 1.2) holder.tx = 47 + s2 * 2; this.flag('back', holder, `x=${holder.x.toFixed(1)} tx=${holder.tx.toFixed(1)} vx=${holder.vx.toFixed(1)} t=${(this.v - (this.tl?.items?.[this.cur]?.a ?? 0)).toFixed(1)} side=${holder.side}`); }
     } else if (!holder && !this.ball.fly) this.crossed = null;
-    try { (globalThis as any).__arenaRules = this.rules; (globalThis as any).__arenaLog = this.ruleLog; } catch { /* */ }
+    try { (globalThis as any).__arenaRules = this.rules; (globalThis as any).__arenaLog = this.ruleLog; (globalThis as any).__arena = this; } catch { /* */ }
   }
 
   private behave() {
@@ -2557,7 +2557,7 @@ export class PixelCourt {
       if (dd < 5) this.jump(da, (rim ? 2.2 : 1.3) + dq2 * (rim ? 1.4 : 1.0), 0.6, rim ? 'block' : 'contest');
       else if (dd < 10) this.setPose(da, 'contest', 0.7);
     });
-    add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now() }; } catch { /* dev */ } });
+    add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now(), pid: actor }; } catch { /* dev */ } });
     // the shooter has the ball before he shoots it: if it is still with somebody else, a quick pass now
     add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });   // a ball left lying somewhere comes to him first
     // the shot-blocker is there when it goes up: he rotates over (or stays down on his man) and meets him at the spot
@@ -3693,8 +3693,8 @@ export class PixelCourt {
     let spinFace = 0;
     let spinView: 'front' | 'back' | 'side' | null = null;
     if (p.spin && p.spin > 0) { const u = 1 - p.spin / 0.32; spinView = u < 0.25 ? 'front' : u < 0.5 ? 'side' : u < 0.75 ? 'back' : 'side'; if (u >= 0.25 && u < 0.5) spinFace = -1; }
-    const turning = (p.ft ?? 1) < 0.09 && sp < 9 && !['shoot', 'shootlow', 'layup', 'dunk', 'windmill', 'tomahawk', 'hook', 'stance', 'fade', 'fadekick', 'follow'].includes(pose);
-    const view = spinView ? spinView : turning ? 'front' : pose === 'stance' || pose === 'shoot' || pose === 'shootlow' || pose === 'layup' || pose === 'dunk' || pose === 'windmill' || pose === 'tomahawk' || pose === 'fadekick' || pose === 'hook' ? 'side' : sp > 3 && across > along * 1.4 ? (p.vd < 0 ? 'back' : 'front') : 'side';
+    const turning = (p.ft ?? 1) < 0.09 && sp < 9 && !['shoot', 'shootlow', 'layup', 'dunk', 'windmill', 'tomahawk', 'hook', 'stance', 'fade', 'fadekick', 'follow', 'backdown', 'gather'].includes(pose);
+    const view = spinView ? spinView : turning ? 'front' : pose === 'stance' || pose === 'shoot' || pose === 'shootlow' || pose === 'layup' || pose === 'dunk' || pose === 'windmill' || pose === 'tomahawk' || pose === 'fadekick' || pose === 'hook' || pose === 'backdown' || pose === 'gather' ? 'side' : sp > 3 && across > along * 1.4 ? (p.vd < 0 ? 'back' : 'front') : 'side';
     const nm = (this.o.names[p.pid] ?? '').split(' ').slice(1).join(' ').toUpperCase();
     // weight shift: he leans into a burst and sits back when he puts on the brakes
     { const dt = Math.max(1e-3, time - ((p as any).tiltT ?? time - 0.016)), acc = (sp - ((p as any).lastSp ?? sp)) / dt;
