@@ -208,7 +208,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'stand':
         hipY += 0.5 * u * (1 + Math.sin(ps)); // breathing
-        uA = 0.12 + 0.03 * Math.sin(ps); uB = -0.12 - 0.03 * Math.sin(ps);
+        uA = 0.12 + 0.03 * Math.sin(ps); uB = -0.12 - 0.03 * Math.sin(ps); fA = uA + 0.22; fB = uB + 0.18;   // arms loose, a little bend at the elbow
+        splay = 0.07; spreadA = 0.1; spreadB = 0.1; thA = 0.05; bdA = 0.1; thB = -0.03; bdB = 0.08;   // feet under the shoulders, knees unlocked
         break;
       case 'stance':
         hipY += 0.6 * u * Math.sin(ps * 1.6); // bouncing on his toes
@@ -454,13 +455,13 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   // ---- parts
   const drawLeg = (L: typeof LA, back: boolean) => {
     const sk = back ? skinD : skin;
-    const thW = 8.3 * u * lw, knW = 5.9 * u * lw;
+    const thW = 9.1 * u * lw, knW = 6.0 * u * lw;   // an athlete's thighs (the quads carry him)
     // calf: thicker below the knee, thin at the ankle
     const cx = L.kn.x + (L.an.x - L.kn.x) * 0.3, cy = L.kn.y + (L.an.y - L.kn.y) * 0.3;
     // hip – thigh – above the knee – knee – the calf's belly – the lower calf – ankle: one smooth outline
     const LP = (t: number, a: { x: number; y: number }, c: { x: number; y: number }) => [a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t];
     const [t1x, t1y] = LP(0.45, L.h, L.kn), [t2x, t2y] = LP(0.82, L.h, L.kn), [c2x, c2y] = LP(0.72, L.kn, L.an);
-    smoothLimb(ctx, [[L.h.x, L.h.y, thW], [t1x, t1y, thW * 0.96], [t2x, t2y, thW * 0.8], [L.kn.x, L.kn.y, knW], [cx, cy, 6.9 * u * lw], [c2x, c2y, 4.6 * u * lw], [L.an.x, L.an.y, 3.6 * u]], sk, back ? 0 : 1);
+    smoothLimb(ctx, [[L.h.x, L.h.y, thW], [t1x, t1y, thW * 0.96], [t2x, t2y, thW * 0.8], [L.kn.x, L.kn.y, knW], [cx, cy, 7.3 * u * lw], [c2x, c2y, 4.8 * u * lw], [L.an.x, L.an.y, 3.6 * u]], sk, back ? 0 : 1);
     if (!back) limb(ctx, L.kn.x - 0.7 * u, L.kn.y - 0.4 * u, L.kn.x + 0.7 * u, L.kn.y - 0.4 * u, 1.3 * u, 1.3 * u, skinD); // kneecap
     if (b.legSleeve && (b.legSleeve > 0) === !back) { limb(ctx, L.h.x + (L.kn.x - L.h.x) * 0.55, L.h.y + (L.kn.y - L.h.y) * 0.55, L.kn.x, L.kn.y, 7.4 * u * lw, 5.8 * u * lw, back ? '#161616' : '#222'); limb(ctx, L.kn.x, L.kn.y, cx, cy, 5.8 * u * lw, 6.4 * u * lw, back ? '#161616' : '#222'); limb(ctx, cx, cy, L.an.x, L.an.y, 6.4 * u * lw, 4.2 * u, back ? '#161616' : '#222'); }
     if (b.tights) { const tc = back ? shade(b.tights, 0.8) : b.tights; smoothLimb(ctx, [[L.h.x, L.h.y, thW * 1.03], [t1x, t1y, thW], [L.kn.x, L.kn.y, knW * 1.06], [cx, cy, 7.1 * u * lw], [L.an.x, L.an.y - 1.5 * u, 4.2 * u]], tc, back ? 0 : 1); }
