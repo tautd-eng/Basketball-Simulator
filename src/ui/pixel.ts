@@ -922,7 +922,7 @@ export class PixelCourt {
           } else if (p.beh.k === 'guard' && p.beh.man === holder.pid) {
             const behind = hyp(p.x - B.x, p.d - B.d) > hyp(holder.x - B.x, holder.d - B.d) + 1.5;
             const k2 = 'b' + p.pid; const t = (this.inspT.get(k2) ?? 0) + h; this.inspT.set(k2, behind ? t : 0);
-            if (behind && t > 1.6) this.flag('behind', p);
+            if (behind && t > 1.6) this.flag('behind', p, `h=${this.o.names[holder.pid]} hv=${hyp(holder.vx, holder.vd).toFixed(1)} pv=${hyp(p.vx, p.vd).toFixed(1)} pspd=${p.spd.toFixed(0)} gap=${(hyp(p.x - B.x, p.d - B.d) - hyp(holder.x - B.x, holder.d - B.d)).toFixed(1)} sep=${hyp(p.x - holder.x, p.d - holder.d).toFixed(1)} hbeh=${holder.beh.k} stun=${(p.stun ?? 0).toFixed(1)} pose=${p.pose} set=${this.curSet} into=${(this.v - it.a).toFixed(1)} fin=${(this.finalAt - this.v).toFixed(1)} hx=${holder.x.toFixed(0)},${holder.d.toFixed(0)}`);
           }
         }
       }
@@ -1044,12 +1044,14 @@ export class PixelCourt {
         if (b.k === 'box') { p.tx = man.x + dx / dist * 2.4; p.td = man.d + dd / dist * 2.4; p.spd = RUN; continue; }
         if (this.ball.holder === man.pid) {
           const gap = Math.min(6, Math.min(4, dist * 0.35) * (this.pre() ? Math.min(1, this.lagF(p.pid)) * 0.85 : this.lagF(p.pid)));   // a stopper crowds him, a weak defender gives room
-          p.tx = man.x + dx / dist * gap; p.td = man.d + dd / dist * gap;
+          // he plays where the dribbler is going (a quarter second ahead), so a probe toward the rim does not get by him
+          const lx = man.x + man.vx * 0.28, ld = man.d + man.vd * 0.28;
+          p.tx = lx + dx / dist * gap; p.td = ld + dd / dist * gap;
           // the ball is still in the back court: wait for him a step inside half court (unless pressing)
           const fromB = hyp(p.tx - B.x, p.td - B.d);
           if (fromB > 40 && this.v >= this.pressUntil) { p.tx = B.x + (p.tx - B.x) * 40 / fromB; p.td = B.d + (p.td - B.d) * 40 / fromB; }
           // closing out: sprint, then chop the feet with a hand up
-          p.spd = hyp(p.tx - p.x, p.td - p.d) > 5 ? SPRINT : RUN;
+          p.spd = hyp(p.tx - p.x, p.td - p.d) > 5 ? SPRINT : Math.max(RUN, Math.min(SPRINT, hyp(man.vx, man.vd) * 1.25));
         } else {
           const db = hyp(man.x - bp.x, man.d - bp.d);
           const ballRim = hyp(bp.x - B.x, bp.d - B.d);
@@ -2628,6 +2630,16 @@ export class PixelCourt {
       if (hyp(bp.x - tx, bp.d - td) > 1.5) { bp.beh = { k: 'arrive', x: tx, d: td, at: abs(release) }; this.go(bp, tx, td, SPRINT * 1.25); bp.stun = 0; }
     });
     if (motion !== 'dunk' || !oop) add(Math.max(0, release - 0.42), () => { if (blocker && false) return; if (this.ball.holder && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor) && A()) { const hp = this.P(this.ball.holder), a = A()!; if (hp && hyp(hp.x - a.x, hp.d - a.d) > 30) this.flag('crossPass', a, `${hyp(hp.x - a.x, hp.d - a.d).toFixed(0)} ft from ${this.o.names[hp.pid]} how=${this.curHow} type=${type} L=${L.toFixed(1)}`); this.pass(actor, false, false, true); } });
+    // the shooter cannot get to the play-by-play's spot in time (the ball came back from the other end a moment ago):
+    // he takes it in rhythm from where he is coming, the same distance out – a trailer three, a pull-up in transition
+    if (!rim && !sb && !blocker) for (const lead of [2.2, 1.2]) if (release > lead) add(release - lead, () => {
+      const a = A(); if (!a) return;
+      const far = hyp(a.x - S.x, a.d - S.d), reach = (lead - 0.3) * SPRINT * 0.8;
+      if (far <= Math.max(6, reach)) return;
+      const R = three ? Math.max(dS, 24.3) : dS, dx = a.x - B.x, dd = a.d - B.d, l = hyp(dx, dd) || 1;
+      S.x = B.x + dx / l * R; S.d = Math.max(1.5, Math.min(WID - 1.5, B.d + dd / l * R));
+      a.beh = { k: 'arrive', x: S.x, d: S.d, at: abs(gatherAt) };
+    });
     // the shot
     add(release, () => {
       const a = A();
@@ -2639,7 +2651,7 @@ export class PixelCourt {
         const arc = corner ? 22 : 23.75;
         if (three && fr < arc - 0.3) this.flag('threeIn', a, `${fr.toFixed(1)} ft`);
         if (!three && fr > arc + 0.3) this.flag('twoOut', a, `${fr.toFixed(1)} ft`);
-        if (!rim && hyp(a.x - S.x, a.d - S.d) > 2.5) this.flag('offSpot', a, `${hyp(a.x - S.x, a.d - S.d).toFixed(1)} ft ${type}`);
+        if (!rim && hyp(a.x - S.x, a.d - S.d) > 2.5) this.flag('offSpot', a, `${hyp(a.x - S.x, a.d - S.d).toFixed(1)} ft ${type} at=${a.x.toFixed(0)},${a.d.toFixed(0)} S=${S.x.toFixed(0)},${S.d.toFixed(0)} beh=${a.beh.k}${a.beh.k === 'arrive' ? '>' + a.beh.x.toFixed(0) + ',' + a.beh.d.toFixed(0) + '@' + (a.beh.at - this.v).toFixed(1) : ''} t=${a.tx.toFixed(0)},${a.td.toFixed(0)} spd=${a.spd.toFixed(0)} v=${hyp(a.vx, a.vd).toFixed(0)} stun=${(a.stun ?? 0).toFixed(1)} L=${L.toFixed(1)} rel=${release.toFixed(1)} pk=${this.pickup ? this.o.names[this.pickup.pid] : '-'} inb=${this.inbPid ? this.o.names[this.inbPid] : '-'} how=${this.curHow}`);
         if (Math.abs(B.x - a.x) > 3 && Math.sign(B.x - a.x) !== a.face && motion !== 'fade' && motion !== 'hook') this.flag('facing', a, type);
         if (motion === 'dunk' && fr > 6) this.flag('dunkFar', a, `${fr.toFixed(1)} ft`);
         if ((motion === 'layup' || motion === 'floater') && type !== 'putback' && !reverse && fr < 2.0) this.flag('underRim', a, `${fr.toFixed(1)} ft ${type}`);
