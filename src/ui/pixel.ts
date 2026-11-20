@@ -3553,7 +3553,7 @@ export class PixelCourt {
       const it = this.tl?.items[Math.min(this.cur, (this.tl?.items.length ?? 1) - 1)];
       if (it && !it.live && (it.e.k === 'ft' || it.e.k === 'ftm' || it.e.k === 'foul')) return hash01(p.pid + '|tired') < 0.3 ? 'rest' : 'hips';
       const h = this.P(this.ball.holder);
-      if (h && h.side === p.side && h !== p && this.pre() && hyp(p.x - this.basket(p.side).x, p.d - this.basket(p.side).d) < 26) return 'ready';
+      if (h && h.side === p.side && h !== p && this.pre() && hyp(p.x - this.basket(p.side).x, p.d - this.basket(p.side).d) < 31) return 'ready';
       return 'stand'; }
   }
 
@@ -3696,7 +3696,11 @@ export class PixelCourt {
     const turning = (p.ft ?? 1) < 0.09 && sp < 9 && !['shoot', 'shootlow', 'layup', 'dunk', 'windmill', 'tomahawk', 'hook', 'stance', 'fade', 'fadekick', 'follow'].includes(pose);
     const view = spinView ? spinView : turning ? 'front' : pose === 'stance' || pose === 'shoot' || pose === 'shootlow' || pose === 'layup' || pose === 'dunk' || pose === 'windmill' || pose === 'tomahawk' || pose === 'fadekick' || pose === 'hook' ? 'side' : sp > 3 && across > along * 1.4 ? (p.vd < 0 ? 'back' : 'front') : 'side';
     const nm = (this.o.names[p.pid] ?? '').split(' ').slice(1).join(' ').toUpperCase();
-    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'shimmy' ? time * 7 : ap === 'protect' || ap === 'backdown' ? time * 3.2 : ap === 'stand' || ap === 'ready' || ap === 'hips' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend });
+    // weight shift: he leans into a burst and sits back when he puts on the brakes
+    { const dt = Math.max(1e-3, time - ((p as any).tiltT ?? time - 0.016)), acc = (sp - ((p as any).lastSp ?? sp)) / dt;
+      const tgt = ap === 'run' || ap === 'dribble' || ap === 'stand' || ap === 'ready' ? Math.max(-0.26, Math.min(0.2, acc * 0.012)) : 0;
+      (p as any).tilt = ((p as any).tilt ?? 0) + (tgt - ((p as any).tilt ?? 0)) * Math.min(1, dt * 9); (p as any).lastSp = sp; (p as any).tiltT = time; }
+    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'shimmy' ? time * 7 : ap === 'protect' || ap === 'backdown' ? time * 3.2 : ap === 'stand' || ap === 'ready' || ap === 'hips' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend, tilt: (p as any).tilt });
     if (this.ball.holder === p.pid && !this.ball.fly) this.drawHeldBall(p, hands, Y, pose, H);
     // on fire: a flicker of flames around a hot shooter
     if (this.hot.get(p.pid) && !this.ff) {

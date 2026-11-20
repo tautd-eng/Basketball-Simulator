@@ -42,6 +42,7 @@ export interface AthOpts {
   from?: AthPose;     // the pose he is coming out of
   blend?: number;     // 0 = still in `from`, 1 = fully in `pose`
   t?: number;         // time left in a timed pose (animations that unfold)
+  tilt?: number;      // extra lean from speeding up (+, into it) or putting on the brakes (−, sitting back)
 }
 export interface Hands { front: { x: number; y: number }; back: { x: number; y: number }; head: { x: number; y: number } }
 
@@ -213,14 +214,17 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         hipY += 0.6 * u * Math.sin(ps * 1.6); // bouncing on his toes
         hipY += 11 * u; lean = 0.34;
         // a defensive slide: low, both knees bent over the toes, the feet push apart and come back together
-        { const sl = amp > 0.12 ? 0.2 * Math.sin(ps) * Math.min(1, amp * 2) : 0; thA = 0.72 + sl; bdA = 1.22; thB = 0.02 + sl; bdB = 0.72; }
-        // active hands: the front one up in the passing lane, the other low and out
-        uA = 1.05; fA = 1.75; uB = 0.55; fB = 0.95; spreadA = 0.85; spreadB = 0.75; splay = 0.42;
+        { const sl = amp > 0.12 ? 0.2 * Math.sin(ps) * Math.min(1, amp * 2) : 0; thA = 0.72 + sl; bdA = 1.05; thB = 0.42 + sl; bdB = 0.86; }   // sitting down in it: both knees out over the toes, shins slanted back
+        // active hands, elbows bent: the front one up at shoulder height in the passing lane, the other low by the
+        // hip to swipe at the dribble – and they never stop moving
+        { const hw = Math.sin(ps * 1.4), hw2 = Math.sin(ps * 1.1 + 1.3);
+          uA = 0.62 + 0.1 * hw; fA = 2.25 + 0.18 * hw2; uB = 0.38 + 0.06 * hw2; fB = 1.25 + 0.12 * hw; spreadA = 0.6; spreadB = 0.75; splay = 0.42; }
         break;
       case 'shoot':
         thA = 0.12; bdA = air ? 0.45 : 0.25; thB = -0.05; bdB = air ? 0.55 : 0.2;
-        uA = Math.PI - 0.32; fA = Math.PI - 0.06;
-        uB = Math.PI - 0.75; fB = Math.PI - 0.25;
+        // the set point: the shooting elbow under the ball, the forearm straight up; the guide hand on the side of it
+        uA = Math.PI - 0.62; fA = Math.PI - 0.08; spreadA = -0.42;   // (seen from the front: the ball over his forehead)
+        uB = Math.PI - 1.2; fB = Math.PI - 0.3; spreadB = 0.2;
         lean = -0.04;
         break;
       case 'jump':
@@ -256,7 +260,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'follow': // follow-through: shooting arm up, wrist snapped down
         thA = 0.15; bdA = air ? 0.5 : 0.25; thB = -0.05; bdB = air ? 0.6 : 0.2;
-        uA = Math.PI - 0.38; fA = Math.PI - 0.95; uB = Math.PI - 1.2; fB = Math.PI - 0.9;
+        uA = Math.PI - 0.38; fA = Math.PI - 0.95; uB = Math.PI - 1.2; fB = Math.PI - 0.9; spreadA = -0.3; spreadB = 0.3;
         break;
       case 'fade': // fadeaway: leaning back, arms high
         thA = 0.35; bdA = 0.55; thB = 0.2; bdB = 0.7; lean = -0.32;
@@ -317,7 +321,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'protect': // dribbling low under pressure, the off arm out as a bar between the ball and his man
         hipY += 6 * u + 0.6 * u * Math.sin(ps * 2); lean = 0.24;
         thA = 0.32; bdA = 0.62; thB = -0.2; bdB = 0.45;
-        uA = 0.25; fA = 0.6; uB = 1.35; fB = 1.55; spreadB = 0.9;
+        uA = 0.25; fA = 0.6; uB = 0.95; fB = 1.75; spreadB = 0.6;   // the off arm bent, a forearm bar
         break;
       case 'backdown': // backing his man down: low, wide, leaning back into him, the ball on the far side
         hipY += 7 * u; lean = -0.22 + 0.06 * Math.sin(ps * 2); splay = 0.35;
@@ -332,7 +336,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'ready': // off the ball, shot-ready: knees soft, hands up at the chest for the catch
         hipY += 3.5 * u + 0.4 * u * Math.sin(ps); lean = 0.1;
         thA = 0.2; bdA = 0.42; thB = -0.12; bdB = 0.32; splay = 0.18;
-        uA = 0.7; fA = 1.75; uB = 0.55; fB = 1.6; spreadA = 0.35; spreadB = 0.35;
+        uA = 0.42; fA = 2.05; uB = 0.36; fB = 1.9; spreadA = 0.3; spreadB = 0.3;   // elbows in, palms out for the catch
         break;
       case 'hips': // a dead ball: hands on his hips, catching his breath
         hipY += 0.5 * u * (1 + Math.sin(ps)); lean = -0.03;
@@ -388,7 +392,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       case 'boxout': // low, wide, arms out, backside into the man
         hipY += 8 * u; lean = 0.2;
         thA = 0.55; bdA = 0.9; thB = -0.55; bdB = 0.4;
-        uA = 1.0; fA = 1.6; uB = -1.0; fB = -1.5; spreadA = 1.3; spreadB = 1.3; splay = 0.4;
+        uA = 1.15; fA = 2.55; uB = -1.15; fB = -2.55; spreadA = 1.25; spreadB = 1.25; splay = 0.4;   // elbows wide, forearms up: the 'chicken wings'
         break;
       case 'sit':
         hipY = -22 * u; lean = -0.05;
@@ -402,7 +406,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   const R1 = o.from && o.from !== pose && (o.blend ?? 1) < 1 ? rigOf(o.from) : null;
   const bl = R1 ? Math.max(0, Math.min(1, o.blend ?? 1)) : 1, e = bl * bl * (3 - 2 * bl);
   const mixR = (key: keyof typeof R0) => (R1 ? R1[key] + (R0[key] - R1[key]) * e : R0[key]);
-  const hipY = mixR('hipY'), lean = mixR('lean');
+  const hipY = mixR('hipY'), lean = mixR('lean') + (o.tilt ?? 0);
   const thA = mixR('thA'), bdA = mixR('bdA'), thB = mixR('thB'), bdB = mixR('bdB');
   const uA = mixR('uA'), fA = mixR('fA'), uB = mixR('uB'), fB = mixR('fB'), spreadA = mixR('spreadA'), spreadB = mixR('spreadB'), splay = side ? 0 : mixR('splay');
   const hx = X, hy = Y + hipY;
