@@ -1585,6 +1585,7 @@ export class PixelCourt {
     add(0, () => {
       if (h.how !== 'orb' && h.how !== 'steal') this.matchUp(off);
       else if (!this.match.size) this.matchUp(off);
+      else this.honest(off);   // keep the matchups, but anyone who came on in a substitution gets a man
       const others = this.ord(off).filter(p => p.pid !== first && p !== inb && p.pid !== holder);
       if (h.how === 'inbound') {
         const I = inb;
