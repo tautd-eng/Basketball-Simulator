@@ -2584,7 +2584,7 @@ export class PixelCourt {
       if (da.pose === 'fall' && da.pt > 0) return;   // on the floor after the crossover: no contest
       if (bitten) return;                             // he bit on the fake and is still coming down
       const dd = hyp(da.x - a.x, da.d - a.d);
-      if (motion === 'dunk' && made && dd < 6) {
+      if (motion === 'dunk' && made && dd < 6 && r() < 0.3 + 0.3 * ath) {
         // he challenges at the rim – and wears it
         this.go(da, a.x + s * 0.8, a.d + 0.6, SPRINT); this.jump(da, 2.6, 0.6, 'block');
         da.next = ['stumble', 0.6];
