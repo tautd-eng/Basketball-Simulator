@@ -376,7 +376,7 @@ export class PixelCourt {
   private enter(k: number) {
     const items = this.tl?.items ?? [];
     // a pickup belongs to the play it was meant for: a new play starts fresh (unless the man is right on the ball)
-    if (this.pickup) { const p = this.P(this.pickup.pid); if (!p || hyp(p.x - this.ball.x, p.d - this.ball.d) > 6 || items[k]?.e.k === 'tov') this.pickup = null; }
+    if (this.pickup) { const p = this.P(this.pickup.pid); if (!p || (hyp(p.x - this.ball.x, p.d - this.ball.d) > 6 && p.pid !== this.inbPid) || items[k]?.e.k === 'tov') this.pickup = null; }   // (the inbounder still on his way to the ball keeps it)
     this.keys = k < items.length ? this.plan(k) : [];
   }
 
@@ -958,6 +958,7 @@ export class PixelCourt {
         const wrong = (p.x - 47) * s2 < -14;
         if (!wrong) continue;
         if ((p.tx - 47) * s2 < 4 && p.beh.k === 'spot') { p.tx = 47 + s2 * (p.side === holder.side ? 22 : 30); p.ax = p.tx; p.spd = Math.max(p.spd, RUN); }
+        if (p.spd < SPRINT && (p.tx - 47) * s2 > -14 && p.beh.k !== 'arrive') p.spd = SPRINT;   // the play is at the other end: he hustles to catch up
         if (p.spd < SPRINT) { this.flag('late', p, `${p.side === holder.side ? 'off' : 'def'} x=${p.x.toFixed(0)} t=${p.tx.toFixed(0)} spd=${p.spd.toFixed(0)} into=${(this.v - it.a).toFixed(1)} v=${hyp(p.vx, p.vd).toFixed(1)} mul=${p.mul} stun=${(p.stun ?? 0).toFixed(1)} pose=${p.pose}:${p.pt.toFixed(1)} beh=${p.beh.k} ev=${this.curHow}`); p.spd = SPRINT; }
       }
     }
@@ -1064,7 +1065,8 @@ export class PixelCourt {
           const w = (db > 18 ? 0.12 : 0.05) + (this.pre() && db < 22 ? Math.max(0, b.tight) * 0.1 : 0);   // a denying team steps into the passing lane one pass away
           tx += (bp.x - tx) * w; td += (bp.d - td) * w;
           // never more than a long closeout away from his man (a big's man may be given a little more room)
-          const gapMax = this.pre() ? (bigMan ? 8 : 5.5) : bigMan ? 10 : 7.5, gp = hyp(tx - man.x, td - man.d);
+          const sagBig = bigMan && this.inside(man.pid);   // only a big who does not shoot is given room
+          const gapMax = this.pre() ? (sagBig ? 8 : 5.5) : sagBig ? 10 : 7.5, gp = hyp(tx - man.x, td - man.d);
           if (gp > gapMax) { tx = man.x + (tx - man.x) * gapMax / gp; td = man.d + (td - man.d) * gapMax / gp; }
           // nobody guards a man 40 feet from the basket: the defence gets back and builds its wall first
           const fromB = hyp(tx - B.x, td - B.d), lim = this.v < this.pressUntil ? 90 : this.pre() ? 28 : 23; // pressing: pick up full court; in the half court shooters are guarded out past the arc
@@ -1554,7 +1556,11 @@ export class PixelCourt {
       // whoever is nearest the ball under the basket takes it out – usually a big – and the guard comes to get it
       const bx = this.ball.x, bd = this.ball.d;
       inb = (o.filter(p => p !== pg && free(p)).length ? o.filter(p => p !== pg && free(p)) : o.filter(p => p !== pg)).sort((p, q) => hyp(p.x - bx, p.d - bd) - hyp(q.x - bx, q.d - bd))[0] ?? big;
+      // already standing out of bounds with the ball (the same inbound planned again): he takes it out
+      const hOut = this.ball.holder ? this.P(this.ball.holder) : null;
+      if (hOut && hOut.side === off && (hOut.x < 0 || hOut.x > LEN)) inb = hOut;
       first = opts.receiver ?? (inb === pg ? o[1]?.pid : pg?.pid) ?? null; pA = 1.7;
+      if (inb && first === inb.pid) first = (inb === pg ? o[1]?.pid : pg?.pid) ?? null;
     } else if (h.how === 'rebound') {
       holder = h.pid ?? holder;
       first = handles(holder) && (this.posN(holder) <= 2 || fb) && (fb || !winTime || holder === pg?.pid) ? holder : (opts.receiver ?? pg?.pid ?? null); pA = first === holder ? 0.1 : 0.8;
