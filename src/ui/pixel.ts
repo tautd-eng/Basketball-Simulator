@@ -1795,7 +1795,12 @@ export class PixelCourt {
         case 'pnr': case 'horns': {
           // pick and roll up top (Horns: both bigs start at the elbows, one screens, the other pops)
           const scr = bigs[0], pop = set === 'horns' ? bigs[1] ?? mates.find(p => p !== scr) : null;
-          if (set === 'horns') add(at, () => { const a = this.spot(off, 'le'), b = this.spot(off, 're'); this.go(scr, a.x, a.d, JOG); if (pop) this.go(pop, b.x, b.d, JOG); });
+          if (set === 'horns') add(at, () => {
+            const a = this.spot(off, 'le'), b = this.spot(off, 're'); this.go(scr, a.x, a.d, JOG); if (pop) this.go(pop, b.x, b.d, JOG);
+            // the shape: the ball up top, the bigs at the elbows, the two wings down in the corners
+            const wings = this.on(off).filter(q => q !== scr && q !== pop && q.pid !== vh0 && q.pid !== this.ball.holder);
+            wings.sort((p, q) => p.d - q.d).forEach((q, i) => { const c = this.spot(off, i === 0 ? 'lc' : 'rc'); this.go(q, c.x, c.d, RUN); q.ax = c.x; q.ad = c.d; });
+          });
           add(at + (set === 'horns' ? 0.7 : 0), () => { const h = this.P(vh0); if (h) this.go(scr, h.x + s * 2, h.d + (h.d < 25 ? 2.5 : -2.5), RUN); });
           add(at + (set === 'horns' ? 1.4 : 0.8), () => { this.setPose(scr, 'screen', 0.7); if (this.scheme === 'switch') this.switchOn(vh0, scr.pid); });
           add(at + (set === 'horns' ? 1.6 : 1.0), () => {
