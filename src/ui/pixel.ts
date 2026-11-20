@@ -1763,6 +1763,12 @@ export class PixelCourt {
           add(at + 0.8, () => this.pass(bg.pid, true));
           add(at + 1.1, () => { const p = this.P(back); if (p) this.go(p, B.x - s * 6, blk === 'lb' ? 36 : 14, RUN); }); // split cut
           add(at + 1.4, () => { const a = this.P(bg.pid); if (a) a.face = -s; });
+          // the floor spaced around the post: nobody else on his side of the lane (the corner and the weak side)
+          add(at + 0.9, () => {
+            const opp = blk === 'lb' ? ['rw', 'rc', 'top'] : ['lw', 'lc', 'top'];
+            const rest = this.on(off).filter(q => q.pid !== bg.pid && q.pid !== back);
+            rest.forEach((q, i) => { const sp = this.spot(off, opp[i] ?? 'top', 2, r); this.go(q, sp.x, sp.d, RUN); q.ax = sp.x; q.ad = sp.d; });
+          });
           add(at + 2.1, () => { const p = this.P(back); if (p) { const q = this.spot(off, blk === 'lb' ? 'rw' : 'lw', 2, r); this.go(p, q.x, q.d, RUN); } });
           const out = pickWing();
           add(at + 2.3, () => this.pass(out.pid));
@@ -1807,6 +1813,12 @@ export class PixelCourt {
             // the shape: the ball up top, the bigs at the elbows, the two wings down in the corners
             const wings = this.on(off).filter(q => q !== scr && q !== pop && q.pid !== vh0 && q.pid !== this.ball.holder);
             wings.sort((p, q) => p.d - q.d).forEach((q, i) => { const c = this.spot(off, i === 0 ? 'lc' : 'rc'); this.go(q, c.x, c.d, RUN); q.ax = c.x; q.ad = c.d; });
+          });
+          // the others spot up away from the action: the two corners and the far wing (the pick and roll needs room)
+          if (set === 'pnr') add(at + 0.2, () => {
+            const h = this.P(vh0); if (!h) return;
+            const farW = h.d < 25 ? 'rw' : 'lw', sp = ['lc', 'rc', farW];
+            this.on(off).filter(q => q !== scr && q.pid !== vh0).forEach((q, i) => { const p2 = this.spot(off, sp[i] ?? farW, 2, r); this.go(q, p2.x, p2.d, RUN); q.ax = p2.x; q.ad = p2.d; });
           });
           add(at + (set === 'horns' ? 0.7 : 0), () => { const h = this.P(vh0); if (h) this.go(scr, h.x + s * 2, h.d + (h.d < 25 ? 2.5 : -2.5), RUN); });
           add(at + (set === 'horns' ? 1.4 : 0.8), () => { this.setPose(scr, 'screen', 0.7); if (this.scheme === 'switch') this.switchOn(vh0, scr.pid); });
@@ -2601,7 +2613,7 @@ export class PixelCourt {
     // the shot
     add(release, () => {
       const a = A();
-      if (a && !blocker && motion !== 'dunk' && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor)) { const bp = this.ballPos(); if (hyp(bp.x - a.x, bp.d - a.d) > 4) { this.ball.fly = null; this.ball.holder = actor; } /* never a shot from where the ball lies across the floor */ this.flag('shotFar', a, `${hyp(bp.x - a.x, bp.d - a.d).toFixed(0)} ft holder=${this.o.names[this.ball.holder ?? ''] ?? 'none'} fly=${!!this.ball.fly} ${type} lastGive=${this.lastGive ? this.o.names[this.lastGive.pid] + '@' + (this.v - this.lastGive.v).toFixed(1) : '-'} ball=${this.ball.x.toFixed(0)},${this.ball.d.toFixed(0)} z=${this.ball.z.toFixed(1)} pk=${this.pickup ? this.o.names[this.pickup.pid] : '-'} lT=${this.looseT.toFixed(1)} live=${this.tl!.items[this.cur]?.live}`); }
+      if (a && !blocker && motion !== 'dunk' && this.ball.holder !== actor && !(this.ball.fly && this.ball.fly.to === actor)) { const bp = this.ballPos(); const h0 = this.ball.holder ? this.o.names[this.ball.holder] : 'none', f0 = this.ball.fly ? 'fly→' + (this.ball.fly.to ? this.o.names[this.ball.fly.to] : '-') : 'nofly'; if (hyp(bp.x - a.x, bp.d - a.d) > 4) { this.ball.fly = null; this.ball.holder = actor; } /* never a shot from where the ball lies across the floor */ this.flag('shotFar', a, `was=${h0} ${f0} ${hyp(bp.x - a.x, bp.d - a.d).toFixed(0)} ft holder=${this.o.names[this.ball.holder ?? ''] ?? 'none'} fly=${!!this.ball.fly} ${type} lastGive=${this.lastGive ? this.o.names[this.lastGive.pid] + '@' + (this.v - this.lastGive.v).toFixed(1) : '-'} ball=${this.ball.x.toFixed(0)},${this.ball.d.toFixed(0)} z=${this.ball.z.toFixed(1)} pk=${this.pickup ? this.o.names[this.pickup.pid] : '-'} lT=${this.looseT.toFixed(1)} live=${this.tl!.items[this.cur]?.live}`); }
       if (a) {
         // the shot as basketball allows it: a three from behind the arc (22 ft in the corners, 23.75 elsewhere),
         // a two from inside it, from the spot the play-by-play gives, facing the basket
