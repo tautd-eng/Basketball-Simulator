@@ -469,6 +469,7 @@ export class PixelCourt {
   private setPose(p: PSprite | null, pose: Pose, t: number) { if (p) { p.pose = pose; p.pt = t; } }
   private give(pid: string | null | undefined) {
     if (!pid) return;
+    if (!this.ff) { const p = this.P(pid), bp = this.ballPos(), dd = p ? hyp(p.x - bp.x, p.d - bp.d) : 0; if (p && !this.ball.fly && dd > 3.5) this.flag('teleport', p, `${dd.toFixed(1)}ft from=${this.ball.holder ? this.o.names[this.ball.holder] : 'loose'} z=${this.ball.z.toFixed(1)} ev=${this.tl?.items[this.cur]?.e.k} how=${this.curHow} src=${(new Error().stack ?? '').split('\n').slice(2, 6).map(l => l.replace(/.*pixel\.ts:(\d+).*/, '$1')).join('<')}`); }
     if (this.dbgTele && !this.ff) { const p = this.P(pid), bp = this.ballPos(); if (p && !this.ball.fly && hyp(p.x - bp.x, p.d - bp.d) > 3) this.dbgTele((new Error().stack ?? '') + '\nfly:' + this.flySrc); }
     this.ball.fly = null;
     this.ball.holder = pid; this.lastGive = { pid, v: this.v }; { const q = this.P(pid); if (q) this.giveAt = { x: q.x, d: q.d, v: this.v, how: this.curHow, src: (new Error().stack ?? '').split('\n').slice(2, 5).map(l => l.replace(/.*pixel\.ts:(\d+).*/, '$1')).join('<') } as any; }
@@ -659,7 +660,7 @@ export class PixelCourt {
       this.looseT += dt;
       // a live ball lying just over the line (left there by an inbound) is played back in: players may not step out for it
       if (it.live && this.looseT > 0.4 && (b.d < 0.3 || b.d > WID - 0.3 || b.x < 0.3 || b.x > LEN - 0.3)) { b.d = Math.max(0.6, Math.min(WID - 0.6, b.d)); b.x = Math.max(0.6, Math.min(LEN - 0.6, b.x)); }
-      if (this.looseT > 0.8) {
+      if (this.looseT > 0.3) {
         const side = this.possSide(this.cur);
         const p = this.on(side).sort((a, c) => hyp(a.x - b.x, a.d - b.d) - hyp(c.x - b.x, c.d - b.d))[0];
         if (p) {
@@ -793,7 +794,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0, blkFar: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0, blkFar: 0, teleport: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -1621,7 +1622,7 @@ export class PixelCourt {
         const c1 = big, c2 = this.ord(def).at(-1);
         this.ball.holder = null; this.ball.fly = { x0: 47, d0: 25, z0: 6, x1: 47, d1: 25, z1: 12, peak: 15, t: 0, dur: 0.7 * sc };
         add(0.55 * sc, () => { this.jump(c1 ?? null, 3.4, 0.6 * sc); this.jump(c2 ?? null, 3.2, 0.6 * sc); });
-        add(0.75 * sc, () => { const f = this.P(first); if (f) { this.ball.holder = big?.pid ?? null; this.pass(first); } });
+        add(0.75 * sc, () => { const f = this.P(first); if (f) { const bx = this.ball.x, bd = this.ball.d; this.flyBall(f.x, f.d, 5, 11, 0.55, () => this.give(first), first); this.ball.fly!.x0 = bx; this.ball.fly!.d0 = bd; } });   // the tap goes straight to him
         this.guardAll(off);
       } else {
         // the ball is where it is: if he is not on it yet, he picks it up on the way
@@ -2197,7 +2198,7 @@ export class PixelCourt {
         add(T(1.0), () => { const b = this.P(creator), a = A(); if (b && a) this.go(a, b.x + s * 1, b.d + (sideL ? 1.5 : -1.5), RUN / c); });
         add(T(1.55), () => {
           const b = this.P(creator), a = A(); if (!b || !a) return;
-          if (this.ball.holder === creator) this.give(actor);
+          if (this.ball.holder === creator) { if (hyp(b.x - a.x, b.d - a.d) < 3.5) this.give(actor); else this.pass(actor, false, false, true); }   // the hand-off, or a pitch if he has not got there
           this.setPose(b, 'screen', 0.6 * c);
           const da = DA(); if (da) { da.stun = 0.4 * this.lagF(da.pid); da.beh = { k: 'follow', pid: a.pid, dx: -s * 2, dd: sideL ? -1 : 1 }; }
           this.go(a, S.x, S.d, RUN / c);
@@ -2584,7 +2585,10 @@ export class PixelCourt {
     });
     add(Math.max(0, release - 1.2), () => { try { (globalThis as any).__shot = { m: motion, t: type, at: Date.now(), pid: actor }; } catch { /* dev */ } });
     // the shooter has the ball before he shoots it: if it is still with somebody else, a quick pass now
-    add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });   // a ball left lying somewhere comes to him first
+    add(Math.max(0, release - 1.4), () => { const a = A(); if (a && !this.ball.holder && !this.ball.fly && hyp(this.ball.x - a.x, this.ball.d - a.d) > 3) this.getBall(actor); });
+    // still nobody's ball (the man going for it is not there in time): it is bounced to him – seen crossing the floor, never
+    // appearing in his hands
+    add(Math.max(0, release - 0.75), () => { const a = A(); if (!a || this.ball.holder || (this.ball.fly && this.ball.fly.to)) return; const dd = hyp(this.ball.x - a.x, this.ball.d - a.d); if (dd > 3) { this.pickup = null; const to = actor; this.flyBall(a.x, a.d, 4.2, Math.max(2.5, this.ball.z + 1), Math.min(0.55, 0.18 + dd / 70), () => this.give(to), to ?? undefined); } });   // a ball left lying somewhere comes to him first
     // the shot-blocker is there when it goes up: he rotates over (or stays down on his man) and meets him at the spot
     add(0, () => { this.blkPid = blocker; });
     if (blocker) for (const lead of [1.7, 0.8]) add(Math.max(0, release - lead), () => {
