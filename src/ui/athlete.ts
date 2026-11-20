@@ -190,16 +190,20 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     let spreadA = 0, spreadB = 0;                               // arms out to the side (front/back views)
     let splay = 0;                                              // knees and feet apart (seen from the front/back)
     const runLegs = () => {
-      thA = 0.62 * amp * Math.sin(ps); bdA = amp * (0.2 + 1.25 * Math.max(0, Math.cos(ps))) + 0.06;
-      thB = 0.62 * amp * Math.sin(pb); bdB = amp * (0.2 + 1.25 * Math.max(0, Math.cos(pb))) + 0.06;
+      // a runner's stride: the knee drives up in front (more than the leg pushes back behind), the heel folds up
+      // under the hip as the leg comes through, the support leg nearly straight under him
+      thA = amp * (0.16 + 0.74 * Math.sin(ps)); bdA = amp * (0.18 + 1.45 * Math.pow(Math.max(0, Math.cos(ps - 0.15)), 1.3)) + 0.06;
+      thB = amp * (0.16 + 0.74 * Math.sin(pb)); bdB = amp * (0.18 + 1.45 * Math.pow(Math.max(0, Math.cos(pb - 0.15)), 1.3)) + 0.06;
       hipY -= 2 * u * amp * Math.abs(Math.sin(ps));
       lean = 0.14 * amp;
     };
     switch (pose) {
       case 'run':
         runLegs();
-        uA = -0.6 * amp * Math.sin(ps); fA = uA + 0.9 * amp + 0.25;
-        uB = -0.6 * amp * Math.sin(pb); fB = uB + 0.9 * amp + 0.25;
+        // arms bent near ninety degrees, swinging from the shoulder against the legs: the hand comes up to the chest
+        // in front (the elbow closes) and back past the hip behind (it opens)
+        uA = -0.62 * amp * Math.sin(ps) - 0.05; fA = uA + 0.35 + 1.0 * amp + 0.35 * amp * Math.max(0, -Math.sin(ps));
+        uB = -0.62 * amp * Math.sin(pb) - 0.05; fB = uB + 0.35 + 1.0 * amp + 0.35 * amp * Math.max(0, -Math.sin(pb));
         break;
       case 'dribble':
         if (amp > 0.15) runLegs(); else { thA = 0.18; bdA = 0.45; thB = -0.15; bdB = 0.3; hipY += 3 * u; lean = 0.12; }
