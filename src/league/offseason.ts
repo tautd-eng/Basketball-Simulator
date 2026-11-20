@@ -903,6 +903,19 @@ function cheapCut(lg: League, t: Team, p: Player): Player | null {
     .sort((a, b) => playerValue(a, N, t.strategy) - playerValue(b, N, t.strategy))[0];
   return c && playerValue(c, N, t.strategy) + 0.5 < playerValue(p, N, t.strategy) ? c : null;
 }
+/**
+ * A full roster does not cost a team its own good free agent: it waits its weakest player instead, even one on more
+ * than a minimum deal (the rest of his contract stays on the books as dead money) – but never a core player, never a
+ * recent first-round pick, and only if the gap is clear and the dead money is not too much.
+ */
+function ownCut(lg: League, t: Team, p: Player): Player | null {
+  const N = lg.season;
+  const c = t.roster.map(pid => lg.players[pid]).filter(x => x.id !== p.id && !keeps(lg, t.tid, x) && !(x.contract.rookie && x.draft?.pick && x.draft.pick <= 30 && N - (x.draft.year ?? N) < 2))
+    .sort((a, b) => playerValue(a, N, t.strategy) - playerValue(b, N, t.strategy))[0];
+  if (!c) return null;
+  const dead = c.contract.sal * Math.max(1, c.contract.exp - N + 1);
+  return playerValue(c, N, t.strategy) + 1 < playerValue(p, N, t.strategy) && dead <= 0.12 ? c : null;
+}
 function waive(lg: League, t: Team, x: Player, st: number) {
   t.roster = t.roster.filter(pid => pid !== x.id); releaseDead(lg, t.tid, x); x.tid = null;
   x.contract = { sal: MIN_SAL, exp: lg.season }; x.cut = { tid: t.tid, s: lg.season };
@@ -949,8 +962,7 @@ function aiMatches(lg: League, p: Player, tid: string, sal: number) {
   const star = !isHuman(lg, tid) && (maxPlayer(p, lg.season) || (shownOvr(p.z, p.id) >= 88 && ageIn(p, lg.season) <= 25));
   if (!star && !worthKeeping(lg, p, sal, lg.season, t.strategy)) return false;
   if (t.roster.length >= ROSTER_MAX) {
-    if (!star) return false;
-    const cut = t.roster.map(id => lg.players[id]).filter(x => x.id !== p.id && !keeps(lg, tid, x)).sort((x, y) => shownOvr(x.z, x.id) - shownOvr(y.z, y.id))[0];
+    const cut = star ? t.roster.map(id => lg.players[id]).filter(x => x.id !== p.id && !keeps(lg, tid, x)).sort((x, y) => shownOvr(x.z, x.id) - shownOvr(y.z, y.id))[0] : payroll(lg, tid) + sal <= Math.min(hardCap(lg), lg.season < 1985 ? 1.6 : 1.5) ? ownCut(lg, t, p) : null;   // (only if he can be paid at all)
     if (!cut) return false;
     t.roster = t.roster.filter(x => x !== cut.id);
     releaseDead(lg, tid, cut);
@@ -1136,7 +1148,7 @@ function teamOffers(lg: League, p: Player, stage: number, rng: { next(): number;
   const offers: { t: Team; sal: number; score: number; mle: boolean; cut: Player | null; needRoom: boolean }[] = [];
   for (const t of teams) {
     if (refuses(p, t.tid)) continue; // he asked them for a trade
-    const cut = t.roster.length >= ROSTER_MAX ? cheapCut(lg, t, p) : null;
+    const cut = t.roster.length >= ROSTER_MAX ? (cheapCut(lg, t, p) ?? (p.bird === t.tid || p.rfa === t.tid ? ownCut(lg, t, p) : null)) : null;
     if (t.roster.length >= ROSTER_MAX && !cut) continue;
     const pay = payroll(lg, t.tid);
     const room = ceiling(lg, N) - pay;
@@ -1656,7 +1668,7 @@ function contracts(lg: League, rng: Rng, log: FreeAgency['log'], decisions: NonN
         p.tid = null;
         // the team wants him: he is on the market like everyone (the same rules as for people) – the team keeps his
         // Bird rights and may bid over the cap in free agency
-        if ((wants || (RULES.same && rank < 9 && worth > 6)) && !rfaEligible(p, N, lg) && !refuses(p, t.tid)) p.bird = t.tid;
+        if (!rfaEligible(p, N, lg) && !refuses(p, t.tid)) p.bird = t.tid;   // his rights stay with the team: whether it bids is decided on the market, against what else is out there
         // restricted free agent: a qualifying offer keeps the right to match
         if (rfaEligible(p, N, lg) && worthKeeping(lg, p, qoAmount(p), N, t.strategy)) {
           p.rfa = t.tid; p.qo = qoAmount(p);

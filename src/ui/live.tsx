@@ -2,7 +2,7 @@
 // Live game viewer: replays a recorded game's play-by-play at a chosen speed,
 // on the pixel court or the shot chart, with both teams' box scores side by side.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CourtCanvas, BoxPair, rosterMaps, fmtTxt, mmss, periodName } from './court';
+import { CourtCanvas, BoxPair, rosterMaps, fmtTxt, mmss, periodName, looksFor } from './court';
 import { colorsOf } from './art';
 import { Timeline } from './timeline';
 import { REPLAY } from './pixel';
@@ -89,6 +89,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
     return { st, on };
   }, [n, Math.floor(t)]);
 
+  const nums = useMemo(() => { const l = looksFor(maps.names); const o: Record<string, number> = {}; for (const k in l) o[k] = l[k].num; return o; }, [res]);
   const abbr = { h: home.abbr, a: away.abbr };
   const line = useMemo(() => commentary(pbp, n, maps.names, abbr), [n]);
   const plays = useMemo(() => keyPlays(pbp, maps.names, abbr, n), [n]);
@@ -145,6 +146,10 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
             <button className="stage-full" title="Full screen" aria-label="Full screen" onClick={() => { const el: any = stage.current; try { if (document.fullscreenElement) document.exitFullscreen(); else el?.requestFullscreen?.(); } catch { /* not available */ } }}>⛶</button>
           </div>
         )}
+        <OnFloor teams={[
+          { side: 'a' as const, abbr: away.abbr, color: colorsOf(away.tid, away.abbr)[0] },
+          { side: 'h' as const, abbr: home.abbr, color: colorsOf(home.tid, home.abbr)[0] },
+        ]} on={box.on} st={box.st} names={maps.names} nums={nums} posOf={(pid: string) => lg.players[pid]?.pos ?? ''} openPlayer={openPlayer} />
         {view !== 'chart' && line && <div className="commentary" aria-live="polite"><span className="cm-mic" aria-hidden="true">🎙</span>{line}</div>}
         <div className="live-grid">
           <div className="live-left">
@@ -183,6 +188,30 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
         </div>
         <p className="note">Green dot – player on the court. The result is already recorded in the league; here you see how the game unfolded.</p>
       </div>
+    </div>
+  );
+}
+
+/** The ten men on the floor right now, by team: number, name, position, line so far, fouls. */
+function OnFloor({ teams, on, st, names, nums, posOf, openPlayer }: any) {
+  return (
+    <div className="onfloor" aria-label="On the floor">
+      {teams.map((tm: any) => (
+        <div className="of-row" key={tm.side} style={{ ['--tc' as any]: tm.color }}>
+          <span className="of-team">{tm.abbr}</span>
+          {(on[tm.side] as string[]).map(pid => {
+            const s = st[pid] ?? {}, pf = s.pf ?? 0;
+            const short = (names[pid] ?? '').split(' ').slice(1).join(' ') || names[pid];
+            return (
+              <button key={pid} className="of-p" onClick={() => openPlayer?.(pid)} title={names[pid]}>
+                <span className="of-num">{nums[pid] ?? ''}</span>
+                <span className="of-name">{short}<span className="of-pos">{posOf(pid)}</span></span>
+                <span className="of-line">{s.pts ?? 0}p {(s.orb ?? 0) + (s.drb ?? 0)}r {s.ast ?? 0}a{pf > 0 && <span className={pf >= 5 ? 'of-pf hot' : pf >= 4 ? 'of-pf warm' : 'of-pf'}> · {pf}F</span>}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }

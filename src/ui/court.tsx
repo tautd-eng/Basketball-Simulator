@@ -10,7 +10,7 @@ import { GOGGLES } from '../looksdb';
 import { roleOf } from '../archetypes';
 
 /** Sprite looks (skin, hair, jersey number) from each player's generated face. */
-function looksFor(names: Record<string, string>) {
+export function looksFor(names: Record<string, string>) {
   const lg = nav.lg, out: Record<string, any> = {};
   const used: Record<string, Set<number>> = {};
   for (const pid of Object.keys(names)) {

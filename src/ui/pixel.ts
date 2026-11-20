@@ -974,6 +974,7 @@ export class PixelCourt {
 
   private behave() {
     const bp = this.ballPos();
+    const liveNow = !!this.tl?.items[this.cur]?.live;   // spacing rules are for live play, not for players lined up at a free throw
     for (const p of this.players.values()) {
       // in a zone, man-to-man assignments from the play calls don't stick: back to his area
       if (this.scheme === 'zone' && p.zslot !== undefined && (p.beh.k === 'guard' || p.beh.k === 'follow') && this.ball.holder && this.P(this.ball.holder)?.side !== p.side) p.beh = { k: 'zone', slot: p.zslot, side: p.side };
@@ -982,7 +983,7 @@ export class PixelCourt {
         // spacing: an off-ball team-mate does not park on top of the man with the ball – he clears out (not a
         // screener, not the man about to get the ball, not in a hand-off set)
         const hd = this.P(this.ball.holder);
-        if (hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && this.curSet !== 'dho' && p.pose !== 'screen' && this.pendPass?.to !== p.pid
+        if (liveNow && hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && this.curSet !== 'dho' && p.pose !== 'screen' && this.pendPass?.to !== p.pid
           && this.v - ((p as any).relocT ?? -9) > 1.2 && Math.abs(hd.x - this.basket(p.side).x) < 40 && hyp(p.x - hd.x, p.d - hd.d) < 7.5 && hyp(p.tx - hd.x, p.td - hd.d) < 9) {
           const B = this.basket(p.side), s = this.dir(p.side);
           let ux = p.x - hd.x, ud = p.d - hd.d; const l = hyp(ux, ud);
@@ -997,7 +998,7 @@ export class PixelCourt {
         }
         // two off-ball team-mates parked on the same spot: the second one fills another spot (the corner and the wing,
         // never two men in one corner)
-        if (hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && p.pose !== 'screen' && this.pendPass?.to !== p.pid && this.v - ((p as any).relocT ?? -9) > 1.5 && hyp(p.tx - p.x, p.td - p.d) < 1.5) {
+        if (liveNow && hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && p.pose !== 'screen' && this.pendPass?.to !== p.pid && this.v - ((p as any).relocT ?? -9) > 1.5 && hyp(p.tx - p.x, p.td - p.d) < 1.5) {
           const mate = this.on(p.side).find(q => q !== p && q !== hd && q.beh.k === 'spot' && q.pose !== 'screen' && hyp(q.x - p.x, q.d - p.d) < 5 && hyp(q.tx - q.x, q.td - q.d) < 1.5 && q.pid < p.pid);
           if (mate) {
             const B = this.basket(p.side), s = this.dir(p.side);
@@ -1435,7 +1436,9 @@ export class PixelCourt {
     const used = new Set<string>();
     for (const [p, q] of spots) if (p) { this.go(p, q.x, q.d, spd); used.add(p.pid); }
     let i = 0;
-    for (const p of [...off, ...def]) if (!used.has(p.pid)) { this.go(p, B.x - s * (30 + (i % 2) * 4), 14 + (i * 7) % 24, spd); i++; }
+    // the rest stand behind the arc, each his own spot, the shooter's team-mates nearer the top
+    const perim = [[29, 25 - 9], [29, 25 + 9], [26, 25 - 17], [26, 25 + 17], [33, 25], [24, 3.5], [24, WID - 3.5]];
+    for (const p of [...off, ...def]) if (!used.has(p.pid)) { const q = perim[i % perim.length]; this.go(p, B.x - s * q[0], q[1], spd); i++; }
     const sh = this.P(shooter);
     if (sh) this.go(sh, B.x - s * FT_REL, 25, spd);
   }
@@ -3035,7 +3038,12 @@ export class PixelCourt {
         this.ball.fly = { x0: B.x, d0: B.d, z0: 10, x1: tx, d1: td, z1: 7, peak: 12, t: 0, dur: 0.55 };
         this.say('MISS', '#ff6b6b', false, 0.9, { x: B.x, d: B.d, z: 17 });
       }
-      if (last && made) { const back = other(side); for (const p of this.on(side)) this.go(p, this.basket(back).x - this.dir(back) * (12 + r() * 10), 12 + r() * 26, JOG); }
+      if (last && made) {
+        // the shooting team gets back on defence, each to his place: the guards stop the ball, the bigs protect the rim
+        const back = other(side), Bb = this.basket(back), sb = this.dir(back);
+        const spots = [[34, 25], [27, 12], [27, 38], [14, 15.5], [11, 34.5]];
+        this.ord(side).forEach((p, i) => { const q = spots[Math.min(i, spots.length - 1)]; this.go(p, Bb.x - sb * q[0], q[1], JOG); });
+      }
     });
   }
 
