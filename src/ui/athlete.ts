@@ -438,7 +438,9 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const out = side ? 0 : s * (view === 'back' ? -1 : 1);
     const ex = side ? Math.sin(ua) * Lu * f : Math.sin(ua) * Lu * 0.3 * f + out * (Math.sin(Math.min(1.4, spread + 0.12)) * Lu * 0.9);
     const el = { x: s0.x + ex, y: s0.y + Math.cos(side ? ua : Math.max(ua, spread)) * Lu };
-    const fx = side ? Math.sin(fa) * Lf * f : Math.sin(fa) * Lf * 0.3 * f + out * Math.sin(Math.min(1.5, spread * 1.1 + 0.15)) * Lf * 0.9;
+    // (seen from the front, a raised forearm goes up, not out: elbows wide and hands up, never a scarecrow)
+    const up = Math.abs(fa) > 1.57 ? Math.max(0.12, 1 - (Math.abs(fa) - 1.57) / 1.2) : 1;
+    const fx = side ? Math.sin(fa) * Lf * f : Math.sin(fa) * Lf * 0.3 * f + out * Math.sin(Math.min(1.5, spread * 1.1 + 0.15)) * Lf * 0.9 * up;
     const ha = { x: el.x + fx, y: el.y + Math.cos(side ? fa : Math.max(fa, spread)) * Lf };
     return { s0, el, ha };
   };
