@@ -457,6 +457,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const hip = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.62 * Lu, y: A.s0.y + 0.72 * Lu }, ha: { x: hx + so * (hipW / 2 + 0.5 * u), y: Y + hipY - 1 * u } }; };
     AA = hip(1, AA); AB = hip(-1, AB);
   }
+  // sitting, seen from the front: forearms resting on the thighs, hands by the knees
+  if (!side && (pose === 'sit' || pose === 'rest') && !R1) {
+    const rest = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.25 * Lu, y: A.s0.y + 0.92 * Lu }, ha: { x: hx + so * (hipW / 2 + 0.5 * u), y: LA.kn.y - 1.5 * u } }; };
+    AA = rest(1, AA); AB = rest(-1, AB);
+  }
   // hands on the head, seen from the front: elbows up and out, the hands on top of the head
   if (!side && pose === 'dismay' && !R1) {
     const top = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.75 * Lu, y: A.s0.y - 0.55 * Lu }, ha: { x: sh.x + so * 2.6 * u, y: sh.y - 10.5 * u } }; };
