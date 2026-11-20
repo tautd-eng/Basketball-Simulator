@@ -276,7 +276,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'layup': // one knee driving up, ball hand extended to the rim
         thA = 1.25; bdA = 1.6; thB = -0.25; bdB = 0.35; lean = -0.05;
-        uA = Math.PI - 0.28; fA = Math.PI - 0.12; uB = 0.9; fB = 1.5;
+        uA = Math.PI - 0.28; fA = Math.PI - 0.12; uB = 1.0; fB = 2.15; spreadB = 0.35;   // the off arm bent up, shielding the ball
         break;
       case 'dunk': // both arms over the head, body arched
         thA = 0.55; bdA = 1.2; thB = 0.35; bdB = 1.1; lean = -0.12;
@@ -366,7 +366,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         break;
       case 'hook': // sweeping hook: shooting arm high over the head, the other shielding
         thA = 0.9; bdA = 1.2; thB = -0.15; bdB = 0.3; lean = -0.18;
-        uA = Math.PI - 0.55; fA = Math.PI - 0.25; uB = 1.35; fB = 1.6; spreadB = 0.9;
+        uA = Math.PI - 0.55; fA = Math.PI - 0.25; uB = 1.3; fB = 2.3; spreadB = 0.75;   // the off arm an elbow-out bar
         break;
       case 'block': case 'reb':
         thA = 0.25; bdA = 0.7; thB = -0.05; bdB = 0.6;
@@ -444,11 +444,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const s0 = shoulder(s);
     const out = side ? 0 : s * (view === 'back' ? -1 : 1);
     const ex = side ? Math.sin(ua) * Lu * f : Math.sin(ua) * Lu * 0.3 * f + out * (Math.sin(Math.min(1.4, spread + 0.12)) * Lu * 0.9);
-    const el = { x: s0.x + ex, y: s0.y + Math.cos(side ? ua : Math.max(ua, spread)) * Lu };
+    const el = { x: s0.x + ex, y: s0.y + Math.cos(side ? ua : Math.max(Math.abs(ua), spread)) * Lu };   // (seen from the front an arm raised behind him is raised all the same)
     // (seen from the front, a raised forearm goes up, not out: elbows wide and hands up, never a scarecrow)
     const up = Math.abs(fa) > 1.57 ? Math.max(0.12, 1 - (Math.abs(fa) - 1.57) / 1.2) : 1;
     const fx = side ? Math.sin(fa) * Lf * f : Math.sin(fa) * Lf * 0.3 * f + out * Math.sin(Math.min(1.5, spread * 1.1 + 0.15)) * Lf * 0.9 * up;
-    const ha = { x: el.x + fx, y: el.y + Math.cos(side ? fa : Math.max(fa, spread)) * Lf };
+    const ha = { x: el.x + fx, y: el.y + Math.cos(side ? fa : Math.max(Math.abs(fa), spread)) * Lf };
     return { s0, el, ha };
   };
   let AA = arm(1, uA, fA, spreadA), AB = arm(-1, uB, fB, spreadB);
@@ -456,6 +456,19 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   if (!side && pose === 'hips' && !R1) {
     const hip = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.62 * Lu, y: A.s0.y + 0.72 * Lu }, ha: { x: hx + so * (hipW / 2 + 0.5 * u), y: Y + hipY - 1 * u } }; };
     AA = hip(1, AA); AB = hip(-1, AB);
+  }
+  // hands on the head, seen from the front: elbows up and out, the hands on top of the head
+  if (!side && pose === 'dismay' && !R1) {
+    const top = (s: number, A: typeof AA) => { const so = s * (view === 'back' ? -1 : 1); return { s0: A.s0, el: { x: A.s0.x + so * 0.75 * Lu, y: A.s0.y - 0.55 * Lu }, ha: { x: sh.x + so * 2.6 * u, y: sh.y - 10.5 * u } }; };
+    AA = top(1, AA); AB = top(-1, AB);
+  }
+  // gestures at the face, seen from the front: the forearm folds in, the hand comes to the face
+  if (!side && !R1 && (pose === 'nightnight' || pose === 'goggles' || pose === 'shh')) {
+    const bk = view === 'back' ? -1 : 1;
+    const toFace = (s: number, A: typeof AA, hx3: number, hy3: number) => { const so = s * bk; return { s0: A.s0, el: { x: A.s0.x + so * 0.55 * Lu, y: A.s0.y + 0.45 * Lu }, ha: { x: hx3, y: hy3 } }; };
+    if (pose === 'nightnight') { AA = toFace(1, AA, sh.x + bk * 5.2 * u, sh.y - 6.5 * u); AB = toFace(-1, AB, sh.x + bk * 4.6 * u, sh.y - 5 * u); }
+    else if (pose === 'goggles') AB = toFace(-1, AB, sh.x - bk * 2.2 * u, sh.y - 9.5 * u);
+    else AA = toFace(1, AA, sh.x + bk * 0.4 * u, sh.y - 6.2 * u);
   }
   // heads are about the same size on everybody: a seven-footer is tall in the legs and the body, not the head
   const uh = o.headU ?? u;
