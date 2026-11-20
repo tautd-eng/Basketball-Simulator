@@ -206,9 +206,12 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
         uB = -0.62 * amp * Math.sin(pb) - 0.05; fB = uB + 0.35 + 1.0 * amp + 0.35 * amp * Math.max(0, -Math.sin(pb));
         break;
       case 'dribble':
-        if (amp > 0.15) runLegs(); else { thA = 0.18; bdA = 0.45; thB = -0.15; bdB = 0.3; hipY += 3 * u; lean = 0.12; }
-        uA = 0.35; fA = 0.75;
-        uB = 0.55 + 0.2 * amp; fB = 1.25; spreadB = 0.5;
+        if (amp > 0.15) { runLegs(); hipY += 3.5 * u * amp; lean = 0.2 + 0.1 * amp; }   // on the move: lower, chest over the ball
+        else { thA = 0.18; bdA = 0.45; thB = -0.15; bdB = 0.3; hipY += 3 * u; lean = 0.12; }
+        // the dribble hand pumps with the bounce (two a stride), pushing it out in front; the off arm is bent up as a bar
+        { const pump = amp > 0.15 ? Math.max(0, Math.sin(ps * 2)) : 0.5 + 0.5 * Math.sin(ps * 2.4);
+          uA = 0.22 + 0.08 * amp; fA = uA + 0.45 + 0.4 * pump; }
+        uB = 0.62 + 0.15 * amp; fB = 1.75; spreadB = 0.5;
         break;
       case 'stand':
         hipY += 0.5 * u * (1 + Math.sin(ps)); // breathing
