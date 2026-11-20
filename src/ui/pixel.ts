@@ -981,6 +981,20 @@ export class PixelCourt {
           (p as any).relocT = this.v; p.ax = nx; p.ad = nd; this.go(p, nx, nd, RUN);
           continue;
         }
+        // two off-ball team-mates parked on the same spot: the second one fills another spot (the corner and the wing,
+        // never two men in one corner)
+        if (hd && hd !== p && hd.side === p.side && !this.ball.fly && !this.fbOn && p.pose !== 'screen' && this.pendPass?.to !== p.pid && this.v - ((p as any).relocT ?? -9) > 1.5 && hyp(p.tx - p.x, p.td - p.d) < 1.5) {
+          const mate = this.on(p.side).find(q => q !== p && q !== hd && q.beh.k === 'spot' && q.pose !== 'screen' && hyp(q.x - p.x, q.d - p.d) < 5 && hyp(q.tx - q.x, q.td - q.d) < 1.5 && q.pid < p.pid);
+          if (mate) {
+            const B = this.basket(p.side), s = this.dir(p.side);
+            // up the sideline from a corner, or out along the arc
+            const fromB = hyp(p.x - B.x, p.d - B.d), ang = Math.atan2(p.d - B.d, (p.x - B.x) * -s) + (p.d < 25 ? 0.75 : -0.75);
+            let nx = B.x - s * Math.cos(ang) * Math.max(20, fromB), nd = B.d + Math.sin(ang) * Math.max(20, fromB);
+            nd = Math.max(3, Math.min(WID - 3, nd)); if ((nx - 47) * s < 6) nx = 47 + s * 6;
+            (p as any).relocT = this.v; p.ax = nx; p.ad = nd; this.go(p, nx, nd, RUN);
+            continue;
+          }
+        }
         // nobody stands like a statue in live play: small shuffles around his spot
         if (p.ax !== undefined && this.ball.holder && this.ball.holder !== p.pid && p.pt <= 0 && hyp(p.tx - p.x, p.td - p.d) < 0.6) {
           const bucket = Math.floor(this.v / 1.7 + hash01(p.pid) * 7);
