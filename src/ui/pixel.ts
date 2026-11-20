@@ -940,6 +940,11 @@ export class PixelCourt {
       const s2 = this.dir(holder.side);
       // (a trailer a few steps behind half court as the ball crosses is normal basketball: only a man still deep in
       //  the back court when the ball is well into the front court is late)
+      // as soon as the ball crosses, a team-mate standing on a stale back-court spot heads up the floor
+      if ((holder.x - 47) * s2 > 0) for (const p of this.players.values()) {
+        if (p.leaving || p.pt > 0 || p === holder || p.five || p.side !== holder.side || p.beh.k !== 'spot' || p.pid === this.inbPid) continue;
+        if ((p.x - 47) * s2 < -2 && (p.tx - 47) * s2 < 4) { const hs = this.homeSpots(p.side), sp = this.spot(p.side, hs.get(p.pid) ?? 'lw'); p.tx = sp.x; p.td = sp.d; p.ax = sp.x; p.ad = sp.d; p.spd = Math.max(p.spd, (p.x - 47) * s2 < -14 ? SPRINT : RUN); }
+      }
       if ((holder.x - 47) * s2 > 10) for (const p of this.players.values()) {
         if (p.leaving || p.pt > 0 || p === holder || p.five) continue;
         const wrong = (p.x - 47) * s2 < -14;
