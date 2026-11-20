@@ -437,7 +437,7 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
   const hipC = { x: hx, y: (LA.h.y + LB.h.y) / 2 };
   const leanX = Math.sin(lean) * torso * f * sx;
   const sh = { x: hipC.x + leanX, y: hipC.y - Math.cos(lean) * torso };
-  const shW = (17.5 + 5 * build) * u * (side ? 0.92 : 1.08), hipW = (12 + 2 * build) * u * (side ? 1 : 1.15);
+  const shW = (17.5 + 5 * build) * u * (side ? 0.92 : 1.16), hipW = (12 + 2 * build) * u * (side ? 1 : 1.15);
   const lw = 1.0 + 0.28 * build;
   const shoulder = (s: number) => side ? { x: sh.x + s * shW * 0.42 * f, y: sh.y + 1.5 * u } : { x: sh.x + s * shW * 0.47 * (view === 'back' ? -1 : 1), y: sh.y + 1.5 * u };
   const arm = (s: number, ua: number, fa: number, spread: number) => {
@@ -550,8 +550,9 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const mx = A.el.x + (A.ha.x - A.el.x) * 0.3, my = A.el.y + (A.ha.y - A.el.y) * 0.3;
     // shoulder – biceps – elbow – the forearm's belly – wrist, one smooth outline
     const at = (a: { x: number; y: number }, c: { x: number; y: number }, t: number) => [a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t];
-    const [b1x, b1y] = at(A.s0, A.el, 0.4), [w1x, w1y] = at(A.el, A.ha, 0.86);
-    smoothLimb(ctx, [[A.s0.x, A.s0.y, w * 1.1], [b1x, b1y, w * 1.08], [A.el.x, A.el.y, w * 0.72], [mx, my, w * 0.9], [w1x, w1y, w * 0.58], [A.ha.x, A.ha.y, w * 0.54]], sc, back || sleeve ? 0 : 1);
+    const [d1x, d1y] = at(A.s0, A.el, 0.16), [b1x, b1y] = at(A.s0, A.el, 0.5), [w1x, w1y] = at(A.el, A.ha, 0.86);
+    // the deltoid's cap, the biceps' belly, a narrow elbow, the forearm thick near the elbow and tapering to the wrist
+    smoothLimb(ctx, [[A.s0.x, A.s0.y, w * 1.18], [d1x, d1y, w * 1.2], [b1x, b1y, w * 1.06], [A.el.x, A.el.y, w * 0.74], [mx, my, w * 0.95], [w1x, w1y, w * 0.6], [A.ha.x, A.ha.y, w * 0.56]], sc, back || sleeve ? 0 : 1);
     // a T-shirt under the jersey: a short sleeve over the top of the arm
     if (b.tee) { const tx = A.s0.x + (A.el.x - A.s0.x) * 0.42, ty = A.s0.y + (A.el.y - A.s0.y) * 0.42; limb(ctx, A.s0.x, A.s0.y, tx, ty, w * 1.16, w * 1.08, back ? shade(b.tee, 0.82) : b.tee); }
     // kinesiology tape: two strips down the shoulder
@@ -572,10 +573,11 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
     const fl = Math.hypot(A.ha.x - A.el.x, A.ha.y - A.el.y) || 1, dx = (A.ha.x - A.el.x) / fl, dy = (A.ha.y - A.el.y) / fl, ang = Math.atan2(dy, dx);
     const hc0 = back ? skinD : skin, hcS = back ? shade(skinD, 0.9) : shade(skin, 0.86);
     const E = (cx2: number, cy2: number, rx2: number, ry2: number, col: string) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx2, cy2, rx2, ry2, ang, 0, Math.PI * 2); ctx.fill(); };
-    const hx2 = A.ha.x + dx * 3.1 * u, hy2 = A.ha.y + dy * 3.1 * u;
-    { const tx = -dy * (side ? f : 1), ty = dx * (side ? f : 1); E(A.ha.x + dx * 1.2 * u + tx * 0.9 * u, A.ha.y + dy * 1.2 * u + ty * 0.9 * u, 0.85 * u, 0.5 * u, hcS); }
-    E(A.ha.x + dx * 1.7 * u, A.ha.y + dy * 1.7 * u, 2.3 * u, 1.3 * u, hc0);
-    if (!back) E(A.ha.x + dx * 2.6 * u, A.ha.y + dy * 2.6 * u, 1.2 * u, 1.05 * u, shade(skin, 0.93));
+    const HS = 1.35;   // a basketball player's hands are big: palm and fingers about a tenth of his height
+    const hx2 = A.ha.x + dx * 3.1 * u * HS, hy2 = A.ha.y + dy * 3.1 * u * HS;
+    { const tx = -dy * (side ? f : 1), ty = dx * (side ? f : 1); E(A.ha.x + dx * 1.2 * u * HS + tx * 1.0 * u * HS, A.ha.y + dy * 1.2 * u * HS + ty * 1.0 * u * HS, 1.05 * u * HS, 0.55 * u * HS, hcS); }
+    E(A.ha.x + dx * 1.7 * u * HS, A.ha.y + dy * 1.7 * u * HS, 2.3 * u * HS, 1.25 * u * HS, hc0);
+    if (!back) E(A.ha.x + dx * 2.6 * u * HS, A.ha.y + dy * 2.6 * u * HS, 1.2 * u * HS, 1.0 * u * HS, shade(skin, 0.93));
     if (b.fingerTape && !back) E(hx2 + dx * 0.4 * u, hy2 + dy * 0.4 * u, 1.0 * u, 0.5 * u, '#f2f2f2');
   };
   const drawTorso = () => {
@@ -586,8 +588,8 @@ export function drawAthlete(ctx: Ctx, X: number, Y: number, o: AthOpts): Hands {
       const dir = Math.sign(S0.x - sh.x) || 1;
       poly(ctx, [[sh.x + dir * 2.2 * u, sh.y - 3.4 * u], [S0.x - dir * 0.5 * u, S0.y - 1.3 * u], [S0.x, S0.y + 1.2 * u], [sh.x, sh.y + 1.2 * u]], S0 === lit ? skin : skinD);
     }
-    oval(ctx, s1.x, s1.y + 0.9 * u, 3.1 * u * lw, 3.2 * u, s1 === lit ? skin : skinD);
-    oval(ctx, s2.x, s2.y + 0.9 * u, 3.1 * u * lw, 3.2 * u, s2 === lit ? skin : skinD);
+    oval(ctx, s1.x, s1.y + 0.9 * u, 3.5 * u * lw, 3.4 * u, s1 === lit ? skin : skinD);
+    oval(ctx, s2.x, s2.y + 0.9 * u, 3.5 * u * lw, 3.4 * u, s2 === lit ? skin : skinD);
     if (!FLAT) { const L0 = lit; oval(ctx, L0.x - 0.6 * u, L0.y, 1.6 * u, 1.3 * u, skinL); }
     const wl = { x: hipC.x - hipW / 2, y: hipC.y - 1 * u }, wr = { x: hipC.x + hipW / 2, y: hipC.y - 1 * u };
     const tl = { x: sh.x - shW / 2 + 3 * u, y: sh.y - 0.5 * u }, tr = { x: sh.x + shW / 2 - 3 * u, y: sh.y - 0.5 * u };

@@ -26,6 +26,9 @@ poses.forEach((pose, i) => {
   });
   g.fillStyle = '#222'; g.font = 'bold 16px sans-serif'; g.fillText(pose, 20 + (i % 2) * 700, 60 + Math.floor(i / 2) * 330);
 });
+const big = q.get('big');
+if (big) { g.fillStyle = fl; g.fillRect(0, 0, W, Hh); const vs = ['side', 'front', 'back', 'side'];
+  vs.forEach((vw, i) => { const X = 180 + i * 340, Y = 860; draw(g, X, Y, { H: 760, face: i === 3 ? -1 : 1, pose: poses[0], ph: 1.1, amp, air: false, kit: kits[i % 2], body: bodies[i % 3], shorts: 0.75, font: 'bold 60px sans-serif', num: true, view: vw } as any); }); }
 const phs = q.get('phs');
 if (phs) { g.fillStyle = fl; g.fillRect(0, 0, W, Hh); const ps = phs.split(',').map(Number); const pz = poses[0];
   ps.forEach((ph2, i) => { const X = 90 + (i % 6) * 220, Y = 300 + Math.floor(i / 6) * 380; g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(X, Y, 30, 7, 0, 0, Math.PI * 2); g.fill();
