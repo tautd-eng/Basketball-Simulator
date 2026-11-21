@@ -234,13 +234,22 @@ export class PixelCourt {
   }
   stop() { cancelAnimationFrame(this.raf); REPLAY.on = false; }
 
+  /** How sharp to draw: the canvas' size on screen in device pixels, in steps of 640 (2 = 1280 wide, 3 = 1920). */
+  private resQ() {
+    const w = (this.canvas.clientWidth || 640) * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
+    return Math.max(2, Math.min(3, Math.round(w / 640)));
+  }
+  private resT = 0;
   /** Switch between the classic broadcast court and the arena view. */
   setStyle(style: 'classic' | 'arena', looks?: Record<string, Look>) {
     this.arena = style === 'arena';
     if (looks) this.o.looks = looks;
-    const R = 2;   // (the board is drawn smooth at full resolution too)
+    // drawn at the screen's own resolution (up to 3×): on a big or sharp display the players stay smooth, not blown-up pixels
+    const Q = this.resQ();
+    const R = this.toon ? 2 : Q;
     // the arena scene is drawn at the canvas' full resolution: faces, numbers and shoes keep their detail
-    const Rw = this.arena && !this.toon ? 2 : 1; // the cartoon look is real pixel art: drawn small, scaled up crisp
+    const Rw = this.arena && !this.toon ? Q : 1; // the cartoon look is real pixel art: drawn small, scaled up crisp
+    this.canvas.style.imageRendering = this.toon ? 'pixelated' : 'auto';
     if (Rw !== this.Rw) { this.Rw = Rw; this.buf = null; this.courtL = null; this.standsL = null; }
     if (R !== this.R || this.canvas.width !== VW * S * R) {
       this.R = R;
@@ -3096,6 +3105,7 @@ export class PixelCourt {
     const Zz = this.z;
     const kk = S * Zz * this.R;
     ctx.setTransform(kk, 0, 0, kk, -this.camX * kk, -this.camY * kk);
+    if (time - this.resT > 1.5) { this.resT = time; const Q = this.resQ(), want = this.toon ? 2 : Q; if (want !== this.R) this.setStyle(this.arena ? 'arena' : 'classic'); }   // the window was resized
     if (this.arena) { this.drawArena(time); return; }
     if (BOARD) { this.drawBoard(time); return; }
     // arena
@@ -3973,7 +3983,7 @@ export class PixelCourt {
     const ht = lk.ht || 79, eff = 79 + (ht - 79) * 2.1;   // exaggerated, so a 6-0 guard next to a 7-2 centre reads at a glance
     return (eff / 12) * VZ * depthScale(d) * this.K * 1.08 * (this.toon ? TOON.body : 1);
   }
-  private headU(d = 25) { return (79 / 12) * VZ * depthScale(d) * this.K * 1.2 / 100 * (this.toon ? TOON.head / 1.1 : 1); } // close to life size (a little larger, so faces still read at broadcast distance)
+  private headU(d = 25) { return (79 / 12) * VZ * depthScale(d) * this.K * 1.2 / 100 * (this.toon ? TOON.head / 1.1 : 0.9); }   // (the HD look: a little smaller head, an athlete's long body) // close to life size (a little larger, so faces still read at broadcast distance)
   private kitOf(side: Side) {
     const [prim, sec] = this.tc(side);
     return side === 'h'
@@ -3989,9 +3999,17 @@ export class PixelCourt {
     const q = this.proj(p.x, p.d), { X, Y } = this.toCanvas(q.x, q.y);
     const H = this.heightPx(this.looksOf(p.pid), p.d);
     const sh = Math.max(0.45, 1 - p.z / 6);
-    g.globalAlpha = 0.32 * sh; g.fillStyle = '#1a0d04';
-    g.beginPath(); g.ellipse(Math.round(X), Math.round(Y), H * 0.2 * sh, H * 0.05 * sh, 0, 0, Math.PI * 2); g.fill();
-    g.globalAlpha = 1;
+    if (this.toon) {
+      g.globalAlpha = 0.32 * sh; g.fillStyle = '#1a0d04';
+      g.beginPath(); g.ellipse(Math.round(X), Math.round(Y), H * 0.2 * sh, H * 0.05 * sh, 0, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    } else {
+      // a soft contact shadow: dark under the feet, fading out (a radial gradient squashed onto the floor)
+      const rx = H * 0.26 * sh, ry = H * 0.065 * sh;
+      g.save(); g.translate(X, Y); g.scale(1, ry / rx);
+      const rg = g.createRadialGradient(0, 0, 0, 0, 0, rx); rg.addColorStop(0, `rgba(26,13,4,${0.42 * sh})`); rg.addColorStop(0.55, `rgba(26,13,4,${0.24 * sh})`); rg.addColorStop(1, 'rgba(26,13,4,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill(); g.restore();
+    }
     if (this.hl?.pid === p.pid) { g.strokeStyle = '#ffd34d'; g.lineWidth = 2; g.beginPath(); g.ellipse(Math.round(X), Math.round(Y), H * 0.26, H * 0.075, 0, 0, Math.PI * 2); g.stroke(); }
     const star = this.starOf(p.pid);
     if (star > 0 && this.hl?.pid !== p.pid) { g.globalAlpha = 0.18 + 0.1 * star; g.strokeStyle = '#ffd34d'; g.lineWidth = 1; g.beginPath(); g.ellipse(Math.round(X), Math.round(Y), H * 0.23, H * 0.062, 0, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1; }
@@ -4048,7 +4066,7 @@ export class PixelCourt {
     { const dt = Math.max(1e-3, time - ((p as any).tiltT ?? time - 0.016)), acc = (sp - ((p as any).lastSp ?? sp)) / dt;
       const tgt = ap === 'run' || ap === 'dribble' || ap === 'stand' || ap === 'ready' ? Math.max(-0.26, Math.min(0.2, acc * 0.012)) : 0;
       (p as any).tilt = ((p as any).tilt ?? 0) + (tgt - ((p as any).tilt ?? 0)) * Math.min(1, dt * 9); (p as any).lastSp = sp; (p as any).tiltT = time; }
-    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'shimmy' ? time * 7 : ap === 'protect' || ap === 'backdown' ? time * 3.2 : ap === 'stand' || ap === 'ready' || ap === 'hips' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend, tilt: (p as any).tilt });
+    const hands = drawAthlete(g, Math.round(X), Math.round(Y - lift), { H, crisp: this.toon, light: !this.toon, headU: this.headU(p.d), face: spinFace ? -face : face, pose: ap, ph: ap === 'shimmy' ? time * 7 : ap === 'protect' || ap === 'backdown' ? time * 3.2 : ap === 'stand' || ap === 'ready' || ap === 'hips' || (ap === 'stance' && sp < 2) ? time * 2.6 + hash01(p.pid) * 6 : p.ph, amp: Math.min(1, sp / 15), air: lift > 2, kit: this.kitOf(p.side), body: lk, shorts: this.shortsLen(), font: this.font, view, name: nm, hand: p.hand ?? 1, t: p.pt > 0 ? p.pt : 0, from: blend < 1 ? p.fromPose : undefined, blend, tilt: (p as any).tilt });
     if (this.ball.holder === p.pid && !this.ball.fly) this.drawHeldBall(p, hands, Y, pose, H);
     // on fire: a flicker of flames around a hot shooter
     if (this.hot.get(p.pid) && !this.ff) {

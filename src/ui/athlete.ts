@@ -43,6 +43,7 @@ export interface AthOpts {
   blend?: number;     // 0 = still in `from`, 1 = fully in `pose`
   t?: number;         // time left in a timed pose (animations that unfold)
   tilt?: number;      // extra lean from speeding up (+, into it) or putting on the brakes (−, sitting back)
+  light?: boolean;    // arena light from above: the head and shoulders catch it, the legs fall into shade
 }
 export interface Hands { front: { x: number; y: number }; back: { x: number; y: number }; head: { x: number; y: number } }
 
@@ -55,7 +56,10 @@ export const shade = (hex: string, f: number) => {
 
 type Ctx = CanvasRenderingContext2D;
 const R = Math.round;
-function rect(ctx: Ctx, x: number, y: number, w: number, h: number, c: string) { ctx.fillStyle = c; ctx.fillRect(x, y, Math.max(0.8, w), Math.max(0.8, h)); }
+function rect(ctx: Ctx, x: number, y: number, w: number, h: number, c: string) {
+  ctx.fillStyle = c; w = Math.max(0.8, w); h = Math.max(0.8, h);
+  if (ROUND > 0 && w > 3 && (ctx as any).roundRect) { ctx.beginPath(); (ctx as any).roundRect(x, y, w, h, Math.min(h * 0.5, w * 0.25)); ctx.fill(); } else ctx.fillRect(x, y, w, h);
+}
 /** a tapered limb: a quad with round ends (native paths are fast) */
 function limb(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number, c: string) {
   const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1e-6;
@@ -147,10 +151,20 @@ function smoothLimb(ctx: Ctx, p: [number, number, number][], c: string, lit = 1)
   ctx.restore();
 }
 /** filled polygon */
+/** A filled polygon with its corners softened (cloth and bodies have no sharp corners): each corner is cut at
+ *  ROUND of its edges and bridged with a curve through the old vertex. */
+let ROUND = 0.24;
+export function setRound(r: number) { ROUND = r; }
 function poly(ctx: Ctx, pts: [number, number][], c: string) {
   ctx.fillStyle = c;
   ctx.beginPath();
-  pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  const n = pts.length;
+  if (ROUND <= 0 || n < 3) pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  else for (let i = 0; i <= n; i++) {
+    const [x, y] = pts[i % n], [px, py] = pts[(i - 1 + n) % n], [nx, ny] = pts[(i + 1) % n];
+    const ax = x + (px - x) * ROUND, ay = y + (py - y) * ROUND, bx = x + (nx - x) * ROUND, by = y + (ny - y) * ROUND;
+    if (i === 0) ctx.moveTo(bx, by); else { ctx.lineTo(ax, ay); ctx.quadraticCurveTo(x, y, bx, by); }
+  }
   ctx.closePath(); ctx.fill();
 }
 /** ellipse, optionally only the part inside the band ya..yb, xa..xb */
@@ -845,6 +859,13 @@ export function drawAthleteOutlined(ctx: Ctx, X: number, Y: number, o: AthOpts, 
   let hands: Hands;
   if (o.crisp) { a.save(); a.translate(ox + fx, 0); a.scale(1.18, 1); hands = drawAthlete(a, 0, oy + fy, o); a.restore(); const wx = (p: { x: number; y: number }) => ({ x: ox + fx + p.x * 1.18, y: p.y }); hands = { front: wx(hands.front), back: wx(hands.back), head: wx(hands.head) }; }
   else hands = drawAthlete(a, ox + fx, oy + fy, o);
+  if (o.light && !o.crisp) {
+    a.globalCompositeOperation = 'source-atop';
+    const lg = a.createLinearGradient(0, oy - o.H * 1.05, 0, oy);
+    lg.addColorStop(0, 'rgba(255,250,235,0.2)'); lg.addColorStop(0.45, 'rgba(255,250,235,0)'); lg.addColorStop(1, 'rgba(20,10,0,0.26)');
+    a.fillStyle = lg; a.fillRect(0, 0, W, Hh);
+    a.globalCompositeOperation = 'source-over';
+  }
   if (o.crisp) {
     // pixel art: every pixel either there or not (no soft anti-aliased edges)
     const im = a.getImageData(0, 0, W, Hh), px = im.data;
