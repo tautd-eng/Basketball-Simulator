@@ -294,14 +294,6 @@ function Matchups({ lg, openPlayer, onChange }: any) {
           {teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}{nx?.tid === t.tid ? ` – ${nx.why}` : ''}</option>)}
         </select>
       </div>
-      <div className="def-row stopper-row">
-        <label><b>Stopper</b> (every game): <select aria-label="Stopper" value={m.stopper ?? ''} onChange={e => upd(m => { if (e.target.value) m.stopper = e.target.value; else delete m.stopper; })}>
-          <option value="">Auto – the coach picks a guard or wing of the star's size</option>
-          <option value="none">None – everyone guards his position</option>
-          {mine.map((q: any) => <option key={q.id} value={q.id}>{q.name} ({posLabel(q)}, {ovrOf(q.z, q.id)})</option>)}
-        </select></label>
-      </div>
-      <p className="note">Your stopper takes the other team's top scoring guard or wing whenever both are on the floor – anyone you choose, a big too. When he sits, the coach picks one. A matchup you set below for a particular opponent comes first.</p>
       <p className="note">Pick who guards their players – in every game against the {lg.teams[opp].name}, playoffs included. When both are on the floor your man takes him (his defense, size and hands against that player's shots and drives); otherwise it goes by position. Auto: the defender at the same position – and your best perimeter defender on their top scoring guard or wing (unless you have set one of those two yourself).</p>
       <div className="tbl-wrap"><table className="tbl compact">
         <thead><tr><th className="l">Their player</th><th>Pos</th><th>OVR</th><th className="l">Role</th><th className="l">Guarded by</th></tr></thead>
