@@ -747,7 +747,23 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     const byPos = (a: GP, b: GP) => a.posNum - b.posNum;
     const oS = [...on].sort(byPos), dS = [...dOn].sort(byPos);
     // (a coach can assign his man to their player – if both are on the floor)
-    const guard = (g: GP) => { const m = def.mm?.[g.p.id]; const d = m ? dOn.find(x => x.p.id === m) : undefined; return d ?? dS[oS.indexOf(g)] ?? dS[0]; };
+    // the stopper: with no assignments from the coach, their best perimeter defender takes our top scorer (a wing or
+    // guard who carries the offence) – and the man who had him takes the stopper's man
+    let stopS: GP | null = null, stopD: GP | null = null;
+    if (!def.mm || !Object.keys(def.mm).length) {
+      const star = on.filter(g => g.posNum <= 3.5 && g.usg >= 0.24).sort((a, b) => b.usg - a.usg)[0];
+      if (star) {
+        const slotD = dS[oS.indexOf(star)];
+        const best = dOn.filter(d => d.posNum <= 4).sort((a, b) => b.per - a.per)[0];
+        if (best && slotD && best !== slotD && best.per >= 0.6 && best.per > slotD.per + 0.5) { stopS = star; stopD = best; }
+      }
+    }
+    const slot = (g: GP) => dS[oS.indexOf(g)] ?? dS[0];
+    const guard = (g: GP) => {
+      const m = def.mm?.[g.p.id]; const d = m ? dOn.find(x => x.p.id === m) : undefined; if (d) return d;
+      if (stopS && stopD) { if (g === stopS) return stopD; if (slot(g) === stopD) return slot(stopS); }
+      return slot(g);
+    };
     // the offence looks for the weak spot: a soft or much smaller defender draws more shots
     const edge = (g: GP) => { const d = guard(g); return C.mmUsg * (defZ - d.def) + C.mmSize * Math.max(-6, Math.min(6, g.p.ht - d.p.ht)) * (g.posNum >= 3.5 ? 1 : 0.4); };
     const fo = off.tac.focus ?? 0, OT = off.tac, DT = def.tac;

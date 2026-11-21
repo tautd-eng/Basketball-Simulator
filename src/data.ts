@@ -117,7 +117,7 @@ export function trate(k: number, z: number, season: number): number {
 }
 
 /** Box plus-minus estimate from ratings: the single number AI and coaches use for quality. */
-const DEF_X = 0.26;
+const DEF_X = 0.36;
 export function bpmOf(z: number[]): number {
   let s = H.ovr._;
   for (let i = 0; i < NK; i++) s += ovrW[i] * z[i];
