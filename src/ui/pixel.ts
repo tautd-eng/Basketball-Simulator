@@ -11,7 +11,7 @@ import type { PbpEv } from '../engine/game';
 import { hash01 } from '../rng';
 import { Timeline } from './timeline';
 import { emblemURL, eraColors } from './emblem';
-import { drawAthleteOutlined as drawAthlete, shade, Body, Hands, AthPose } from './athlete';
+import { drawAthleteOutlined as drawAthlete, shrinkAthleteBuffers, shade, Body, Hands, AthPose } from './athlete';
 import { AZ, AXC, AFX, AFY, AYF, VZ, aproj, depthScale, renderCourt, renderStands, Layer } from './arena';
 
 export const VW = 320, VH = 180;
@@ -244,8 +244,8 @@ export class PixelCourt {
     if (R !== this.R || this.canvas.width !== VW * S * R) {
       this.R = R;
       this.canvas.width = VW * S * R; this.canvas.height = VH * S * R;
-      this.ctx.imageSmoothingEnabled = false;
     }
+    this.ctx.imageSmoothingEnabled = !this.arena;   // the arena is pixel-exact (smoothing its big layers costs a lot); the board scales its busts smooth
     this.z = this.arena ? AZ : BZ;
     this.camY = this.arena ? AYF - 32 : 0;
     this.camX = this.arena ? AXC - VW / this.z / 2 : 0;
@@ -3371,6 +3371,7 @@ export class PixelCourt {
     const lk = this.looksOf(p.pid), H = 900, HU = 2.2, U = H / 100 * HU;
     const oc = document.createElement('canvas'); oc.width = 900; oc.height = 1700;
     const h = drawAthlete(oc.getContext('2d')!, 450, 1650, { H, face: 1, pose: 'stand', ph: 0, amp: 0, air: false, kit: this.kitOf(p.side), body: lk, shorts: 0.75, font: this.font, view: 'front', headU: U, num: false } as any);
+    shrinkAthleteBuffers();
     const top = h.head.y - U * 9, bot = h.head.y + U * 22, w = (bot - top) * 1.1;
     c = document.createElement('canvas'); c.width = 132; c.height = Math.round(132 * (bot - top) / w);
     const g = c.getContext('2d')!; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
@@ -3399,7 +3400,6 @@ export class PixelCourt {
     ctx.fillStyle = '#161b24'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.drawImage(this.boardFloor(), Math.round(-this.camX * k), Math.round(-this.camY * k));
     ctx.setTransform(k, 0, 0, k, -this.camX * k, -this.camY * k);
-    ctx.imageSmoothingEnabled = true;
     // recent shots on the floor: green ring = made, red cross = missed (fade out)
     for (const m of this.marks) {
       const q = this.proj(m.x, m.d), a = Math.max(0, 1 - m.t / 9) * 0.9;
@@ -3436,11 +3436,12 @@ export class PixelCourt {
       this.drawToken(p, time, TW);
     }
     drawLooseBall();
+    this.drawHolder(time);
     // shot trail
     for (const q of this.trail) { ctx.globalAlpha = Math.max(0, 0.6 - q.t * 1.2); ctx.fillStyle = '#ffd9a8'; ctx.fillRect(q.x - 0.3, q.y - 0.3, 0.6, 0.6); }
     ctx.globalAlpha = 1;
     // labels
-    if (this.label) { const p = this.players.get(this.label.pid); if (p) { const q = this.proj(p.x, p.d, p.z); this.text(surname(this.o.names[p.pid] ?? ''), q.x, q.y - TW * 1.22, '#ffffff', 7, true); } }
+    if (this.label && !(this.ball.holder === this.label.pid && !this.ball.fly)) { const p = this.players.get(this.label.pid); if (p) { const q = this.proj(p.x, p.d, p.z); this.text(surname(this.o.names[p.pid] ?? ''), q.x, q.y - TW * 1.22, '#ffffff', 7, true); } }
     // floaters
     for (const f of this.floaters) {
       const u = f.t / f.dur, alpha = 1 - Math.max(0, u - 0.7) / 0.3;
@@ -3473,8 +3474,8 @@ export class PixelCourt {
     // the pill under him
     const pw = TW * 0.5, ph = TW * 0.2, py = g0.y + TW * 0.02;
     if (has || this.hl?.pid === p.pid) {
-      ctx.fillStyle = 'rgba(255,211,77,0.35)'; ctx.beginPath(); ctx.ellipse(g0.x, py, pw * 0.78, ph * 0.95, 0, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 0.6; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,211,77,0.4)'; ctx.beginPath(); ctx.ellipse(g0.x, py, pw * 0.85, ph * 1.05, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 0.9; ctx.stroke();
     }
     const pillC = p.side === 'h' ? prim : prim, pillE = p.side === 'h' ? '#ffffff' : sec;
     ctx.fillStyle = pillC; ctx.beginPath(); ctx.ellipse(g0.x, py, pw * 0.48, ph * 0.62, 0, 0, 7); ctx.fill();
@@ -3487,14 +3488,32 @@ export class PixelCourt {
     ctx.save(); ctx.translate(g0.x, py - ph * 0.25 - lift); ctx.rotate(tilt);
     ctx.drawImage(im, -w / 2, -h, w, h);
     ctx.restore();
-    // the ball in his hands: bounced at his side while he dribbles, held up on a shot
-    if (has) {
-      const dir = (p.face ?? 1) >= 0 ? 1 : -1, r = 0.72 * BSC * 0.62;
+    if (has) this.boardHeld = { p, x: g0.x, py, ph, w, h, lift, pose, sp };
+  }
+
+  private boardHeld: { p: PSprite; x: number; py: number; ph: number; w: number; h: number; lift: number; pose: Pose; sp: number } | null = null;
+  /** the man with the ball, drawn over everybody: the ball at his side (or up on a shot) and a gold marker with his name over his head */
+  private drawHolder(time: number) {
+    const H = this.boardHeld; this.boardHeld = null;
+    if (!H) return;
+    const { p, x, py, ph, w, h, lift, pose, sp } = H, ctx = this.ctx;
+    { const g0 = { x }, has = true; void has;
+      const dir = (p.face ?? 1) >= 0 ? 1 : -1, r = 0.72 * BSC * 0.8;
       const shooting = ['shoot', 'shootlow', 'layup', 'dunk', 'hook', 'fade', 'jump', 'windmill', 'tomahawk'].includes(pose);
       const drib = pose === 'dribble' || sp > 3 && !shooting;
       const bx = g0.x + dir * w * 0.42, by = shooting ? py - h * 1.02 - lift : py - ph * 0.2 - (drib ? Math.abs(Math.cos(time * 9)) * h * 0.32 : h * 0.3) - lift;
       this.boardBall(shooting ? g0.x + dir * w * 0.15 : bx, by, r, time);
     }
+    // the marker: a gold arrow bobbing over his head, his name on it
+    const top = py - ph * 0.25 - lift - h - 1.2 - Math.abs(Math.sin(time * 4)) * 1.2;
+    ctx.fillStyle = '#ffd34d'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.35;
+    ctx.beginPath(); ctx.moveTo(x - 2.4, top - 2.8); ctx.lineTo(x + 2.4, top - 2.8); ctx.lineTo(x, top); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const nm = surname(this.o.names[p.pid] ?? ''), fs = 4.6;
+    ctx.font = `800 ${fs}px "IBM Plex Sans", system-ui, sans-serif`;
+    const tw = ctx.measureText(nm).width + 3.2, ty = top - 2.8 - fs * 0.75;
+    ctx.fillStyle = 'rgba(12,15,22,0.88)'; ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(x - tw / 2, ty - fs * 0.72, tw, fs * 1.44, 1.6) : ctx.rect(x - tw / 2, ty - fs * 0.72, tw, fs * 1.44); ctx.fill();
+    ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 0.4; ctx.stroke();
+    this.boardText(nm, x, ty + 0.15, fs, '#ffd34d');
   }
 
   private boardText(t: string, x: number, y: number, size: number, color: string) {

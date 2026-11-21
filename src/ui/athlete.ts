@@ -831,6 +831,8 @@ const mixHex = (a: string, b: string, t: number) => {
 
 /** The player with a dark pixel outline (drawn through an off-screen buffer). */
 let bufA: HTMLCanvasElement | null = null, bufB: HTMLCanvasElement | null = null;
+/** After a one-off big figure (a portrait, a bust): give the shared buffers back their everyday size. */
+export function shrinkAthleteBuffers() { if (bufA) { bufA.width = 1; bufA.height = 1; bufB!.width = 1; bufB!.height = 1; } }
 export function drawAthleteOutlined(ctx: Ctx, X: number, Y: number, o: AthOpts, line = 'rgba(20,14,12,0.62)'): Hands {
   if (typeof document === 'undefined') return drawAthlete(ctx, X, Y, o);
   const W = Math.ceil(o.H * (o.crisp ? 2.2 : 1.4)) + 8, Hh = Math.ceil(o.H * (o.crisp ? 1.9 : 1.45)) + 8;
@@ -850,7 +852,7 @@ export function drawAthleteOutlined(ctx: Ctx, X: number, Y: number, o: AthOpts, 
     a.putImageData(im, 0, 0);
   }
   bb.setTransform(1, 0, 0, 1, 0, 0); bb.globalCompositeOperation = 'source-over'; bb.clearRect(0, 0, W, Hh);
-  bb.drawImage(bufA, 0, 0);
+  bb.drawImage(bufA, 0, 0, W, Hh, 0, 0, W, Hh);   // only the part in use (the buffers grow to the largest figure ever drawn)
   bb.globalCompositeOperation = 'source-in'; bb.fillStyle = line; bb.fillRect(0, 0, W, Hh);
   bb.globalCompositeOperation = 'source-over';
   const x0 = Math.round(X) - ox, y0 = Math.round(Y) - oy;
