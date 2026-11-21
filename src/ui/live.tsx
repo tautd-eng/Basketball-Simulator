@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CourtCanvas, BoxPair, rosterMaps, fmtTxt, mmss, periodName, looksFor } from './court';
 import { colorsOf } from './art';
+import { posNum } from '../engine/game';
+import { K } from '../data';
 import { Timeline } from './timeline';
 import { REPLAY } from './pixel';
 import { nav } from './nav';
@@ -89,7 +91,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
     return { st, on };
   }, [n, Math.floor(t)]);
 
-  const nums = useMemo(() => { const l = looksFor(maps.names); const o: Record<string, { num: number; ovr: number }> = {}; for (const k in l) o[k] = { num: l[k].num, ovr: l[k].ovr ?? 0 }; return o; }, [res]);
+  const nums = useMemo(() => { const l = looksFor(maps.names); const o: Record<string, { num: number; ovr: number }> = {}; for (const k in l) o[k] = { num: l[k].num, ovr: l[k].ovr ?? 0, ht: l[k].ht ?? 78 }; return o; }, [res]);
   const abbr = { h: home.abbr, a: away.abbr };
   const line = useMemo(() => commentary(pbp, n, maps.names, abbr), [n]);
   const plays = useMemo(() => keyPlays(pbp, maps.names, abbr, n), [n]);
@@ -149,7 +151,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
         <OnFloor teams={[
           { side: 'a' as const, abbr: away.abbr, color: colorsOf(away.tid, away.abbr)[0] },
           { side: 'h' as const, abbr: home.abbr, color: colorsOf(home.tid, home.abbr)[0] },
-        ]} on={box.on} st={box.st} names={maps.names} nums={nums} posOf={(pid: string) => lg.players[pid]?.pos ?? ''} openPlayer={openPlayer} />
+        ]} on={box.on} st={box.st} names={maps.names} nums={nums} posOf={(pid: string) => lg.players[pid]?.pos ?? ''} zOf={(pid: string) => lg.players[pid]?.z} openPlayer={openPlayer} />
         {view !== 'chart' && line && <div className="commentary" aria-live="polite"><span className="cm-mic" aria-hidden="true">🎙</span>{line}</div>}
         <div className="live-grid">
           <div className="live-left">
@@ -193,13 +195,16 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
 }
 
 /** The ten men on the floor right now, by team: name and overall first, then his game so far (minutes, points, rebounds, assists, fouls). */
-function OnFloor({ teams, on, st, names, nums, posOf, openPlayer }: any) {
+function OnFloor({ teams, on, st, names, nums, posOf, zOf, openPlayer }: any) {
+  // point guard to centre: by listed position; between two guards the playmaker (assists) goes first, between two
+  // forwards or bigs the shorter man
+  const slotKey = (pid: string) => { const pn = posNum(posOf(pid)), z = zOf(pid); return pn * 10 + (pn <= 2.5 ? -(z?.[K.ast] ?? 0) * 2 : ((nums[pid]?.ht ?? 78) - 78) / 3); };
   return (
     <div className="onfloor" aria-label="On the floor">
       {teams.map((tm: any) => (
         <div className="of-row" key={tm.side} style={{ ['--tc' as any]: tm.color }}>
           <span className="of-team">{tm.abbr}</span>
-          {(on[tm.side] as string[]).map(pid => {
+          {[...(on[tm.side] as string[])].sort((a, b) => slotKey(a) - slotKey(b)).map(pid => {   // point guard to centre
             const s = st[pid] ?? {}, pf = s.pf ?? 0, n = nums[pid] ?? { num: '', ovr: 0 };
             const short = (names[pid] ?? '').split(' ').slice(1).join(' ') || names[pid];
             return (
