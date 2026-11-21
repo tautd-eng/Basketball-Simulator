@@ -89,7 +89,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
     return { st, on };
   }, [n, Math.floor(t)]);
 
-  const nums = useMemo(() => { const l = looksFor(maps.names); const o: Record<string, number> = {}; for (const k in l) o[k] = l[k].num; return o; }, [res]);
+  const nums = useMemo(() => { const l = looksFor(maps.names); const o: Record<string, { num: number; ovr: number }> = {}; for (const k in l) o[k] = { num: l[k].num, ovr: l[k].ovr ?? 0 }; return o; }, [res]);
   const abbr = { h: home.abbr, a: away.abbr };
   const line = useMemo(() => commentary(pbp, n, maps.names, abbr), [n]);
   const plays = useMemo(() => keyPlays(pbp, maps.names, abbr, n), [n]);
@@ -192,7 +192,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
   );
 }
 
-/** The ten men on the floor right now, by team: number, name, position, line so far, fouls. */
+/** The ten men on the floor right now, by team: name and overall first, then his game so far (minutes, points, rebounds, assists, fouls). */
 function OnFloor({ teams, on, st, names, nums, posOf, openPlayer }: any) {
   return (
     <div className="onfloor" aria-label="On the floor">
@@ -200,13 +200,13 @@ function OnFloor({ teams, on, st, names, nums, posOf, openPlayer }: any) {
         <div className="of-row" key={tm.side} style={{ ['--tc' as any]: tm.color }}>
           <span className="of-team">{tm.abbr}</span>
           {(on[tm.side] as string[]).map(pid => {
-            const s = st[pid] ?? {}, pf = s.pf ?? 0;
+            const s = st[pid] ?? {}, pf = s.pf ?? 0, n = nums[pid] ?? { num: '', ovr: 0 };
             const short = (names[pid] ?? '').split(' ').slice(1).join(' ') || names[pid];
             return (
-              <button key={pid} className="of-p" onClick={() => openPlayer?.(pid)} title={names[pid]}>
-                <span className="of-num">{nums[pid] ?? ''}</span>
-                <span className="of-name">{short}<span className="of-pos">{posOf(pid)}</span></span>
-                <span className="of-line">{s.pts ?? 0}p {(s.orb ?? 0) + (s.drb ?? 0)}r {s.ast ?? 0}a{pf > 0 && <span className={pf >= 5 ? 'of-pf hot' : pf >= 4 ? 'of-pf warm' : 'of-pf'}> · {pf}F</span>}</span>
+              <button key={pid} className="of-p" onClick={() => openPlayer?.(pid)} title={`${names[pid]} · #${n.num} · ${posOf(pid)}`}>
+                <span className="of-top"><span className="of-ovr">{n.ovr}</span><span className="of-name">{short}</span></span>
+                <span className="of-line"><b>{Math.floor(s.min ?? 0)}</b>m · <b>{s.pts ?? 0}</b>p <b>{(s.orb ?? 0) + (s.drb ?? 0)}</b>r <b>{s.ast ?? 0}</b>a{pf > 0 && <span className={pf >= 5 ? 'of-pf hot' : pf >= 4 ? 'of-pf warm' : 'of-pf'}> · {pf}F</span>}</span>
+                <span className="of-sub">#{n.num} {posOf(pid)}{(s.fga ?? 0) > 0 ? ` · ${s.fgm}/${s.fga} FG` : ''}{(s.tpa ?? 0) > 0 ? ` · ${s.tpm}/${s.tpa} 3P` : ''}</span>
               </button>
             );
           })}
