@@ -420,7 +420,7 @@ export function teamIn(lg: League, t: Team, rng: Rng, opp?: string) {
   (m.starters ?? []).forEach((pid, i) => { if (pid && here.has(pid)) pos[pid] = i + 1; }); // a starter plays the slot he was named to
   const mm = opp ? Object.fromEntries(Object.entries(m.mm?.[opp] ?? {}).filter(([, mine]) => here.has(mine))) : undefined;
   return { tid: t.tid, players, paceZ: t.paceZ, tac: m.tac, minutes: m.mode === 'manual' ? m.minutes : undefined, depth: m.mode === 'auto' && lg.phase !== 'playoffs' ? m.depth : undefined,
-    pos, starters: (m.starters ?? []).filter(pid => pid && here.has(pid)), mm };
+    pos, starters: (m.starters ?? []).filter(pid => pid && here.has(pid)), mm, stopper: m.stopper === 'none' ? 'none' : m.stopper && here.has(m.stopper) ? m.stopper : undefined };   // (his stopper out tonight: the coach decides)
 }
 
 export function availablePlayers(lg: League, tid: string, rng: Rng) {

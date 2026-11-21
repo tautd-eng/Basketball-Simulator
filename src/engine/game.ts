@@ -126,7 +126,7 @@ export interface Tactics { pace: number; three: number; crash: number; press: nu
   cover?: 'drop' | 'switch' | 'blitz';  // pick-and-roll coverage (undefined: the coach mixes it)
   dbl?: number;     // -1 never double the star … 1 double him whenever he has it
 }
-interface Side { tid: string; gps: GP[]; on: GP[]; pts: number; q: number[]; home: boolean; paceZ: number; tac: Tactics; minutes?: Record<string, number>; depth?: number; starters?: string[]; mm?: Record<string, string> }
+interface Side { tid: string; gps: GP[]; on: GP[]; pts: number; q: number[]; home: boolean; paceZ: number; tac: Tactics; minutes?: Record<string, number>; depth?: number; starters?: string[]; stopper?: string; mm?: Record<string, string> }
 
 export interface GameOpts { season: number; po: boolean; rng: Rng; pbp?: boolean; ctl?: Control }
 
@@ -328,6 +328,7 @@ function chooseLineup(side: Side, period: number, rem: number, margin: number, s
 type TeamIn = { tid: string; players: Player[]; paceZ: number; tac?: Tactics; minutes?: Record<string, number>; depth?: number;
   pos?: Record<string, number>;   // the coach's positions: who plays the 1 … 5 (decides matchups and the floor balance)
   starters?: string[];            // the coach's starting five
+  stopper?: string;               // the coach's stopper on their top scorer: a player id, 'none', or unset (the coach decides)
   mm?: Record<string, string> };  // defensive assignments against this opponent: their player → who guards him
 const NO_TAC: Tactics = { pace: 0, three: 0, crash: 0, press: 0 };
 export function simGame(home: TeamIn, away: TeamIn, o: GameOpts) {
@@ -343,7 +344,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
   const ctl = o.ctl;
   const mk = (t: typeof home, isHome: boolean): Side => ({
     tid: t.tid, gps: t.players.map(p => { const g = prep(p, season); if (t.pos?.[p.id]) g.posNum = t.pos[p.id]; return g; }), on: [], pts: 0, q: [], home: isHome, paceZ: t.paceZ, tac: t.tac ?? NO_TAC, minutes: t.minutes, depth: t.depth,
-    starters: t.starters?.filter(Boolean), mm: t.mm,
+    starters: t.starters?.filter(Boolean), mm: t.mm, stopper: t.stopper,
   });
   const H = mk(home, true), A = mk(away, false);
   const E = getEraCal(season);
@@ -756,8 +757,10 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       const taken = new Set(Object.values(def.mm ?? {}));   // the coach's own assignments come first
       if (star && !def.mm?.[star.p.id]) {
         const slotD = dS[oS.indexOf(star)];
-        const best = dOn.filter(d => d.posNum <= 3.5 && Math.abs(d.posNum - star.posNum) <= 1.5).sort((a, b) => b.per - a.per)[0];   // a wing or guard his own size: never a big chasing a point guard
-        if (best && slotD && best !== slotD && !taken.has(best.p.id) && !taken.has(slotD.p.id) && best.per >= 0.6 && best.per > slotD.per + 0.5) { stopS = star; stopD = best; }
+        // the coach's own stopper (any man he likes, every game; on the bench, the coach decides), or none; otherwise the coach picks a wing or guard his own size – never a big chasing a point guard
+        const mine = def.stopper && def.stopper !== 'none' ? dOn.find(d => d.p.id === def.stopper) : undefined;
+        const best = def.stopper === 'none' ? undefined : mine ?? (dOn.filter(d => d.posNum <= 3.5 && Math.abs(d.posNum - star.posNum) <= 1.5).sort((a, b) => b.per - a.per)[0]);
+        if (best && slotD && best !== slotD && !taken.has(best.p.id) && !taken.has(slotD.p.id) && (mine || (best.per >= 0.6 && best.per > slotD.per + 0.5))) { stopS = star; stopD = best; }
       }
     }
     const slot = (g: GP) => dS[oS.indexOf(g)] ?? dS[0];
