@@ -136,11 +136,27 @@ export function bucket(pick: number) {
  * Starting ratings for a draft prospect. destiny=1: his real rookie season.
  * destiny=0: an average player of his draft slot plus noise.
  */
+/**
+ * How a rookie's ratings go with his height (fitted once from every real rookie season): a 7-footer rebounds and
+ * blocks shots, a 6'1" guard passes and shoots – whatever his draft slot. Per rating: [slope per inch, mean height].
+ */
+let HTB: { b: number[]; m: number } | null = null;
+function heightBetas() {
+  if (HTB) return HTB;
+  const rows = Object.values(H.players).filter((q: any) => q.h && q.s?.length && q.s[0][7]) as any[];
+  const m = rows.reduce((a, q) => a + q.h, 0) / Math.max(1, rows.length), vh = rows.reduce((a, q) => a + (q.h - m) ** 2, 0) || 1;
+  const b = new Array(NK).fill(0).map((_, i) => { const zm = rows.reduce((a, q) => a + q.s[0][7][i], 0) / rows.length; return rows.reduce((a, q) => a + (q.h - m) * (q.s[0][7][i] - zm), 0) / vh; });
+  // (shooting goes with height less than the rookie numbers say – bigs who never took threes: half of it)
+  b[K.tp] *= 0.5; b[K.tpr] *= 0.5;
+  return (HTB = { b, m });
+}
 export function prospectZ(pid: string, draftYear: number, destiny: number, rng: Rng): number[] {
   const hp = H.players[pid];
   const pick = hp?.d?.[1] ?? 60;
   const prior = H.draftPrior[bucket(pick)].z;
-  const base = prior.map(v => v + rng.normal() * 0.55);
+  // the slot's average prospect, shaped by his height (a big rebounds and blocks, a small guard handles and shoots), plus noise
+  const hb = (hp as any)?.h ? heightBetas() : null, dh = hb ? (hp as any).h - hb.m : 0;
+  const base = prior.map((v, i) => v + (hb ? hb.b[i] * dh : 0) + rng.normal() * 0.55);
   const tgt = realTarget(pid, draftYear + 1) ?? (hp?.s.length ? { z: hp.s[0][7], mp: hp.s[0][3], interp: true } : undefined);
   if (tgt) return base.map((v, i) => v + destiny * (tgt.z[i] - v));
   // never played in the NBA: in the destiny world he was below his slot

@@ -38,10 +38,10 @@ export class Timeline {
         debt = Math.max(0, debt - (gap - len));
         // the ball changed hands: the new offence has to cross the floor before it can shoot
       const turned = fresh && poss === e.s;
-      const min = isShot(k) ? ((e as any).fb ? 3.4 : turned ? 3.7 : 1.5) : k === 'tov' ? (turned ? 2.4 : 1.2) : k === 'foul' ? 1.2 : 0.4;
+      const min = isShot(k) ? ((e as any).fb ? 3.4 : turned ? 3.7 : 1.5) : k === 'tov' ? (turned ? 2.4 : 1.2) : k === 'foul' ? (/^Intentional/.test(e.txt) ? 2.6 : 1.2) : 0.4;
         if (len < min) { debt += min - len; len = min; }
       } else if (k === 'orb' || k === 'drb') { len = prev && (prev.k === 'ftm') ? 1.0 : 1.1; debt += len; }
-      else if (k === 'foul') len = prev && isShot(prev.k) ? 0.9 : 1.1;
+      else if (k === 'foul') len = /^Intentional/.test(e.txt) ? 2.6 : prev && isShot(prev.k) ? 0.9 : 1.1;   // (an intentional foul: the ball comes in and he has to get to his man)
       else if (k === 'ft' || k === 'ftm') len = prev && (prev.k === 'ft' || prev.k === 'ftm') ? 2.7 : prev && prev.k === 'foul' && /^Intentional/.test(prev.txt) ? 5.5 : 3.2;   // fouled in the back court: he has the length of the floor to walk
       else if (k === 'timeout') len = 7;   // a real stop: they walk to the huddle and back
       else if (k === 'period' || k === 'end') len = 2.8;

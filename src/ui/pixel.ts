@@ -817,7 +817,7 @@ export class PixelCourt {
   // ---------------------------------------------------------------- the referee
   /** Corrections the rules made (for checks): out of bounds, 3 seconds at both ends, the lane on free throws,
    *  the ball going back over half court, more than five on the floor. */
-  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0, blkFar: 0, teleport: 0 };
+  readonly rules = { bounds: 0, off3: 0, def3: 0, ftLane: 0, ftLine: 0, back: 0, five: 0, longPass: 0, hold: 0, late: 0, threeIn: 0, twoOut: 0, offSpot: 0, facing: 0, eightSec: 0, unguarded: 0, holderOut: 0, speed: 0, behind: 0, dunkFar: 0, staleMark: 0, wrongMan: 0, flyLoose: 0, shotFar: 0, waits: 0, underRim: 0, thruNet: 0, bigDribble: 0, rebBeat: 0, crossPass: 0, crowd: 0, blkFar: 0, teleport: 0, ifoul: 0, ifoulAt: 0 };
   readonly ruleLog: string[] = [];
   private ruleSeen = new Set<string>();
   /** one count per player, play and rule (not per frame) */
@@ -836,6 +836,7 @@ export class PixelCourt {
   lastGive: { pid: string; v: number } | null = null; giveAt: { x: number; d: number } | null = null;
   private backT = 0; private backSide: Side | null = null;
   inbDone = false;
+  pendFoul: { f: string; a: string; side: Side; until: number } | null = null;
   curSet = ''; curHow = ''; crowdT = 0; blkPid: string | null = null;
   private inspT = new Map<string, number>();
   private inPaint(x: number, d: number, B: { x: number; d: number }) { return Math.abs(x - (B.x < 47 ? 0 : LEN)) < 19 && Math.abs(d - 25) < 8; }
@@ -1123,7 +1124,7 @@ export class PixelCourt {
         if (!o) { p.beh = { k: 'spot' }; continue; }
         const B = this.basket(o.side);
         const dx = B.x - o.x, dd = B.d - o.d, dist = hyp(dx, dd) || 1;
-        const g = Math.min(b.dist * (this.pre() ? Math.min(1, this.lagF(p.pid)) : this.lagF(p.pid)), dist * 0.5);
+        const g = Math.min(b.dist * (b.dist < 1 ? 1 : this.pre() ? Math.min(1, this.lagF(p.pid)) : this.lagF(p.pid)), dist * 0.5);
         p.tx = o.x + dx / dist * g; p.td = o.d + dd / dist * g; p.spd = SPRINT;
       }
     }
@@ -1209,6 +1210,15 @@ export class PixelCourt {
         if (!o) p.slap = true;
         else if (hyp(o.x - p.x, o.d - p.d) < 3) { p.slap = true; o.slap = true; p.face = Math.sign(o.x - p.x) || 1; o.face = -p.face; this.setPose(p, 'pass', 0.3); this.setPose(o, 'pass', 0.3); }
       }
+    }
+    if (this.pendFoul) {
+      const pf = this.pendFoul, f = this.P(pf.f), a = this.P(pf.a);
+      if (!f || !a) this.pendFoul = null;
+      else if (hyp(f.x - a.x, f.d - a.d) <= 3.5 || this.v > pf.until) {
+        this.flag('ifoulAt', f, `${hyp(f.x - a.x, f.d - a.d).toFixed(1)} ft, ${(1.6 - (pf.until - this.v)).toFixed(1)} s late`);
+        this.pendFoul = null; this.sayAt(f.pid, 'INTENTIONAL FOUL', '#ffd34d', 1.3); this.setPose(a, 'rest', 0.6);
+        this.ftFormation(pf.side, a.pid, JOG);   // now everybody goes to the line
+      } else { f.beh = { k: 'mark', pid: a.pid, dist: 0.6 }; f.spd = SPRINT; a.beh = { k: 'spot' }; a.tx = a.x; a.td = a.d; a.spd = WALK; }
     }
     if (this.inbDone && this.inbPid && this.ball.holder !== this.inbPid && this.pickup?.pid !== this.inbPid && !(this.ball.fly && !this.ball.fly.to)) this.endInbound();   // he steps back onto the floor
     // a loose ball on the floor is picked up when the man going for it gets there
@@ -1332,6 +1342,7 @@ export class PixelCourt {
       this.marks.push({ x: side === 'h' ? LEN - (e.y ?? 12) : (e.y ?? 12), d: side === 'h' ? (e.x ?? 25) : WID - (e.x ?? 25), made: e.k.startsWith('make'), side, t: Math.max(0, items[k].a - items[j].b), three: e.k.endsWith('3') });
     }
     const prev = k > 0 ? items[k - 1].e : null;
+    this.pendFoul = null;
     if (prev) this.setCaption(prev); else this.caption = null;
     this.setupFor(k);
     for (const p of this.players.values()) { p.x = p.tx; p.d = p.td; p.vx = 0; p.vd = 0; }
@@ -1558,7 +1569,11 @@ export class PixelCourt {
     // backup; at winning time (a close game, last five minutes, overtime) the ball is in the star's hands
     const mrg = Math.abs((e.hs ?? 0) - (e.as ?? 0));
     const winTime = (e.p >= 4 && e.c < 300 && mrg <= 10) || e.p > 4;
-    const lead = (p: PSprite) => this.sk(p.pid, 'handle') + this.starOf(p.pid) * (winTime ? 0.45 : 0.2) + ((this.o.looks?.[p.pid]?.ovr ?? 75) - 75) / 25 * 0.3 - Math.max(0, this.posN(p.pid) - 2) * (winTime ? 0.1 : 0.22);
+    // who brings it up: the ball-handlers, a star among them more often (and late in a close game) – but a big only if he
+    // really handles it (a Jokić, a Giannis), never a Shaq just because he is the best player on the floor
+    const lead = (p: PSprite) => { const h = this.sk(p.pid, 'handle'), pn = this.posN(p.pid);
+      if (pn >= 4 && h < 0.62) return -9 + h;
+      return h + this.starOf(p.pid) * (winTime ? 0.45 : 0.2) * (pn >= 4 ? 0.4 : 1) + ((this.o.looks?.[p.pid]?.ovr ?? 75) - 75) / 25 * 0.3 * (pn >= 4 ? 0.4 : 1) - Math.max(0, pn - 2) * (winTime ? 0.18 : 0.25); };
     const pg = [...o].filter(p => this.posN(p.pid) <= 3.5 || this.sk(p.pid, 'handle') >= 0.7).sort((p, q) => lead(q) - lead(p))[0] ?? o[0];
     const big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
@@ -3011,10 +3026,22 @@ export class PixelCourt {
     }
     const off = this.possSide(k), def = other(off), B = this.basket(off), s = this.dir(off);
     if (e.txt.startsWith('Intentional')) {
-      const P = this.possession(k, L, 0.9, shooter, add, r, { receiver: shooter, quick: true });
+      // hack-a-Shaq: a big who cannot handle it is not given the ball to be fouled – the guards bring it in and he is grabbed away from it
+      const offBall = !!shooter && this.posN(shooter) >= 4 && this.sk(shooter, 'handle') < 0.62;
+      const P = offBall ? this.possession(k, L, 0.9, null, add, r, { quick: true }) : this.possession(k, L, 0.9, shooter, add, r, { receiver: shooter, quick: true });
       add(0, () => this.call(def, `${this.abbr(def)} foul to stop the clock`));
-      add(Math.max(0, P.tD - 0.6), () => { const f = this.P(fouler); if (f && shooter) f.beh = { k: 'mark', pid: shooter, dist: 0.6 }; });
-      add(L, () => { this.sayAt(fouler, 'INTENTIONAL FOUL', '#ffd34d', 1.3); this.setPose(this.P(shooter), 'rest', 0.6); });
+      const chase = () => { const f = this.P(fouler); if (f && shooter) { f.beh = { k: 'mark', pid: shooter, dist: 0.6 }; f.stun = 0; } };
+      for (const t of [0.1, P.tD, P.tD + 0.3, L - 0.9, L - 0.5]) if (t < L) add(Math.max(0, t), chase);   // he goes for his man at once (and keeps at it whatever the defence is told): no foul from 30 feet away
+      // the man they want: once the ball is in, he slows up and protects it – they foul him right away (off the ball: he just jogs up)
+      const hold = () => { const a = this.P(shooter), f = this.P(fouler); if (!a || !f) return; if (hyp(f.x - a.x, f.d - a.d) < 9 || this.ball.holder === a.pid) { a.beh = { k: 'spot' }; this.go(a, a.x + (a.vx * 0.15), a.d + (a.vd * 0.15), WALK); if (this.ball.holder === a.pid) this.setPose(a, 'protect', 0.8); } };
+      for (const t of [P.tD + 0.1, P.tD + 0.5, L - 0.6, L - 0.3]) if (t < L) add(Math.max(0, t), hold);
+      add(L, () => {
+        const f = this.P(fouler), a = this.P(shooter);
+        if (f && a) this.flag('ifoul', f, `${hyp(f.x - a.x, f.d - a.d).toFixed(1)} ft from ${this.o.names[a.pid]}`);
+        // the whistle when he gets his hands on him – if he is not there yet he keeps coming (the walk to the line has time to spare)
+        if (f && a && hyp(f.x - a.x, f.d - a.d) > 3.5) { this.pendFoul = { f: f.pid, a: a.pid, side: off, until: this.v + 1.6 }; return; }
+        this.sayAt(fouler, 'INTENTIONAL FOUL', '#ffd34d', 1.3); this.setPose(this.P(shooter), 'rest', 0.6);
+      });
       return;
     }
     // shooting foul on a drive
