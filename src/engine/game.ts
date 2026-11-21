@@ -210,10 +210,12 @@ function planMinutes0(side: Side, po = false) {
     }
   }
   const depth = side.depth ?? (po ? C.poDepth : C.depth), alpha = po ? C.poAlpha : C.minAlpha, maxMin = po ? C.poMax : C.maxMin;
-  const avail = [...side.gps].sort((a, b) => b.q * (1 + 1.6 * (b.usg - 0.2)) - a.q * (1 + 1.6 * (a.usg - 0.2)));
-  const n = Math.min(avail.length, depth);
   // a coach plays the men the offence runs through: his rating, and how much of the game goes through him
-  const mq = (g: GP) => g.q * Math.max(0.85, Math.min(1.25, 1 + 1.6 * (g.usg - 0.2)));
+  // (and his defence, which a box-score rating undersells: a stopper starts)
+  const mq = (g: GP) => { const b = Math.max(0.5, g.bpm + 6); return g.q * Math.pow(Math.max(0.5, b + 1.0 * Math.max(-1.5, Math.min(3, g.def)) + 16 * (g.usg - 0.2)) / b, C.star); };
+  const avail = [...side.gps];
+  const n = Math.min(avail.length, depth);
+  avail.sort((a, b) => mq(b) - mq(a));
   const w = avail.map((g, i) => (i < n ? Math.pow(mq(g), alpha) : 0));
   const T = spread(w, 240, maxMin);
   // positional balance: about two big men and two guards on the floor
