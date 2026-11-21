@@ -1138,11 +1138,13 @@ export class PixelCourt {
       else if (p.jd > 0) { p.jt += dt; const u = p.jt / p.jd; if (u >= 1) { p.jd = 0; p.z = 0; if (p.jh > 1.2 && !p.next && LANDS.has(p.pose)) { p.pose = 'land'; p.pt = 0.17; } } else p.z = p.jh * 4 * u * (1 - u); }
       const dx = p.tx - p.x, dd = p.td - p.d, dist = hyp(dx, dd);
       if (p.stun && p.stun > 0) p.stun -= dt;
-      const vmax = p.pose === 'fall' && p.pt > 0 ? 0 : p.spd * p.mul * (p.stun && p.stun > 0 ? 0.25 : 1); // on the floor: he gets up first
+      // a star with the ball is a different animal: quicker, and a first step nobody else has
+      const burst = this.ball.holder === pid && !this.ball.fly && p.spd >= RUN ? Math.max(0, Math.min(1, ((this.o.looks?.[pid]?.ovr ?? 75) - 80) / 14)) * (0.6 + 0.4 * (this.o.looks?.[pid]?.ath ?? 0.5)) : 0;
+      const vmax = p.pose === 'fall' && p.pt > 0 ? 0 : Math.min(burst ? 29.5 : 1e9, p.spd * p.mul * (1 + 0.16 * burst)) * (p.stun && p.stun > 0 ? 0.25 : 1); // on the floor: he gets up first
       const vdes = dist < 0.08 ? 0 : Math.min(vmax, Math.sqrt(2 * ACC * 0.8 * dist));
       const ux = dist ? dx / dist : 0, ud = dist ? dd / dist : 0;
       let wx = ux * vdes - p.vx, wd = ud * vdes - p.vd;
-      const wl = hyp(wx, wd), amax = ACC * (p.spd >= SPRINT ? 1.15 : 1) * dt * (p.z > 0.3 && p.beh.k !== 'arrive' ? 0.25 : p.z > 0.3 ? 2.5 : 1);
+      const wl = hyp(wx, wd), amax = ACC * (p.spd >= SPRINT ? 1.15 : 1) * (1 + 0.6 * burst) * dt * (p.z > 0.3 && p.beh.k !== 'arrive' ? 0.25 : p.z > 0.3 ? 2.5 : 1);
       if (wl > amax) { wx *= amax / wl; wd *= amax / wl; }
       p.vx += wx; p.vd += wd;
       p.x += p.vx * dt; p.d += p.vd * dt;
