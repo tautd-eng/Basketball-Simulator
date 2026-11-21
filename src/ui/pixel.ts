@@ -18,6 +18,8 @@ export const VW = 320, VH = 180;
 const BAR_H = 40;   // the broadcast bar along the bottom (score, clock, the play call), in screen pixels
 const S = 2; // drawn at 2× so text and overlays stay crisp
 const Z = 1.4; // broadcast camera zoom: follows the ball across the court
+// the board (the view that is not the arena): the whole floor seen from straight above, players as big-headed busts
+const BOARD = true, BZ = 1.35, BSC = 3.25, BOX = (320 - 94 * BSC) / 2, BOY = (180 - 50 * BSC) / 2 + 1;
 const FAR_Y = 74, NEAR_Y = 168, FAR_L = 50, FAR_R = 270, NEAR_L = 6, NEAR_R = 314;
 const LEN = 94, WID = 50;
 
@@ -171,6 +173,8 @@ export class PixelCourt {
   shown = -1;
 
   benchCache = new Map<string, HTMLCanvasElement>();
+  boardL: HTMLCanvasElement | null = null;
+  bustCache = new Map<string, HTMLCanvasElement>();
   R = 1; // extra resolution of the canvas (crisp text and overlays)
   Rw = 1; // arena: resolution of the pixel buffer the scene is drawn into (scaled up ×R)
   toon = false; // arena: true-to-life proportions (true: the old big-head cartoon look)
@@ -233,7 +237,7 @@ export class PixelCourt {
   setStyle(style: 'classic' | 'arena', looks?: Record<string, Look>) {
     this.arena = style === 'arena';
     if (looks) this.o.looks = looks;
-    const R = this.arena ? 2 : 1;
+    const R = 2;   // (the board is drawn smooth at full resolution too)
     // the arena scene is drawn at the canvas' full resolution: faces, numbers and shoes keep their detail
     const Rw = this.arena && !this.toon ? 2 : 1; // the cartoon look is real pixel art: drawn small, scaled up crisp
     if (Rw !== this.Rw) { this.Rw = Rw; this.buf = null; this.courtL = null; this.standsL = null; }
@@ -242,15 +246,17 @@ export class PixelCourt {
       this.canvas.width = VW * S * R; this.canvas.height = VH * S * R;
       this.ctx.imageSmoothingEnabled = false;
     }
-    this.z = this.arena ? AZ : Z;
-    this.camY = this.arena ? AYF - 32 : VH - VH / this.z;
-    this.camX = this.arena ? AXC - VW / this.z / 2 : Math.max(0, Math.min(VW - VW / this.z, this.camX));
+    this.z = this.arena ? AZ : BZ;
+    this.camY = this.arena ? AYF - 32 : 0;
+    this.camX = this.arena ? AXC - VW / this.z / 2 : 0;
+    this.boardL = null;
     this.benchCache.clear();
   }
 
   // ------------------------------------------------------------ geometry
   proj(x: number, d: number, z = 0) {
     if (this.arena) return aproj(x, d, z);
+    if (BOARD) return { x: BOX + x * BSC, y: BOY + d * BSC - z * BSC * 0.32, sc: BSC };   // the board: straight down on the floor
     const t = Math.max(-0.15, Math.min(1.2, d / WID));
     const l = FAR_L + t * (NEAR_L - FAR_L), r = FAR_R + t * (NEAR_R - FAR_R);
     const sc = (r - l) / LEN;
@@ -343,8 +349,7 @@ export class PixelCourt {
       this.camX += (camT - this.camX) * Math.min(1, dt * 2.2);
       this.shake = Math.max(0, this.shake - dt * 2.5);
     } else {
-      const camT = Math.max(0, Math.min(VW - VW / this.z, bp.x - VW / this.z / 2));
-      this.camX += (camT - this.camX) * Math.min(1, dt * 3);
+      if (!BOARD) { const camT = Math.max(0, Math.min(VW - VW / this.z, bp.x - VW / this.z / 2)); this.camX += (camT - this.camX) * Math.min(1, dt * 3); }
     }
   }
 
@@ -3070,6 +3075,7 @@ export class PixelCourt {
     const kk = S * Zz * this.R;
     ctx.setTransform(kk, 0, 0, kk, -this.camX * kk, -this.camY * kk);
     if (this.arena) { this.drawArena(time); return; }
+    if (BOARD) { this.drawBoard(time); return; }
     // arena
     this.px(0, 0, VW, VH, '#141821');
     this.px(0, 0, VW, 17, '#0c0f15');
@@ -3298,6 +3304,204 @@ export class PixelCourt {
     // head + hair
     this.px(x - 1, Y - 15, 3, 3, p.skin);
     if (p.hair) this.px(x - 1, Y - 16, 3, 1, p.hair);
+  }
+
+  // ------------------------------------------------------------ the board
+  /** the floor from above, drawn once at the canvas' resolution */
+  private boardFloor() {
+    const KZ = this.canvas.width / VW * this.z;
+    if (this.boardL && this.boardL.width === Math.round(VW * KZ)) return this.boardL;
+    const c = document.createElement('canvas'); c.width = Math.round(VW * KZ); c.height = Math.round(VH * KZ);
+    const g = c.getContext('2d')!, k = KZ;
+    g.setTransform(k, 0, 0, k, 0, 0);
+    const [prim, sec] = this.tc('h');
+    // surroundings, then the hardwood in long planks
+    g.fillStyle = '#161b24'; g.fillRect(0, 0, VW, VH);
+    const X0 = BOX, Y0 = BOY, W = LEN * BSC, Hh = WID * BSC;
+    g.fillStyle = shade(prim, 0.42); g.fillRect(X0 - 4, Y0 - 4, W + 8, Hh + 8);   // the apron in the team's colour
+    g.fillStyle = '#d6a468'; g.fillRect(X0, Y0, W, Hh);
+    for (let i = 0; i < 60; i++) {
+      const y = Y0 + i * Hh / 60;
+      g.fillStyle = i % 2 ? 'rgba(120,70,20,0.035)' : 'rgba(255,240,210,0.03)'; g.fillRect(X0, y, W, Hh / 60);
+      for (let j = 0; j < 4; j++) { const x = X0 + ((i * 37 + j * 71) % 94) * BSC; g.fillStyle = 'rgba(90,50,15,0.07)'; g.fillRect(x, y, 0.2, Hh / 60); }
+    }
+    const P = (x: number, d: number) => [X0 + x * BSC, Y0 + d * BSC] as const;
+    // the paint in the home colour, the centre circle too
+    for (const side of ['h', 'a'] as const) {
+      const B = this.basket(side), s = this.dir(side), base = B.x + s * 5.25;
+      const [ax, ay] = P(Math.min(base, base - s * 19), 17), [bx, by] = P(Math.max(base, base - s * 19), 33);
+      g.fillStyle = shade(prim, 0.9); g.globalAlpha = 0.85; g.fillRect(ax, ay, bx - ax, by - ay); g.globalAlpha = 1;
+    }
+    { const [cx, cy] = P(47, 25); g.fillStyle = shade(prim, 0.9); g.globalAlpha = 0.85; g.beginPath(); g.arc(cx, cy, 6 * BSC, 0, 7); g.fill(); g.globalAlpha = 1;
+      g.fillStyle = sec; g.beginPath(); g.arc(cx, cy, 2 * BSC, 0, 7); g.fill(); }
+    // lines
+    g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineWidth = 0.55;
+    g.strokeRect(X0, Y0, W, Hh);
+    const line = (pts: (readonly [number, number])[]) => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); };
+    line([P(47, 0), P(47, WID)]);
+    { const [cx, cy] = P(47, 25); g.beginPath(); g.arc(cx, cy, 6 * BSC, 0, 7); g.stroke(); }
+    for (const side of ['h', 'a'] as const) {
+      const B = this.basket(side), s = this.dir(side), base = B.x + s * 5.25, ft = base - s * 19;
+      line([P(base, 17), P(ft, 17), P(ft, 33), P(base, 33)]);
+      { const [cx, cy] = P(ft, 25); g.beginPath(); g.arc(cx, cy, 6 * BSC, 0, 7); g.stroke(); }
+      const a0 = Math.asin(22 / 23.75), pts: (readonly [number, number])[] = [P(base, 3), P(base - s * 14, 3)];
+      for (let i = 0; i <= 40; i++) { const a = -a0 + 2 * a0 * i / 40; pts.push(P(B.x - s * 23.75 * Math.cos(a), 25 - 23.75 * Math.sin(a))); }
+      pts.push(P(base - s * 14, 47), P(base, 47)); line(pts);
+      { const [cx, cy] = P(B.x, 25); g.beginPath(); g.arc(cx, cy, 4 * BSC, s > 0 ? Math.PI / 2 : -Math.PI / 2, s > 0 ? Math.PI * 1.5 : Math.PI / 2); g.stroke(); }   // restricted area
+      // the backboard and the stanchion behind it
+      const [bx0, by0] = P(B.x + s * 1.25, 22), [, by1] = P(B.x + s * 1.25, 28);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(bx0 + s * 0.6 - 0.6, by0 + 1.2, 1.2, by1 - by0);
+      g.fillStyle = '#f4f4f4'; g.fillRect(bx0 - 0.5, by0, 1, by1 - by0);
+      const [sx, sy] = P(B.x + s * 4.2, 25); g.fillStyle = '#2b2f38'; g.fillRect(sx - 1.4, sy - 2.2, 2.8, 4.4);
+      g.fillStyle = '#c9cdd6'; g.fillRect(Math.min(bx0, sx), sy - 0.35, Math.abs(sx - bx0), 0.7);
+    }
+    // the home team's name along both baselines' aprons, the abbreviation at centre court
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 5px ${this.font}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const name = (this.o.homeName ?? this.o.home.abbr).toUpperCase();
+    g.fillText(name, X0 + W * 0.25, Y0 + Hh + 2.3); g.fillText(name, X0 + W * 0.75, Y0 + Hh + 2.3);
+    this.boardL = c;
+    return c;
+  }
+
+  /** a player's bust: the big head and the shoulders in his kit, drawn once */
+  private bust(p: PSprite) {
+    const key = p.pid + p.side + (this.toon ? 't' : '');
+    let c = this.bustCache.get(key);
+    if (c) return c;
+    const lk = this.looksOf(p.pid), H = 900, HU = 2.2, U = H / 100 * HU;
+    const oc = document.createElement('canvas'); oc.width = 900; oc.height = 1700;
+    const h = drawAthlete(oc.getContext('2d')!, 450, 1650, { H, face: 1, pose: 'stand', ph: 0, amp: 0, air: false, kit: this.kitOf(p.side), body: lk, shorts: 0.75, font: this.font, view: 'front', headU: U, num: false } as any);
+    const top = h.head.y - U * 9, bot = h.head.y + U * 22, w = (bot - top) * 1.1;
+    c = document.createElement('canvas'); c.width = 132; c.height = Math.round(132 * (bot - top) / w);
+    const g = c.getContext('2d')!; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(oc, 450 - w / 2, top, w, bot - top, 0, 0, c.width, c.height);
+    this.bustCache.set(key, c);
+    return c;
+  }
+
+  private bcT = -1;
+  private drawBoard(time: number) {
+    const ctx = this.ctx, k = this.canvas.width / VW * this.z;
+    // the camera follows the ball, a little ahead of it toward the basket it is going to
+    { const b = this.ball, q = this.proj(b.x, b.d), vw = VW / this.z, vh = VH / this.z, cap = 19 / this.z;
+      // half the ball, half where the ten of them are: nobody is left at the edge
+      let mx = 0, md = 0, n = 0; for (const p of this.players.values()) { mx += p.x; md += p.d; n++; }
+      const m = n ? this.proj(mx / n, md / n) : q, cx = (q.x + m.x) / 2, cy = (q.y + m.y) / 2 - 3;
+      let tx = cx - vw / 2, ty = cy - cap - (vh - cap) / 2;
+      // the ball always well inside the picture (a man with it under the caption band is no good)
+      tx = Math.max(q.x - vw + 26, Math.min(q.x - 26, tx)); ty = Math.max(q.y - vh + 14, Math.min(q.y - cap - 26, ty));
+      tx = Math.max(BOX - 8, Math.min(BOX + LEN * BSC + 8 - vw, tx));
+      ty = Math.max(BOY - 6 - cap, Math.min(BOY + WID * BSC + 6 - vh, ty));
+      const dt = this.bcT < 0 ? 1 : Math.min(0.1, Math.max(0, time - this.bcT)); this.bcT = time;
+      if (Math.abs(tx - this.camX) > vw || Math.abs(ty - this.camY) > vh) { this.camX = tx; this.camY = ty; }
+      else { this.camX += (tx - this.camX) * Math.min(1, dt * 2.4); this.camY += (ty - this.camY) * Math.min(1, dt * 2.4); } }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#161b24'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.drawImage(this.boardFloor(), Math.round(-this.camX * k), Math.round(-this.camY * k));
+    ctx.setTransform(k, 0, 0, k, -this.camX * k, -this.camY * k);
+    ctx.imageSmoothingEnabled = true;
+    // recent shots on the floor: green ring = made, red cross = missed (fade out)
+    for (const m of this.marks) {
+      const q = this.proj(m.x, m.d), a = Math.max(0, 1 - m.t / 9) * 0.9;
+      ctx.globalAlpha = a; ctx.lineWidth = 0.8;
+      if (m.made) { ctx.strokeStyle = '#2fd16a'; ctx.beginPath(); ctx.arc(q.x, q.y, 1.6, 0, 7); ctx.stroke(); }
+      else { ctx.strokeStyle = '#ff4d4d'; ctx.beginPath(); ctx.moveTo(q.x - 1.4, q.y - 1.4); ctx.lineTo(q.x + 1.4, q.y + 1.4); ctx.moveTo(q.x + 1.4, q.y - 1.4); ctx.lineTo(q.x - 1.4, q.y + 1.4); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+    // the rims (the ball goes over them, players' heads too)
+    const rim = (side: Side) => {
+      const B = this.basket(side), q = this.proj(B.x, B.d), fx = this.rimFx?.side === side ? this.rimFx : null;
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(q.x, q.y, 0.75 * BSC, 0, 7); ctx.fill();   // the net
+      ctx.strokeStyle = fx ? (fx.made ? '#5dff8a' : '#ff4d4d') : '#ff6a1a'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(q.x, q.y, 0.75 * BSC, 0, 7); ctx.stroke();
+      if (fx?.made) { const u = fx.t / 0.7; ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#5dff8a'; ctx.beginPath(); ctx.arc(q.x, q.y, 0.75 * BSC + u * 9, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+    };
+    rim('a'); rim('h');
+    const b = this.ball;
+    // shadows first (all of them, under everybody)
+    const list = [...this.players.values()].sort((p, q) => p.d - q.d);
+    const TW = 5 * BSC;   // a bust is about five feet wide on the floor
+    for (const p of list) {
+      const g0 = this.proj(p.x, p.d), lift = Math.min(1, p.z / 3.5);
+      ctx.fillStyle = `rgba(0,0,0,${0.3 - lift * 0.12})`; ctx.beginPath(); ctx.ellipse(g0.x, g0.y + 0.4, TW * 0.42 * (1 - lift * 0.25), TW * 0.16 * (1 - lift * 0.25), 0, 0, 7); ctx.fill();
+    }
+    { const g0 = this.proj(b.x, b.d); if (!b.holder || b.fly) { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(g0.x, g0.y, 1.1 * (1 - Math.min(0.5, b.z / 30)), 0.5, 0, 0, 7); ctx.fill(); } }
+    let ballDrawn = false;
+    const drawLooseBall = () => {
+      if (ballDrawn || (b.holder && !b.fly)) return; ballDrawn = true;
+      const q = this.proj(b.x, b.d, b.z), r = 0.72 * BSC * 0.62 * (1 + Math.min(0.6, b.z / 16));
+      this.boardBall(q.x, q.y, r, time);
+    };
+    for (const p of list) {
+      if (b.d < p.d) drawLooseBall();
+      this.drawToken(p, time, TW);
+    }
+    drawLooseBall();
+    // shot trail
+    for (const q of this.trail) { ctx.globalAlpha = Math.max(0, 0.6 - q.t * 1.2); ctx.fillStyle = '#ffd9a8'; ctx.fillRect(q.x - 0.3, q.y - 0.3, 0.6, 0.6); }
+    ctx.globalAlpha = 1;
+    // labels
+    if (this.label) { const p = this.players.get(this.label.pid); if (p) { const q = this.proj(p.x, p.d, p.z); this.text(surname(this.o.names[p.pid] ?? ''), q.x, q.y - TW * 1.22, '#ffffff', 7, true); } }
+    // floaters
+    for (const f of this.floaters) {
+      const u = f.t / f.dur, alpha = 1 - Math.max(0, u - 0.7) / 0.3;
+      if (f.at) { const q = this.proj(f.at.x, f.at.d, f.at.z); this.text(f.text, Math.max(this.camX + 18, Math.min(this.camX + VW / this.z - 18, q.x)), Math.max(this.camY + 24, q.y - TW * 1.2 - u * 8), f.color, f.big ? 12 : 7, true, alpha); }
+      else this.text(f.text, VW / 2, (f.big ? 80 : 92) - u * 10, f.color, f.big ? 16 : 8, true, alpha, true);
+    }
+    ctx.setTransform(S * this.R, 0, 0, S * this.R, 0, 0);
+    this.drawCaption();
+    this.drawShotClock();
+    this.drawReplay(time);
+  }
+
+  private boardBall(x: number, y: number, r: number, time: number) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#e8762c'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,25,5,0.85)'; ctx.lineWidth = r * 0.16;
+    const a = time * 3;
+    ctx.beginPath(); ctx.moveTo(x - r * Math.cos(a), y - r * Math.sin(a)); ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,220,180,0.45)'; ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.3, 0, 7); ctx.fill();
+  }
+
+  /** one player: a bust standing on a pill with his number (gold ring around the man with the ball) */
+  private drawToken(p: PSprite, time: number, TW: number) {
+    const ctx = this.ctx, g0 = this.proj(p.x, p.d), sp = Math.hypot(p.vx, p.vd);
+    const pose = this.poseOf(p);
+    const lift = p.z * BSC * 0.32 + (sp > 4 ? Math.abs(Math.sin(time * (7 + sp * 0.35) + hash01(p.pid) * 6)) * 0.7 : 0);
+    const [prim, sec] = this.tc(p.side);
+    const has = this.ball.holder === p.pid && !this.ball.fly;
+    // the pill under him
+    const pw = TW * 0.5, ph = TW * 0.2, py = g0.y + TW * 0.02;
+    if (has || this.hl?.pid === p.pid) {
+      ctx.fillStyle = 'rgba(255,211,77,0.35)'; ctx.beginPath(); ctx.ellipse(g0.x, py, pw * 0.78, ph * 0.95, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 0.6; ctx.stroke();
+    }
+    const pillC = p.side === 'h' ? prim : prim, pillE = p.side === 'h' ? '#ffffff' : sec;
+    ctx.fillStyle = pillC; ctx.beginPath(); ctx.ellipse(g0.x, py, pw * 0.48, ph * 0.62, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = pillE; ctx.lineWidth = 0.35; ctx.stroke();
+    const num = this.looksOf(p.pid).num;
+    this.boardText(String(num ?? ''), g0.x, py + 0.1, ph * 0.95, '#ffffff');
+    // the bust: tilted into his run, up in the air when he jumps
+    const im = this.bust(p), w = TW * (pose === 'stance' ? 0.98 : 1), h = w * im.height / im.width;
+    const tilt = Math.max(-0.22, Math.min(0.22, p.vx * 0.012)) + (pose === 'stance' ? Math.sin(time * 9 + hash01(p.pid) * 9) * 0.04 : 0);
+    ctx.save(); ctx.translate(g0.x, py - ph * 0.25 - lift); ctx.rotate(tilt);
+    ctx.drawImage(im, -w / 2, -h, w, h);
+    ctx.restore();
+    // the ball in his hands: bounced at his side while he dribbles, held up on a shot
+    if (has) {
+      const dir = (p.face ?? 1) >= 0 ? 1 : -1, r = 0.72 * BSC * 0.62;
+      const shooting = ['shoot', 'shootlow', 'layup', 'dunk', 'hook', 'fade', 'jump', 'windmill', 'tomahawk'].includes(pose);
+      const drib = pose === 'dribble' || sp > 3 && !shooting;
+      const bx = g0.x + dir * w * 0.42, by = shooting ? py - h * 1.02 - lift : py - ph * 0.2 - (drib ? Math.abs(Math.cos(time * 9)) * h * 0.32 : h * 0.3) - lift;
+      this.boardBall(shooting ? g0.x + dir * w * 0.15 : bx, by, r, time);
+    }
+  }
+
+  private boardText(t: string, x: number, y: number, size: number, color: string) {
+    const ctx = this.ctx;
+    ctx.font = `800 ${size}px "IBM Plex Sans", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = size * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.strokeText(t, x, y);
+    ctx.fillStyle = color; ctx.fillText(t, x, y);
   }
 
   // ------------------------------------------------------------ arena mode
