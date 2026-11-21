@@ -1050,7 +1050,9 @@ export class PixelCourt {
         const dx = B.x - man.x, dd = B.d - man.d, dist = hyp(dx, dd) || 1;
         if (b.k === 'box') { p.tx = man.x + dx / dist * 2.4; p.td = man.d + dd / dist * 2.4; p.spd = RUN; continue; }
         if (this.ball.holder === man.pid) {
-          const gap = Math.min(6, Math.min(4, dist * 0.35) * (this.pre() ? Math.min(1, this.lagF(p.pid)) * 0.85 : this.lagF(p.pid)));   // a stopper crowds him, a weak defender gives room
+          // a star is picked up tight; a man who cannot hurt them from out there is given room and dared to shoot
+          const thr = (this.o.looks?.[man.pid]?.ovr ?? 75) >= 84 ? 0.8 : this.usage(man.pid) < 0.12 && this.sk(man.pid, 'shoot') < 0.45 ? 1.6 : 1;
+          const gap = Math.min(7, Math.min(4, dist * 0.35) * thr * (this.pre() ? Math.min(1, this.lagF(p.pid)) * 0.85 : this.lagF(p.pid)));   // a stopper crowds him, a weak defender gives room
           // he plays where the dribbler is going (a quarter second ahead), so a probe toward the rim does not get by him
           const lx = man.x + man.vx * 0.28, ld = man.d + man.vd * 0.28;
           p.tx = lx + dx / dist * gap; p.td = ld + dd / dist * gap;
@@ -1068,7 +1070,8 @@ export class PixelCourt {
           let f = 0.1 + 0.2 * Math.min(1, db / 28) + (ballRim < 12 ? 0.08 : 0) + (bigMan ? 0.06 : 0) - b.tight * 0.12 + (this.pre() ? -0.04 : (this.lagF(p.pid) - 1) * 0.1);
           if (dist > 50) f = 6 / dist;
           let tx = man.x + dx * f, td = man.d + dd * f;
-          const w = (db > 18 ? 0.12 : 0.05) + (this.pre() && db < 22 ? Math.max(0, b.tight) * 0.1 : 0);   // a denying team steps into the passing lane one pass away
+          const hu = this.ball.holder && !this.ball.fly ? Math.min(1.2, this.usage(this.ball.holder)) : 0;   // the star has it: the whole defence leans his way (his gravity)
+          const w = (db > 18 ? 0.12 : 0.05) + (this.pre() && db < 22 ? Math.max(0, b.tight) * 0.1 : 0) + (db < 30 ? hu * 0.1 : 0);   // a denying team steps into the passing lane one pass away
           tx += (bp.x - tx) * w; td += (bp.d - td) * w;
           // never more than a long closeout away from his man (a big's man may be given a little more room)
           const sagBig = bigMan && this.inside(man.pid);   // only a big who does not shoot is given room
@@ -1541,7 +1544,7 @@ export class PixelCourt {
     // backup; at winning time (a close game, last five minutes, overtime) the ball is in the star's hands
     const mrg = Math.abs((e.hs ?? 0) - (e.as ?? 0));
     const winTime = (e.p >= 4 && e.c < 300 && mrg <= 10) || e.p > 4;
-    const lead = (p: PSprite) => this.sk(p.pid, 'handle') + this.starOf(p.pid) * (winTime ? 0.45 : 0.2) - Math.max(0, this.posN(p.pid) - 2) * (winTime ? 0.1 : 0.22);
+    const lead = (p: PSprite) => this.sk(p.pid, 'handle') + this.starOf(p.pid) * (winTime ? 0.45 : 0.2) + ((this.o.looks?.[p.pid]?.ovr ?? 75) - 75) / 25 * 0.3 - Math.max(0, this.posN(p.pid) - 2) * (winTime ? 0.1 : 0.22);
     const pg = [...o].filter(p => this.posN(p.pid) <= 3.5 || this.sk(p.pid, 'handle') >= 0.7).sort((p, q) => lead(q) - lead(p))[0] ?? o[0];
     const big = o[o.length - 1];
     const call = (e as any).call as string | undefined;
@@ -1742,21 +1745,26 @@ export class PixelCourt {
       const mates = this.ord(off).filter(p => p.pid !== vh);
       const bigs = mates.filter(p => this.posN(p.pid) >= 3.75).sort((p, q) => this.posN(q.pid) - this.posN(p.pid));
       const wings = mates.filter(p => this.posN(p.pid) <= 3.5);
+      const hub = mates.filter(p => p.pid !== vh).sort((a, b) => this.usage(b.pid) - this.usage(a.pid))[0];
       const avail = Object.entries(W).filter(([k]) => NEED[k] <= left() - 0.2 && (k !== lastSet || k === 'swing') && !((k === 'pnr' || k === 'dho' || k === 'horns' || k === 'pindown' || k === 'post') && !bigs.length) && !(k === 'horns' && bigs.length < 2 && era < 2010) && !((k === 'pindown' || k === 'givego') && !wings.length));
       let u = r() * avail.reduce((a, [, w]) => a + w, 0), set = 'swing';
       for (const [k, w] of avail) if ((u -= w) <= 0) { set = k; break; }
+      // the ball in the wrong hands (a role player has it, the star is waiting): first it goes to the star
+      const toHub = !!hub && this.usage(hub.pid) > 0.55 && this.usage(vh) < this.usage(hub.pid) * 0.5 && r() < 0.75;
+      if (toHub) set = 'swing';
       lastSet = set;
       { const st = set; add(at, () => { this.curSet = st; }); }
       const dur = Math.min(left() - 0.2, NEED[set] + r() * 0.8);
       const vh0 = vh;
       const star = mates.filter(p => this.starOf(p.pid) > 0).sort((a, b) => this.starOf(b.pid) - this.starOf(a.pid))[0];
-      const pickWing = () => (star && wings.includes(star) && r() < 0.45 ? star : wings[Math.floor(r() * wings.length)]) ?? mates[0];
+      // the ball finds the men the offence runs through: weighted by how much each of them carries it (a star gets it back, a bench guard moves it on)
+      const pickWing = () => { const pool = wings.length ? wings : mates; let u2 = r() * pool.reduce((a, p) => a + 0.1 + this.usage(p.pid), 0); for (const p of pool) if ((u2 -= 0.1 + this.usage(p.pid)) <= 0) return p; return pool[0] ?? mates[0]; };
       if (NAME[set] && r() < 0.8) add(at, () => this.call(off, `${this.abbr(off)} · ${NAME[set]}`));
       switch (set) {
         case 'swing': {
           // swing it to a wing, everybody shifts
-          const w = pickWing(); const side1 = r() < 0.5, side2 = r() < 0.5;
-          add(at, () => { const q = this.spot(off, side1 ? 'lw' : 'rw', 3, r); this.go(w, q.x, q.d, JOG); });
+          const w = toHub ? hub! : pickWing(); const side1 = r() < 0.5, side2 = r() < 0.5;
+          add(at, () => { const q = this.spot(off, this.posN(w.pid) >= 4 ? (side1 ? 'le' : 're') : side1 ? 'lw' : 'rw', 3, r); this.go(w, q.x, q.d, toHub ? RUN : JOG); });   // (a big hub takes it at the elbow)
           add(at + 0.6, () => this.pass(w.pid));
           add(at + 1.1, () => { const pr = this.P(vh0); if (pr) { const q = this.spot(off, side2 ? 'ls' : 'rs', 3, r); this.go(pr, q.x, q.d, JOG); } });
           vh = w.pid; break;
@@ -3938,6 +3946,12 @@ export class PixelCourt {
   }
   /** A screener who moves people: a heavy build, or a big man with size. */
   strong(pid: string | null | undefined) { const lk = this.o.looks?.[pid ?? '']; return !!lk && ((lk.build ?? 0.5) >= 0.72 || (this.posN(pid!) >= 4.5 && (lk.ht ?? 79) >= 83 && (lk.build ?? 0.5) >= 0.55)); }
+  /** how much of the offence goes through him: a star a lot, a bench guard little (overall first, then the handle) */
+  usage(pid: string | null | undefined) {
+    if (!pid) return 0;
+    const ov = this.o.looks?.[pid]?.ovr ?? 75, h = this.sk(pid, 'handle');
+    return Math.pow(Math.max(0.12, (ov - 62) / 28), 2) * (0.55 + 0.9 * h);
+  }
   starOf(pid: string) { const o = this.o.looks?.[pid]?.ovr ?? 0; return o >= 91 ? 2 : o >= 85 ? 1 : 0; }
   /** player height on the buffer (pixels) at depth d */
   private heightPx(lk: Look, d = 25) {
