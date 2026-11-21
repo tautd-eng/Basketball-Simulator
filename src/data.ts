@@ -117,9 +117,13 @@ export function trate(k: number, z: number, season: number): number {
 }
 
 /** Box plus-minus estimate from ratings: the single number AI and coaches use for quality. */
+const DEF_X = 0.26;
 export function bpmOf(z: number[]): number {
   let s = H.ovr._;
   for (let i = 0; i < NK; i++) s += ovrW[i] * z[i];
+  // defence wins more games in this league than a box-score fit gives it credit for (a +2 stopper is worth ~1.6× a +2
+  // finisher on the scoreboard, test/defx): the rating carries that extra value, so stoppers rate, start and get paid
+  s += DEF_X * z[K.def];
   // volume x efficiency: a high-usage scorer who also scores efficiently is worth more than the two apart
   if (ovrX.volEff) s += ovrX.volEff * Math.max(0, z[K.usg]) * effOf(z);
   // creator: scores a lot and sets others up
