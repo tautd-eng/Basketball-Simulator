@@ -756,7 +756,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       const taken = new Set(Object.values(def.mm ?? {}));   // the coach's own assignments come first
       if (star && !def.mm?.[star.p.id]) {
         const slotD = dS[oS.indexOf(star)];
-        const best = dOn.filter(d => d.posNum <= 4).sort((a, b) => b.per - a.per)[0];
+        const best = dOn.filter(d => d.posNum <= 3.5 && Math.abs(d.posNum - star.posNum) <= 1.5).sort((a, b) => b.per - a.per)[0];   // a wing or guard his own size: never a big chasing a point guard
         if (best && slotD && best !== slotD && !taken.has(best.p.id) && !taken.has(slotD.p.id) && best.per >= 0.6 && best.per > slotD.per + 0.5) { stopS = star; stopD = best; }
       }
     }
