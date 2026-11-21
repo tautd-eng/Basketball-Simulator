@@ -617,18 +617,22 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
         if (first && fastBreak) dur = 2 + 4 * rng.next();
         else if (first) dur = callDuration(dur, rem, def.pts - off.pts);
         else if (offCall === 'three' || (period >= 4 && rem < 30 && def.pts > off.pts)) dur = Math.min(dur, 1.5 + 2 * rng.next()); // chasing late: kick it out and fire at once
+        else if (defCall === 'foul') dur = Math.min(dur, 1 + 2 * rng.next());   // they grabbed the offensive board: the trailing side fouls again
         dur = Math.max(first ? 2 : 1, Math.min(dur, first ? 23.7 : Math.min(orbClock - 0.3, scLeft - 0.3))); // within the shot clock
         lateClock = first && !fastBreak && dur >= 19;
-        if (first && offCall === 'milk' && off.pts > def.pts && rem <= 24 && defCall !== 'foul' && period >= 4) dur = rem; // run it all out
+        const runOut = offCall === 'milk' && off.pts > def.pts && rem <= (first ? 24 : scLeft) && defCall !== 'foul' && period >= 4;   // ahead, and the shot clock cannot run out first (an offensive board too)
+        if (runOut) dur = rem; // run it all out
         if (dur > rem) dur = rem;
+        const remStart = rem;
         tick(dur); rem -= dur; elapsed += dur; curRem = rem; scLeft -= dur;
         // ahead with the shot clock turned off and nobody fouling: dribble out the clock, no shot
-        if (first && offCall === 'milk' && off.pts > def.pts && rem <= 0 && defCall !== 'foul' && period >= 4) {
+        if (runOut && rem <= 0) {
           ev('hold', off, `${off === H ? '{h}' : '{a}'} dribble out the clock`);
           possEnded = true; break;
         }
         if (first) orbBy = null;
-        const res = first && defCall === 'foul' ? intentionalFoul(off, def) : play(off, def, !first);
+        // a second or less from the other end: no time to run anything, a catch and a heave
+        const res = defCall === 'foul' ? intentionalFoul(off, def) : first && !fastBreak && remStart <= 1.2 ? heave(off) : play(off, def, !first);
         first = false;
         fastBreak = false;
         if (res !== 'orb') possEnded = true;
@@ -688,11 +692,12 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     const user = ctl && clutch ? (ctl.side === 'h' ? H : A) : null;
     const lead = off.pts - def.pts;
     const late = period >= 4 && Math.abs(lead) <= 15;
-    if (off !== user) {
+    if (off !== user || offCall === 'auto') {   // 'Coach decides' on the user's side: the same situational sense
       // late game: protect a lead with the whole shot clock, play for the last shot when tied, chase points when behind
       // behind, the deficit and the clock decide: two points are enough for a small gap, a big one needs threes
       const d = -lead;
-      if (late && lead > 0 && rem < 60) offCall = 'milk';
+      if (period >= 4 && lead > 0 && rem <= 24) offCall = 'milk';   // ahead with the shot clock off: run it out, whatever the margin
+      else if (late && lead > 0 && rem < 60) offCall = 'milk';
       else if (late && d >= 0 && d <= 2 && rem < 24) offCall = 'milk';
       else if (late && d === 3 && rem < 45) offCall = 'three';
       else if (late && d >= 4 && d <= 6 && rem < 22) offCall = 'three';
@@ -706,7 +711,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     if (def !== user && late && period >= 4) {
       // trailing late: foul to stop the clock and send a poor shooter to the line
       // (down one or two with the shot clock off: foul at once and hope for misses; down three, foul only before a tying three can be set up)
-      if (((lead >= 4 && lead <= 10 && rem < 60) || (lead >= 1 && lead <= 2 && rem < 24) || (lead === 3 && rem < 40 && rem > 12)) && rem > 1.5) defCall = 'foul';
+      if (((lead >= 4 && lead <= 10 && rem < 60) || (lead >= 1 && lead <= 10 && rem <= 24) || (lead === 3 && rem < 40 && rem > 12)) && rem > (lead >= 7 ? 9 : lead >= 4 ? 4 : 1.5)) defCall = 'foul';   // no point once there is no time left to come back   // with the shot clock off they would just run it out: foul
       // up three with a few seconds left: foul before they can get a tying three up (they get two free throws at most)
       else if (lead === -3 && rem < 5 && rem > 1 && rng.chance(0.5)) defCall = 'foul';
       // down two to four possessions in the last three minutes: press full court after scores
@@ -722,12 +727,21 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // last possession: tied → the very last shot; behind by one or two → attack with a few seconds left (time for a rebound)
     if (offCall === 'milk') { const behind = trail > 0; return rem <= 24 ? Math.max(1, rem - (behind ? 4 + rng.next() * 3 : 1 + rng.next() * 1.5)) : 18 + rng.next() * 5; }
     // chasing threes: set one up quickly, never let the clock run out on it
-    if (offCall === 'three') return rem <= 24 ? Math.max(1, Math.min(dur, rem - 3 - rng.next() * 4)) : Math.max(3, dur * 0.6);
+    if (offCall === 'three') return rem <= 24 ? Math.max(1, Math.min(dur, rem - 3 - rng.next() * 4, trail >= 4 ? 2 + rng.next() * 4 : 5 + rem * 0.3)) : Math.max(3, dur * 0.6);   // two possessions down: fire at once, there must be time to foul
     if (offCall === 'hold') return Math.max(1, rem - 1 - rng.next() * 2.5);
     if (offCall === 'quick') return 3 + rng.next() * 4;
     if (offCall === 'two4one') return Math.max(3, rem - 30 + rng.next() * 2);
     if (defCall === 'pressure') return dur * 0.85;
     return dur;
+  }
+  function heave(off: Side): 'end' | 'orb' {
+    const g = off.on[rng.weighted(off.on.map(q => (0.1 + q.usg) * Math.max(0.05, q.tpr)))];
+    const made = rng.chance(0.04), an = log ? short(g.p.name) : '';
+    const sp = { x: 25 + (cr.next() - 0.5) * 14, y: 30 + cr.next() * 14 };
+    inc(g, 'fga'); inc(g, 'tpa');
+    if (made) { inc(g, 'fgm'); inc(g, 'tpm'); inc(g, 'pts', 3); score(off, 3); ended = 'make'; ev('make3', off, `${an} banks in a heave at the buzzer!`, { x: sp.x, y: sp.y, sk: 'three' }); }
+    else ev('miss3', off, `${an}'s heave at the buzzer is no good`, { x: sp.x, y: sp.y, sk: 'three' });
+    return 'end';
   }
   function intentionalFoul(off: Side, def: Side): 'end' | 'orb' {
     // in the last two minutes a foul away from the ball is a free throw and the ball: they foul whoever catches it,

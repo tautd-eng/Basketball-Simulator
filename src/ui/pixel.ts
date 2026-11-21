@@ -1467,14 +1467,16 @@ export class PixelCourt {
       [off[off.length - 1], lane(11, true)], [off[off.length - 2], lane(11, false)],
       [def[def.length - 3], lane(14, true)],
     ];
+    // everyone is in his place before the first shot goes up: the far ones hurry (no jogging about during the routine)
+    const go = (p: PSprite, x: number, d: number) => this.go(p, x, d, Math.max(spd, Math.min(RUN, hyp(p.x - x, p.d - d) / 1.6)));
     const used = new Set<string>();
-    for (const [p, q] of spots) if (p) { this.go(p, q.x, q.d, spd); used.add(p.pid); }
+    for (const [p, q] of spots) if (p) { go(p, q.x, q.d); used.add(p.pid); }
     let i = 0;
     // the rest stand behind the arc, each his own spot, the shooter's team-mates nearer the top
     const perim = [[29, 25 - 9], [29, 25 + 9], [26, 25 - 17], [26, 25 + 17], [33, 25], [24, 3.5], [24, WID - 3.5]];
-    for (const p of [...off, ...def]) if (!used.has(p.pid)) { const q = perim[i % perim.length]; this.go(p, B.x - s * q[0], q[1], spd); i++; }
+    for (const p of [...off, ...def]) if (!used.has(p.pid)) { const q = perim[i % perim.length]; go(p, B.x - s * q[0], q[1]); i++; }
     const sh = this.P(shooter);
-    if (sh) this.go(sh, B.x - s * FT_REL, 25, spd);
+    if (sh) go(sh, B.x - s * FT_REL, 25);
   }
 
   // ------------------------------------------------------------ staging: one window of the timeline
