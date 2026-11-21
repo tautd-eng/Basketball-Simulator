@@ -20,3 +20,7 @@ for (const [a, b] of bins) {
 const name = (q: string) => rows.find(x => x.p.name.includes(q));
 for (const q of ['Edwards', 'James', 'Gilgeous', 'Jokić', 'Bronny']) { const x = rows.filter(y => y.p.name.includes(q)).slice(0, 3); for (const y of x) { const s = y.s; console.log(y.p.name, y.o, 'g', s.gp, 'mpg', (s.min / s.gp).toFixed(1), 'ppg', (s.pts / s.gp).toFixed(1), 'fg', s.fgm + '/' + s.fga); } }
 void name;
+// minutes by rank within the team (by overall), averaged over teams
+{ const byT: Record<string, any[]> = {}; for (const x of rows) (byT[x.p.tid!] ??= []).push(x);
+  const acc: number[][] = []; for (const t of Object.values(byT)) { t.sort((a, b) => b.s.min / b.s.gp - a.s.min / a.s.gp); t.forEach((x, i) => (acc[i] ??= []).push(x.s.min / x.s.gp)); }
+  console.log('mpg by team rank:', acc.slice(0, 11).map((a, i) => `${i + 1}:${(a.reduce((p, q) => p + q, 0) / a.length).toFixed(1)}`).join(' ')); }

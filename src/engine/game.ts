@@ -34,7 +34,7 @@ export const C = {
   fatigue: 0.55, fatBase: 0.8, tpa: 0.104, drain: 0.00062, recover: 0.0011,
   possSec: 1.09, putback3: 0.45, zoneGap: 1.0, charge: 0.11,
   fbStl: 0.55, fbDrb: 0.15, fbMake: 0.45, fbThree: 0.6, lateClock: 0.2, // transition and shot-clock pressure
-  star: 1.35, stay: 1.2, depth: 10, minAlpha: 1.0, maxMin: 40,
+  star: 1.35, stay: 1.2, depth: 10, minAlpha: 1.6, maxMin: 38,
   poDepth: 8, poAlpha: 1.5, poMax: 44, // playoffs: coaches shorten the bench and ride their best players
   mmDef: 0.31, mmHt: 0.01, mmUsg: 0.093, mmSize: 0.019, // matchups: own defender's weight, size edge inside, shot selection toward mismatches
   pass: 0.15, pass0: 0.11, hb: 0.022, hbOn: 1, split: 1, rimHelp: 0.65, rim0: 1.3, rimK: 0.7, postK: 0.5, // defence split into perimeter / rim protection (0 = the single rating)
@@ -210,16 +210,18 @@ function planMinutes0(side: Side, po = false) {
     }
   }
   const depth = side.depth ?? (po ? C.poDepth : C.depth), alpha = po ? C.poAlpha : C.minAlpha, maxMin = po ? C.poMax : C.maxMin;
-  const avail = [...side.gps].sort((a, b) => b.q - a.q);
+  const avail = [...side.gps].sort((a, b) => b.q * (1 + 1.6 * (b.usg - 0.2)) - a.q * (1 + 1.6 * (a.usg - 0.2)));
   const n = Math.min(avail.length, depth);
-  const w = avail.map((g, i) => (i < n ? Math.pow(g.q, alpha) : 0));
+  // a coach plays the men the offence runs through: his rating, and how much of the game goes through him
+  const mq = (g: GP) => g.q * Math.max(0.85, Math.min(1.25, 1 + 1.6 * (g.usg - 0.2)));
+  const w = avail.map((g, i) => (i < n ? Math.pow(mq(g), alpha) : 0));
   const T = spread(w, 240, maxMin);
   // positional balance: about two big men and two guards on the floor
   const bigShare = (g: GP) => (g.posNum >= 4 ? 1 : g.posNum >= 3.5 ? 0.5 : 0);
   const smallShare = (g: GP) => (g.posNum <= 2 ? 1 : g.posNum <= 2.5 ? 0.6 : g.posNum <= 3 ? 0.3 : 0);
   for (const share of [bigShare, smallShare]) {
     const have = avail.reduce((a, g, i) => a + T[i] * share(g), 0);
-    const need = 84 - have;
+    const need = (share === bigShare ? 66 : 76) - have;   // (about one and a half bigs and guards at all times: a team short of them plays small rather than a scrub 38 minutes)
     if (need <= 0) continue;
     const idx = avail.map((g, i) => i).filter(i => share(avail[i]) >= 0.5 && T[i] < maxMin);
     if (!idx.length) continue;
