@@ -458,8 +458,8 @@ export class PixelCourt {
   private P(pid: string | null | undefined) { return pid ? this.players.get(pid) ?? null : null; }
   /** the inbound is over: the man who took it out steps back onto the floor */
   private endInbound() {
-    const q = this.inbPid && this.ball.holder !== this.inbPid ? this.P(this.inbPid) : null;
-    if (q && (q.td < 0.8 || q.td > WID - 0.8 || q.tx < 0.8 || q.tx > LEN - 0.8)) { q.tx = Math.max(3, Math.min(LEN - 3, q.tx)); q.td = Math.max(3, Math.min(WID - 3, q.td)); }
+    const q = this.P(this.inbPid); if (q && (globalThis as any).__goSrc) (q as any).endSrc = this.v.toFixed(1) + '@' + (new Error().stack ?? '').split('\n').slice(2, 4).join('<');
+    if (q && (q.td < 0.8 || q.td > WID - 0.8 || q.tx < 0.8 || q.tx > LEN - 0.8)) { q.tx = Math.max(3, Math.min(LEN - 3, q.tx)); q.td = Math.max(3, Math.min(WID - 3, q.td)); q.ax = q.tx; q.ad = q.td; }
     this.inbPid = null; this.inbDone = false;
   }
   private ballPos() {
@@ -484,6 +484,7 @@ export class PixelCourt {
     if (p.beh.k === 'arrive' && p.beh.at > this.v) return; // on his way to his shot: nothing else matters now
     p.ax = x; p.ad = d;
     p.beh = { k: 'spot' }; p.tx = x; p.td = Math.max(-4, Math.min(WID + 4, d)); p.spd = Math.min(spd, 26);
+    if ((d < 0.8 || d > WID - 0.8) && (globalThis as any).__goSrc) (p as any).goSrc = this.v.toFixed(1) + '@' + (new Error().stack ?? '').split('\n').slice(2, 4).join('<');
   }
   private jump(p: PSprite | null, h: number, dur: number, pose: Pose = 'jump') {
     if (!p) return;
@@ -690,7 +691,7 @@ export class PixelCourt {
           if (hyp(p.x - b.x, p.d - b.d) < 2.4) { this.give(p.pid); this.looseT = 0; }
           // nobody is getting to it (the play has moved on): it is rolled to the nearest man, low along the floor
           else if (it.live && this.looseT > 2.0) { const to = p.pid; this.pickup = null; this.flyBall(p.x, p.d, 2.5, 2.2, Math.min(1.1, 0.3 + hyp(p.x - b.x, p.d - b.d) / 60), () => this.give(to), to); if (this.ball.fly) this.ball.fly.bounce = true; this.looseT = 0; }
-          else { p.beh = { k: 'spot' }; this.go(p, b.x, b.d, RUN); this.chasers.add(p.pid); }
+          else { p.beh = { k: 'spot' }; const m = it.live && p.pid !== this.inbPid ? 0.8 : -9; this.go(p, Math.max(m, Math.min(LEN - m, b.x)), Math.max(m, Math.min(WID - m, b.d)), RUN); this.chasers.add(p.pid); }   // live: he waits for it at the line
         }
       }
     } else if (!b.holder && !b.fly && it.live && !(this.pickup && this.P(this.pickup.pid) && hyp(this.P(this.pickup.pid)!.x - b.x, this.P(this.pickup.pid)!.d - b.d) < 8)) {
@@ -866,7 +867,7 @@ export class PixelCourt {
       if (live && p.pid !== this.inbPid && this.pickup?.pid !== p.pid && !(this.ball.holder === p.pid && (p.x < 0 || p.x > LEN || p.d < 0 || p.d > WID))) {
         const cx = (x: number) => Math.max(0.8, Math.min(LEN - 0.8, x)), cd = (d: number) => Math.max(0.8, Math.min(WID - 0.8, d));
         const outNow = p.x < 0 || p.x > LEN || p.d < 0 || p.d > WID;     // the inbounder stepping back in is not a violation
-        if ((cx(p.tx) !== p.tx || cd(p.td) !== p.td) && !outNow) { if (!this.inbPid) this.flag('bounds', p, `t=${p.tx.toFixed(1)},${p.td.toFixed(1)} hold=${this.ball.holder === p.pid} inb=${this.inbPid ? this.o.names[this.inbPid] : '-'} pk=${this.pickup ? this.o.names[this.pickup.pid] : '-'} ball=${this.ball.x.toFixed(0)},${this.ball.d.toFixed(1)} fly=${!!this.ball.fly} into=${(this.v - it.a).toFixed(1)}`); p.tx = cx(p.tx); p.td = cd(p.td); }
+        if ((cx(p.tx) !== p.tx || cd(p.td) !== p.td) && !outNow) { if (!this.inbPid) this.flag('bounds', p, `now=${this.v.toFixed(1)} end=${(p as any).endSrc ?? ''} src=${(p as any).goSrc ?? ''} t=${p.tx.toFixed(1)},${p.td.toFixed(1)} hold=${this.ball.holder === p.pid} inb=${this.inbPid ? this.o.names[this.inbPid] : '-'} pk=${this.pickup ? this.o.names[this.pickup.pid] : '-'} ball=${this.ball.x.toFixed(0)},${this.ball.d.toFixed(1)} fly=${!!this.ball.fly} into=${(this.v - it.a).toFixed(1)}`); p.tx = cx(p.tx); p.td = cd(p.td); }
         else if (outNow) { p.tx = cx(p.tx); p.td = cd(p.td); }
         if (!outNow && cx(p.x) !== p.x || cd(p.d) !== p.d) { p.x = cx(p.x); p.d = cd(p.d); }
       }
@@ -1031,7 +1032,7 @@ export class PixelCourt {
         // nobody stands like a statue in live play: small shuffles around his spot
         if (p.ax !== undefined && this.ball.holder && this.ball.holder !== p.pid && p.pt <= 0 && hyp(p.tx - p.x, p.td - p.d) < 0.6) {
           const bucket = Math.floor(this.v / 1.7 + hash01(p.pid) * 7);
-          if (hash01(p.pid + '|' + bucket) < 0.55) { p.tx = p.ax + (hash01(p.pid + 'x' + bucket) - 0.5) * 2.2; p.td = (p.ad ?? p.d) + (hash01(p.pid + 'd' + bucket) - 0.5) * 1.6; p.spd = WALK; }
+          if (hash01(p.pid + '|' + bucket) < 0.55) { p.tx = p.ax + (hash01(p.pid + 'x' + bucket) - 0.5) * 2.2; p.td = (p.ad ?? p.d) + (hash01(p.pid + 'd' + bucket) - 0.5) * 1.6; if (p.pid !== this.inbPid) { p.tx = Math.max(0.8, Math.min(LEN - 0.8, p.tx)); p.td = Math.max(0.8, Math.min(WID - 0.8, p.td)); } p.spd = WALK; }
         }
         continue;
       }
@@ -1225,7 +1226,7 @@ export class PixelCourt {
     if (this.pickup) {
       const pl = this.P(this.pickup.pid);
       if (!pl || this.ball.holder || (this.ball.fly && this.ball.fly.to)) this.pickup = null;
-      else if (!this.ball.fly && hyp(pl.tx - this.ball.x, pl.td - this.ball.d) > 3 && !(pl.beh.k === 'arrive' && pl.beh.at > this.v)) this.go(pl, this.ball.x, this.ball.d, Math.max(pl.spd, RUN));   // whatever else he was told, he goes for the ball first
+      else if (!this.ball.fly && hyp(pl.tx - this.ball.x, pl.td - this.ball.d) > 3 && !(pl.beh.k === 'arrive' && pl.beh.at > this.v)) { const io = pl.pid === this.inbPid; this.go(pl, io ? this.ball.x : Math.max(0.8, Math.min(LEN - 0.8, this.ball.x)), io ? this.ball.d : Math.max(0.8, Math.min(WID - 0.8, this.ball.d)), Math.max(pl.spd, RUN)); }   // whatever else he was told, he goes for the ball first
       else if (!this.ball.fly && hyp(pl.x - this.ball.x, pl.d - this.ball.d) < (this.ball.d < 0 || this.ball.d > WID || this.ball.x < 0 || this.ball.x > LEN ? 3.2 : 2.2)) { const then = this.pickup.then; this.give(pl.pid); this.pickup = null; then?.(); }
     }
     // nobody stands inside anybody else
@@ -1651,6 +1652,7 @@ export class PixelCourt {
       const others = this.ord(off).filter(p => p.pid !== first && p !== inb && p.pid !== holder);
       if (h.how === 'inbound') {
         const I = inb;
+        if (this.inbPid && this.inbPid !== I?.pid) this.endInbound();
         this.inbPid = I?.pid ?? null; this.inbDone = false;   // the one man the referee lets stand out of bounds
         // he picks the ball up under the basket, steps out behind the baseline and inbounds it
         if (I) {
@@ -1666,6 +1668,7 @@ export class PixelCourt {
       } else if (h.how === 'side' || h.how === 'period') {
         const keep = this.inbPid ? this.P(this.inbPid) : null;   // the same side-out planned again (a substitution in between): the same man takes it out
         const I = keep && keep.side === off && keep.pid !== first ? keep : inb, sx = h.how === 'period' ? 47 : h.back ? 47 - s * 16 : 47 + s * 12;   // a back-court side-out, or the front court
+        if (this.inbPid && this.inbPid !== I?.pid) this.endInbound();
         this.inbPid = I?.pid ?? null; this.inbDone = false;
         // the official hands the ball to the inbounder on the sideline
         if (I) {
@@ -2927,7 +2930,7 @@ export class PixelCourt {
     if (v === 'strip' || v === 'travel' || v === 'oob') {
       add(T(0), () => {
         const a = A(); if (!a) return;
-        const d0 = v === 'oob' ? (a.d < 25 ? 0.5 : WID - 0.5) : 25 + (r() - 0.5) * 10;
+        const d0 = v === 'oob' ? (a.d < 25 ? 0.9 : WID - 0.9) : 25 + (r() - 0.5) * 10;
         this.go(a, B.x - s * (v === 'oob' ? 8 : 12), d0, RUN / P.sc);
         const da = pressure(); if (da) { da.beh = { k: 'follow', pid: a.pid, dx: s * 1.4, dd: 0.6 }; this.label2 = { pid: da.pid, t: 1.8 }; }
         this.label = { pid: a.pid, t: 1.8 };
