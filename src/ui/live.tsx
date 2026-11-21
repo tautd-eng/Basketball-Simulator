@@ -4,8 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CourtCanvas, BoxPair, rosterMaps, fmtTxt, mmss, periodName, looksFor } from './court';
 import { colorsOf } from './art';
-import { posNum } from '../engine/game';
-import { K } from '../data';
+import { natural, posLabel } from './positions';
 import { Timeline } from './timeline';
 import { REPLAY } from './pixel';
 import { nav } from './nav';
@@ -151,7 +150,7 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
         <OnFloor teams={[
           { side: 'a' as const, abbr: away.abbr, color: colorsOf(away.tid, away.abbr)[0] },
           { side: 'h' as const, abbr: home.abbr, color: colorsOf(home.tid, home.abbr)[0] },
-        ]} on={box.on} st={box.st} names={maps.names} nums={nums} posOf={(pid: string) => lg.players[pid]?.pos ?? ''} zOf={(pid: string) => lg.players[pid]?.z} openPlayer={openPlayer} />
+        ]} on={box.on} st={box.st} names={maps.names} nums={nums} pl={(pid: string) => lg.players[pid]} openPlayer={openPlayer} />
         {view !== 'chart' && line && <div className="commentary" aria-live="polite"><span className="cm-mic" aria-hidden="true">🎙</span>{line}</div>}
         <div className="live-grid">
           <div className="live-left">
@@ -195,10 +194,9 @@ export function LiveGame({ lg, data, close, openPlayer, hold }: any) {
 }
 
 /** The ten men on the floor right now, by team: name and overall first, then his game so far (minutes, points, rebounds, assists, fouls). */
-function OnFloor({ teams, on, st, names, nums, posOf, zOf, openPlayer }: any) {
-  // point guard to centre: by listed position; between two guards the playmaker (assists) goes first, between two
-  // forwards or bigs the shorter man
-  const slotKey = (pid: string) => { const pn = posNum(posOf(pid)), z = zOf(pid); return pn * 10 + (pn <= 2.5 ? -(z?.[K.ast] ?? 0) * 2 : ((nums[pid]?.ht ?? 78) - 78) / 3); };
+function OnFloor({ teams, on, st, names, nums, pl, openPlayer }: any) {
+  // point guard to centre by where each really plays (Basketball-Reference positions; the shorter man first if two share it)
+  const slotKey = (pid: string) => { const p = pl(pid); return p ? natural(p) * 10 + ((nums[pid]?.ht ?? 78) - 78) / 10 : 30; };
   return (
     <div className="onfloor" aria-label="On the floor">
       {teams.map((tm: any) => (
@@ -208,10 +206,10 @@ function OnFloor({ teams, on, st, names, nums, posOf, zOf, openPlayer }: any) {
             const s = st[pid] ?? {}, pf = s.pf ?? 0, n = nums[pid] ?? { num: '', ovr: 0 };
             const short = (names[pid] ?? '').split(' ').slice(1).join(' ') || names[pid];
             return (
-              <button key={pid} className="of-p" onClick={() => openPlayer?.(pid)} title={`${names[pid]} · #${n.num} · ${posOf(pid)}`}>
+              <button key={pid} className="of-p" onClick={() => openPlayer?.(pid)} title={`${names[pid]} · #${n.num} · ${posLabel(pl(pid))}`}>
                 <span className="of-top"><span className="of-ovr">{n.ovr}</span><span className="of-name">{short}</span></span>
                 <span className="of-line"><b>{Math.floor(s.min ?? 0)}</b>m · <b>{s.pts ?? 0}</b>p <b>{(s.orb ?? 0) + (s.drb ?? 0)}</b>r <b>{s.ast ?? 0}</b>a{pf > 0 && <span className={pf >= 5 ? 'of-pf hot' : pf >= 4 ? 'of-pf warm' : 'of-pf'}> · {pf}F</span>}</span>
-                <span className="of-sub">#{n.num} {posOf(pid)}{(s.fga ?? 0) > 0 ? ` · ${s.fgm}/${s.fga} FG` : ''}{(s.tpa ?? 0) > 0 ? ` · ${s.tpm}/${s.tpa} 3P` : ''}</span>
+                <span className="of-sub">#{n.num} {posLabel(pl(pid))}{(s.fga ?? 0) > 0 ? ` · ${s.fgm}/${s.fga} FG` : ''}{(s.tpa ?? 0) > 0 ? ` · ${s.tpm}/${s.tpa} 3P` : ''}</span>
               </button>
             );
           })}
