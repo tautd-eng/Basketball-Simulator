@@ -17,6 +17,7 @@ import { AZ, AXC, AFX, AFY, AYF, VZ, aproj, depthScale, renderCourt, renderStand
 export const VW = 320, VH = 180;
 const BAR_H = 40;   // the broadcast bar along the bottom (score, clock, the play call), in screen pixels
 const S = 2; // drawn at 2× so text and overlays stay crisp
+const MOVES = new Set(['PULL-UP', 'ATTACKS', 'DRIVES', 'STEP-BACK', 'HESI', 'BEHIND THE BACK', 'IN-AND-OUT', 'EUROSTEP', 'SPIN MOVE', 'SIDE-STEP', 'PUMP FAKE', 'UP AND UNDER', 'REVERSE', 'CROSSOVER', 'BEATS HIS MAN', 'ATTACKS THE CLOSEOUT', 'FADEAWAY', 'SEALS HIM']);
 const Z = 1.4; // broadcast camera zoom: follows the ball across the court
 // the board (the view that is not the arena): the whole floor seen from straight above, players as big-headed busts
 const BOARD = true, BZ = 1.35, BSC = 3.25, BOX = (320 - 94 * BSC) / 2, BOY = (180 - 50 * BSC) / 2 + 1;
@@ -425,6 +426,8 @@ export class PixelCourt {
   private say(text: string, color = '#ffffff', big = true, dur = 1.1, at?: { x: number; d: number; z: number }) { if (!this.ff) this.floaters.push({ text, color, t: 0, dur, big, at }); }
   private sayAt(pid: string | null, text: string, color: string, dur = 1.1) {
     const p = pid ? this.players.get(pid) : null;
+    // the moves are called out for the men who make them their game: always for a star, now and then for a role player
+    if (pid && MOVES.has(text)) { const ov = this.o.looks?.[pid]?.ovr ?? 75; if (hash01(pid + text + Math.floor(this.v * 10)) > (ov >= 85 ? 1 : ov >= 79 ? 0.6 : 0.15)) return; }
     this.say(text, color, false, dur, p ? { x: p.x, d: p.d, z: 22 } : undefined);
   }
   private setCaption(e: PbpEv, k = -1) {
@@ -1927,6 +1930,15 @@ export class PixelCourt {
     // a real double team (the engine's): the star is trapped and the ball comes out to this man
     if (kk && type !== 'putback' && type !== 'fb') type = big(kk) ? 'double' : 'blitz';
     if (sc0 <= 2.5 && gap > 8 && !['putback', 'fb', 'post', 'roll', 'cut'].includes(type)) type = rim ? (big(actor) ? 'post' : 'drive') : (big(actor) ? 'pop' : 'pullup');
+    // a role player does not run the offence: his "unassisted" jumper comes off a pass from the man who does (a catch, a
+    // dribble, the shot), his drive is an attack on a closeout – the creating is done by the better players
+    if (actor && !assist && !fb && gap > 6 && (this.o.looks?.[actor]?.ovr ?? 75) < 79 && !big(actor)) {
+      const best = o.filter(p => p.pid !== actor).sort((p, q) => this.usage(q.pid) - this.usage(p.pid))[0];
+      if (best && this.usage(best.pid) > this.usage(actor) * 1.8 && r() < 0.65) {
+        if (type === 'pullup' || type === 'pnrPull' || type === 'iso') { type = three ? 'kick' : 'kickdrive'; assist = best.pid; }
+        else if (type === 'drive' || type === 'pnrDrive') { type = 'kickdrive'; assist = best.pid; }
+      }
+    }
     // the stars get their isolations: the floor cleared, his man in front of him, the whole bag of moves
     if ((type === 'pullup' || type === 'drive') && !assist && !fb && gap > 6 && actor && this.starOf(actor) > 0 && !big(actor) && r() < (type === 'pullup' ? 0.5 : 0.35)) type = 'iso';
     // winning time: the star wants it – his own shot, one on one, the others in the corners
