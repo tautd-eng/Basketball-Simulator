@@ -34,7 +34,7 @@ export const C = {
   fatigue: 0.55, fatBase: 0.8, tpa: 0.104, drain: 0.00062, recover: 0.0011,
   possSec: 1.09, putback3: 0.45, zoneGap: 1.0, charge: 0.11,
   fbStl: 0.55, fbDrb: 0.15, fbMake: 0.45, fbThree: 0.6, lateClock: 0.2, // transition and shot-clock pressure
-  star: 1.35, stay: 1.2, depth: 10, minAlpha: 1.6, maxMin: 38,
+  star: 1.35, stay: 1.2, depth: 10, minAlpha: 1.3, maxMin: 38,
   poDepth: 8, poAlpha: 1.5, poMax: 44, // playoffs: coaches shorten the bench and ride their best players
   mmDef: 0.31, mmHt: 0.01, mmUsg: 0.093, mmSize: 0.019, // matchups: own defender's weight, size edge inside, shot selection toward mismatches
   pass: 0.15, pass0: 0.11, hb: 0.022, hbOn: 1, split: 1, rimHelp: 0.65, rim0: 1.3, rimK: 0.7, postK: 0.5, // defence split into perimeter / rim protection (0 = the single rating)
@@ -196,6 +196,7 @@ function starRule(side: Side, po: boolean) {
   if (tot > 0) for (const g of rest) g.target = Math.max(0, g.target - need * g.target / tot);
 }
 
+const MQD = 0.4, MQU = 8;   // minutes plan: how much a man's defence and his share of the offence add to his rating (test/calibrate: best fit across eras)
 function planMinutes0(side: Side, po = false) {
   // the user's own minutes: his plan, scaled to the 240 there are (those who are out lose theirs)
   if (side.minutes) {
@@ -212,7 +213,7 @@ function planMinutes0(side: Side, po = false) {
   const depth = side.depth ?? (po ? C.poDepth : C.depth), alpha = po ? C.poAlpha : C.minAlpha, maxMin = po ? C.poMax : C.maxMin;
   // a coach plays the men the offence runs through: his rating, and how much of the game goes through him
   // (and his defence, which a box-score rating undersells: a stopper starts)
-  const mq = (g: GP) => { const b = Math.max(0.5, g.bpm + 6); return g.q * Math.pow(Math.max(0.5, b + 0.8 * Math.max(-1.5, Math.min(3, g.def)) + 16 * (g.usg - 0.2)) / b, C.star); };
+  const mq = (g: GP) => { const b = Math.max(0.5, g.bpm + 6); return g.q * Math.pow(Math.max(0.5, b + MQD * Math.max(-1.5, Math.min(3, g.def)) + MQU * (g.usg - 0.2)) / b, C.star); };
   const avail = [...side.gps];
   const n = Math.min(avail.length, depth);
   avail.sort((a, b) => mq(b) - mq(a));
@@ -750,12 +751,13 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // the stopper: with no assignments from the coach, their best perimeter defender takes our top scorer (a wing or
     // guard who carries the offence) – and the man who had him takes the stopper's man
     let stopS: GP | null = null, stopD: GP | null = null;
-    if (!def.mm || !Object.keys(def.mm).length) {
+    {
       const star = on.filter(g => g.posNum <= 3.5 && g.usg >= 0.24).sort((a, b) => b.usg - a.usg)[0];
-      if (star) {
+      const taken = new Set(Object.values(def.mm ?? {}));   // the coach's own assignments come first
+      if (star && !def.mm?.[star.p.id]) {
         const slotD = dS[oS.indexOf(star)];
         const best = dOn.filter(d => d.posNum <= 4).sort((a, b) => b.per - a.per)[0];
-        if (best && slotD && best !== slotD && best.per >= 0.6 && best.per > slotD.per + 0.5) { stopS = star; stopD = best; }
+        if (best && slotD && best !== slotD && !taken.has(best.p.id) && !taken.has(slotD.p.id) && best.per >= 0.6 && best.per > slotD.per + 0.5) { stopS = star; stopD = best; }
       }
     }
     const slot = (g: GP) => dS[oS.indexOf(g)] ?? dS[0];

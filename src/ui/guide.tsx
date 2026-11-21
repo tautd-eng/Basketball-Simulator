@@ -144,7 +144,7 @@ export function Guide({ onBack }: any) {
           <li>Every game is simulated possession by possession: who shoots (usage, matchups, tactics), from where, against which defender, rebounds, fouls, turnovers, fatigue and substitutions.</li>
           <li><b>League rule:</b> every team's three best players play at least 24 minutes, and at most one of them comes off the bench – no rotation setting or typed-in minutes can go below that.</li>
           <li><b>Minutes</b> follow your rotation (or the coach's, by quality, fatigue, foul trouble and your “play the kids” setting). Starters and positions decide the matchups.</li>
-          <li><b>Matchups:</b> each defender guards his man (you can assign them in Team management). A small or soft defender draws shots; size matters in the post.</li>
+          <li><b>Matchups:</b> each defender guards his man by position – except that every team puts its best perimeter defender (the stopper) on the other side's top scoring guard or wing. You can assign them yourself in Team management. A small or soft defender draws shots; size matters in the post.</li>
           <li><b>Lineup fit:</b> spacing (shooters), ball-handling, rim protection and creation on the floor together change how everyone plays – five non-shooters clog the lane, no handler means turnovers.</li>
           <li>Home court, travel, back-to-backs and era (pace, three-point rates, rules) are all in the numbers.</li>
           <li>You can watch any game live, jump to the last five minutes, or (single player) coach the last five minutes yourself.</li>

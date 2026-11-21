@@ -242,7 +242,7 @@ function Positions({ lg, openPlayer, onChange }: any) {
       </div>
       <div className="panel">
         <h2>Positions</h2>
-        <p className="note">Where each player plays when he is on the floor. Positions decide the matchups (your 1 guards their 1 unless you set matchups), the floor balance the coach keeps (about two guards and two bigs) and who runs the post-ups and pick and rolls. A small player at the 5 defends their center.</p>
+        <p className="note">Where each player plays when he is on the floor. Positions decide the matchups (your 1 guards their 1, and your best perimeter defender takes their top scorer, unless you set matchups), the floor balance the coach keeps (about two guards and two bigs) and who runs the post-ups and pick and rolls. A small player at the 5 defends their center.</p>
         <div className="tbl-wrap"><table className="tbl compact">
           <thead><tr><th className="l">Player</th><th>Listed</th><th>OVR</th><th className="l">Plays</th></tr></thead>
           <tbody>{ps.map((p: any) => {
@@ -294,7 +294,7 @@ function Matchups({ lg, openPlayer, onChange }: any) {
           {teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}{nx?.tid === t.tid ? ` – ${nx.why}` : ''}</option>)}
         </select>
       </div>
-      <p className="note">Pick who guards their players – in every game against the {lg.teams[opp].name}, playoffs included. When both are on the floor your man takes him (his defense, size and hands against that player's shots and drives); otherwise it goes by position. Auto: the defender at the same position.</p>
+      <p className="note">Pick who guards their players – in every game against the {lg.teams[opp].name}, playoffs included. When both are on the floor your man takes him (his defense, size and hands against that player's shots and drives); otherwise it goes by position. Auto: the defender at the same position – and your best perimeter defender on their top scoring guard or wing (unless you have set one of those two yourself).</p>
       <div className="tbl-wrap"><table className="tbl compact">
         <thead><tr><th className="l">Their player</th><th>Pos</th><th>OVR</th><th className="l">Role</th><th className="l">Guarded by</th></tr></thead>
         <tbody>{theirs.map((p: any) => {
@@ -304,7 +304,7 @@ function Matchups({ lg, openPlayer, onChange }: any) {
             <td className="dim">{posLabel(p)}</td><td>{ovrOf(p.z, p.id)}</td>
             <td className="l"><RoleCell p={p} S={lg.season} /></td>
             <td className="l"><select aria-label={`Who guards ${p.name}`} value={cur[p.id] ?? ''} onChange={e => set(p.id, e.target.value)}>
-              <option value="">Auto – by position</option>
+              <option value="">Auto – by position (stopper on their top scorer)</option>
               {mine.map((q: any) => <option key={q.id} value={q.id}>{q.name} ({posLabel(q)}, {ovrOf(q.z, q.id)})</option>)}
             </select>{d && Math.abs(d.ht - p.ht) >= 4 ? <span className={`chip tiny ${d.ht < p.ht ? 'neg' : ''}`} title="Height difference">{htDiff(d.ht - p.ht)}</span> : null}</td>
           </tr>;
