@@ -1,12 +1,12 @@
 // how much of the winning-time shooting goes to each team's two leading scorers (vs the rest of the game)
 import { boot, realTeams } from './harness';
-import { simGame } from '../src/engine/game';
+import { simGame, prep } from '../src/engine/game';
 import { Rng } from '../src/rng';
 boot();
 const season = Number(process.argv[2] ?? 2024);
 const teams = realTeams(season), ids = Object.keys(teams), rng = new Rng(7);
 // leading scorers: by a full sim season of FGA would be best; use the harness order (best players first)
-const stars = new Set<string>(); for (const t of Object.values(teams)) t.players.slice(0, 2).forEach(p => stars.add(p.id));
+const stars = new Set<string>(); for (const t of Object.values(teams)) [...t.players].sort((a, b) => prep(b, season).bpm - prep(a, season).bpm).slice(0, 2).forEach(p => stars.add(p.id));   // the two best (by rating)
 const c = { win: [0, 0], rest: [0, 0] };
 for (let r = 0; r < 2; r++) for (const h of ids) for (const a of ids) {
   if (h === a) continue;
