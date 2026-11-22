@@ -198,6 +198,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
           {d.lotto?.result && <button className="ghost" onClick={() => setReveal(true)}>Lottery</button>}
         </div>
         {!myTurn && on && lg.online && isHuman(lg, on.tid) && <p className="note">Waiting for {lg.teams[on.tid].name} to pick.</p>}
+        {lg.userTid && <TradeUp lg={lg} d={d} slots={slots} onChange={onChange} />}
         <div className="def-row">
           <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
           <SortBy cols={cols} value={sortKey} onChange={setSortKey} />
@@ -215,6 +216,25 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
     </div>
     </>
   );
+}
+
+/** Draft day: ask a computer team what it wants for one of the picks ahead of your next one (its answer is a trade offer). */
+function TradeUp({ lg, d, slots, onChange }: any) {
+  const me = lg.userTid;
+  const mine = slots.findIndex((x: any, i: number) => i >= d.idx && !d.picks[i] && x.tid === me);
+  const ahead = slots.map((x: any, i: number) => ({ ...x, i })).filter((x: any) => x.i >= d.idx && (mine < 0 || x.i < mine) && !d.picks[x.i] && x.tid !== me && !isHuman(lg, x.tid));
+  const [at, setAt] = useState<number | null>(null);
+  const [msg, setMsg] = useState('');
+  if (mine < 0 || !ahead.length) return null;
+  const sel = ahead.some((x: any) => x.i === at) ? at! : ahead[0].i;
+  return <div className="def-row trade-up">
+    <span>Trade up:</span>
+    <select aria-label="Pick to trade up to" value={sel} onChange={e => { setAt(+e.target.value); setMsg(''); }}>
+      {ahead.slice(0, 30).map((x: any) => <option key={x.i} value={x.i}>No. {x.i + 1} – {lg.teams[x.tid]?.name}</option>)}
+    </select>
+    <button onClick={() => { const r = run(lg, { t: 'askDraftPrice', i: sel }); setMsg(r.msg); onChange(); }}>Ask their price</button>
+    {msg ? <span className="hint">{msg}</span> : <span className="hint">Your next pick is No. {mine + 1}. Their answer comes as a trade offer – it stands until that pick is made.</span>}
+  </div>;
 }
 
 export function DraftSummary({ lg, d, openPlayer, openTeam, onNext }: any) {

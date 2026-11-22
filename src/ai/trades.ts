@@ -1146,25 +1146,25 @@ function draftPickWorth(lg: League, pk: { season: number; round: number; orig: s
 }
 
 /** Deals for the pick on the clock (index i, owned by xid): teams with later picks (okY) moving up, best first. */
-function draftDeals(lg: League, i: number, xid: string, okY: (yid: string) => boolean) {
+function draftDeals(lg: League, i: number, xid: string, okY: (yid: string) => boolean, ask = false) {   // ask: a person asking the price – any of his later picks, his own view of the gain is his business
   const d = lg.draftDay!, Y = d.year, cur = d.order[i];
   const X = lg.teams[xid];
   const curPk = { season: Y, round: cur.round, orig: cur.orig };
   const hX = horizonOf(X), wX = moneyWeight(lg, X.tid);
   const xCur = pickValue(lg, curPk, hX, wX, X);
-  const out: { Yt: Team; j: number; aGets: TradeAsset[]; surplus: number }[] = [];
+  const out: { Yt: Team; j: number; aGets: TradeAsset[]; surplus: number; costY: number }[] = [];
   const seen = new Set<string>();
-  for (let j = i + 1; j < Math.min(d.order.length, i + 16); j++) {
+  for (let j = i + 1; j < Math.min(d.order.length, ask ? d.order.length : i + 16); j++) {
     const o = d.order[j];
     const yid = pickOwner(lg, Y, o.round, o.orig);
-    if (yid === xid || !okY(yid) || seen.has(yid) || !lg.teams[yid]?.active) continue;
+    if (yid === xid || !okY(yid) || (!ask && seen.has(yid)) || !lg.teams[yid]?.active) continue;
     seen.add(yid);
     const Yt = lg.teams[yid], hY = horizonOf(Yt), wY = moneyWeight(lg, yid);
     const laterPk = { season: Y, round: o.round, orig: o.orig };
     const gainY = pickValue(lg, curPk, hY, wY, Yt) - pickValue(lg, laterPk, hY, wY, Yt);
     // moving down always costs the buyer something (at least about a future second-rounder)
     const needX = Math.max(0.2, xCur * 1.03 - pickValue(lg, laterPk, hX, wX, X));
-    if (gainY <= 0.2) continue;
+    if (!ask && gainY <= 0.2) continue;
     const aGets: TradeAsset[] = [{ pick: laterPk }];
     let paidX = 0, costY = 0;
     const sweet = (lg.picks ?? []).filter(pk => pk.owner === yid && !pickUsed(lg, pk) && !(pk.season === Y && pk.round === o.round && pk.orig === o.orig) && !(pk.season === Y && d.order.findIndex(q => q.round === pk.round && q.orig === pk.orig) <= i))
@@ -1183,13 +1183,13 @@ function draftDeals(lg: League, i: number, xid: string, okY: (yid: string) => bo
     }
     if (paidX < needX) continue;
     const surplus = gainY - costY;
-    if (surplus <= 0.05) continue;
+    if (!ask && surplus <= 0.05) continue;
     if (tradeRules(lg, xid, yid, aGets, [{ pick: curPk }])) continue;
     // a board can be wrong: no deal the market would call a giveaway
     if (!looksFair(lg, aGets, [{ pick: curPk }])) continue;
-    out.push({ Yt, j, aGets, surplus });
+    out.push({ Yt, j, aGets, surplus, costY: costY + pickValue(lg, laterPk, hY, wY, Yt) });
   }
-  return out.sort((a, b) => b.surplus - a.surplus);
+  return ask ? out.sort((a, b) => a.costY - b.costY) : out.sort((a, b) => b.surplus - a.surplus);
 }
 
 /**
@@ -1221,6 +1221,22 @@ export function aiDraftTrade(lg: League, rng: Rng): TradeRec | null {
  * it may offer its pick to a person further down for theirs and more. Same valuation as between computer teams.
  * The offers stand until the pick is made. Returns how many offers went out (the draft waits for them).
  */
+export function askDraftPrice(lg: League, i: number, tid: string): { ok: boolean; msg: string } {
+  const d = lg.draftDay;
+  if (!d || d.done || (d.stage ?? 'draft') !== 'draft' || i < d.idx || i >= d.order.length) return { ok: false, msg: 'That pick is gone.' };
+  const o = d.order[i], xid = pickOwner(lg, d.year, o.round, o.orig);
+  if (xid === tid) return { ok: false, msg: 'That pick is already yours.' };
+  if (isHuman(lg, xid)) return { ok: false, msg: `That pick belongs to the ${lg.teams[xid].name}, run by a person – make them an offer in Trades.` };
+  const have = (lg.proposals ?? []).find(pr => pr.draftAt === i && pr.from === xid && pr.to === tid);
+  if (have) return { ok: true, msg: 'Their price is in your trade offers.' };
+  const dl = draftDeals(lg, i, xid, y => y === tid, true)[0];
+  if (!dl) return { ok: false, msg: `The ${lg.teams[xid].name} would not move No. ${i + 1} for your picks alone (they look at your later picks this draft and your future ones). For a bigger jump add players – build the offer in Trades.` };
+  const id = (lg.proposals ?? []).reduce((a, x) => Math.max(a, x.id), 0) + 1;
+  (lg.proposals ??= []).push({ id, from: xid, to: tid, fromGives: [{ pick: { season: d.year, round: o.round, orig: o.orig } }], toGives: dl.aGets, s: lg.season, day: lg.day, phase: lg.phase, ai: true, draftAt: i,
+    note: `Their price for No. ${i + 1}: you would move up from No. ${dl.j + 1}.` });
+  return { ok: true, msg: `The ${lg.teams[xid].name} named their price for No. ${i + 1}.` };
+}
+
 export function aiDraftOffers(lg: League, rng: Rng): number {
   const d = lg.draftDay;
   if (!d || d.done || (d.stage ?? 'draft') !== 'draft' || d.idx >= d.order.length || d.pool.length < 3) return 0;

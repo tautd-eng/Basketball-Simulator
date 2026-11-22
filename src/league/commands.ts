@@ -5,7 +5,7 @@ import { League, TradeAsset } from '../types';
 import { faOffer, withdrawOffer, setOfferOrder, faRenounce, faRelease, faDecide, faMatch, draftPick, draftOnClock, expPick, expOnClock, recallStash } from './offseason';
 import { userExtend } from './extensions';
 import { fantasyOnClock, fantasyUserPick } from './fantasy';
-import { aiResponse, executeTrade, fillRoster, tradeRules, pickUsed } from '../ai/trades';
+import { aiResponse, executeTrade, fillRoster, tradeRules, pickUsed, askDraftPrice } from '../ai/trades';
 import { propose, answer, withdraw, vote } from './proposals';
 import { isHuman } from './humans';
 import { submitResult } from './league';
@@ -28,6 +28,7 @@ export type Cmd =
   | { t: 'withdrawProposal'; id: number }
   | { t: 'tcVote'; id: number; yes: boolean }                         // trade committee vote
   | { t: 'setBlock'; pids: string[]; want: string[]; note: string }    // trade block
+  | { t: 'askDraftPrice'; i: number }                                 // draft day: what a computer team wants for that pick
   | { t: 'extend'; pid: string; sal: number; yrs: number }
   | { t: 'recall'; pid: string }
   | { t: 'gameResult'; home: string; away: string; res: { home: any; away: any; ot?: number } };  // his own game, played on his screen
@@ -79,6 +80,7 @@ export function apply(lg: League, env: Envelope): Result {
       case 'answer': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.to !== tid) return no('Not your offer to answer.'); return answer(lg, cmd.id, cmd.yes); }
       case 'withdrawProposal': { const pr = lg.proposals?.find(x => x.id === cmd.id); if (pr?.from !== tid) return no('Not your offer.'); withdraw(lg, cmd.id); return { ok: true, msg: 'Offer withdrawn.' }; }
       case 'tcVote': return vote(lg, cmd.id, tid, cmd.yes);
+      case 'askDraftPrice': return askDraftPrice(lg, +cmd.i, tid);
       case 'setBlock': {
         const pids = (cmd.pids ?? []).filter(id => lg.players[id]?.tid === tid).slice(0, 15);
         ((lg as any).tradeBlock ??= {})[tid] = { pids, want: (cmd.want ?? []).slice(0, 10).map(String), note: String(cmd.note ?? '').slice(0, 200) };
