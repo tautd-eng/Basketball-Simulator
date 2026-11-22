@@ -19,7 +19,7 @@ import { resetFatigue } from './fatigue';
 import { carryInjuries } from './injuries';
 import { rookieContract, vetContract, rfaEligible, qoAmount, worthKeeping, optsOut, lockTrade } from './contracts';
 import { discount, offerUtility, lengthPrice, preferredYears, reasons } from './prefs';
-import { pickOwner, ensurePicks, aiTradeRound, isFreeAgent, complyHardCap, aiDraftTrade, boardScore, settlePickRights, clearRoom, worthTo } from '../ai/trades';
+import { pickOwner, ensurePicks, aiTradeRound, isFreeAgent, complyHardCap, aiDraftTrade, aiDraftOffers, boardScore, settlePickRights, clearRoom, worthTo } from '../ai/trades';
 import { keeps, refreshPlans } from '../ai/plan';
 import { askingSalary, contractYears, payroll, playerValue, peakBpm, MIN_SAL, zClamp, projectBpm, maxSalary, hardCap, vetMin, deadPay, releaseDead, maxPlayer } from '../ai/value';
 
@@ -372,6 +372,8 @@ export function draftPick(lg: League, pid?: string) {
   addTx(best, Y, `Drafted in ${Y}: No. ${on.pick} (round ${on.round}), ${team.name}${on.tid !== on.orig ? ` (pick via ${lg.teams[on.orig].abbr})` : ''}${(best as any).stash ? ' – stays overseas for now' : ''}`, 999);
   d.picks.push({ pick: on.pick, round: on.round, pid: best.id, tid: on.tid, realPick: best.draft!.realPick, realTid: best.draft!.realTid, ...(on.tid !== on.orig ? { via: on.orig } : {}) });
   d.idx++;
+  // draft-day offers for a pick that has now been made are off the table
+  if (lg.proposals?.length) lg.proposals = lg.proposals.filter(pr => pr.draftAt === undefined || pr.draftAt >= d.idx);
   save(lg, rng);
   if (!draftOnClock(lg)) finishDraft(lg);
 }
@@ -388,7 +390,9 @@ export function draftAdvance(lg: League, mode: 'one' | 'user' | 'all') {
     const on = draftOnClock(lg);
     if (!on) break;
     // a person's pick: stop, and hand the controls to that team (hot seat)
-    if (mode !== 'all' && isHuman(lg, on.tid)) { handTo(lg, on.tid); break; }
+    if (mode !== 'all' && isHuman(lg, on.tid)) { handTo(lg, on.tid); aiDraftOffers(lg, rngOf(lg)); break; }
+    // a computer team on the clock may call a person further down first (trade down): the draft waits for the answer
+    if (mode !== 'all' && aiDraftOffers(lg, rngOf(lg))) break;
     // a pick on the clock may change hands first (trade up / trade down)
     if (!isHuman(lg, on.tid) && aiDraftTrade(lg, rngOf(lg))) {
       const now = draftOnClock(lg);

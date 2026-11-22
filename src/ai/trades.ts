@@ -708,16 +708,22 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
   // offers a package of about his market value – the same standard it holds deals with other teams to (its own usual
   // threshold, the market check both ways), no premium and no discount
   for (const H of humansT) {
-    if (pastDeadline(lg) || lg.phase === 'playoffs' || pendingTo(H.tid) >= 3 || !rng.chance(Math.min(0.9, 0.6 * intensity))) continue;
-    const callers = rng.shuffle(teams.filter(t => !busy.has(t.tid) && !(lg.proposals ?? []).some(pr => pr.ai && pr.from === t.tid && pr.to === H.tid))).slice(0, 8);
-    let made = false;
+    // his trade block: those players are known to be available – teams call about them first, more often, and
+    // settle for less of an edge; packages lean to what he says he is after
+    const blk = (lg as any).tradeBlock?.[H.tid];
+    const onBlock = new Set<string>((blk?.pids ?? []).filter((id: string) => lg.players[id]?.tid === H.tid));
+    const wants: string[] = blk?.want ?? [];
+    if (pastDeadline(lg) || lg.phase === 'playoffs' || pendingTo(H.tid) >= (onBlock.size ? 4 : 3) || !rng.chance(Math.min(0.95, (onBlock.size ? 0.9 : 0.6) * intensity))) continue;
+    const callers = rng.shuffle(teams.filter(t => !busy.has(t.tid) && !(lg.proposals ?? []).some(pr => pr.ai && pr.from === t.tid && pr.to === H.tid))).slice(0, onBlock.size ? 16 : 8);
+    let made = false, calls = 0;
     for (const A of callers) {
-      if (made) break;
+      if (made && !(onBlock.size && calls < 2)) break;   // a player on the block: two teams may call the same round
+      made = false;
       const hA = horizonOf(A), S = lg.season;
       const theirs = H.roster.map(pid => lg.players[pid]).filter(p => !tradeLocked(lg, p) && !justTraded(lg, p))
         .map(p => ({ p, edge: pv(lg, p, hA, A.tid) - pv(lg, p, 'middle'), mv: neutralValue(lg, [{ pid: p.id }]) }))
-        .filter(x => x.edge > 0.5 && x.mv > 0.5 && !(hA === 'tank' && ageIn(x.p, S) > 25) && !(hA === 'rising' && ageIn(x.p, S) > 28))
-        .sort((x, y) => y.edge - x.edge).slice(0, 3);
+        .filter(x => (onBlock.has(x.p.id) ? x.edge > -0.4 && x.mv > 0.3 : x.edge > 0.5 && x.mv > 0.5) && !(hA === 'tank' && ageIn(x.p, S) > 25) && !(hA === 'rising' && ageIn(x.p, S) > 28))
+        .sort((x, y) => (onBlock.has(y.p.id) ? 1 : 0) - (onBlock.has(x.p.id) ? 1 : 0) || y.edge - x.edge).slice(0, 3);
       const core = new Set([...A.roster.map(pid => lg.players[pid]).sort((x, y) => pv(lg, y, hA, A.tid) - pv(lg, x, hA, A.tid)).slice(0, 2).map(p => p.id), ...planKeeps(lg, A)]);
       const mine = [
         ...A.roster.map(pid => lg.players[pid]).filter(p => !core.has(p.id) && !tradeLocked(lg, p) && !justTraded(lg, p) && !protectedYoung(lg, p)).map(p => ({ x: { pid: p.id } as TradeAsset })),
@@ -728,16 +734,39 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
         const want: TradeAsset[] = [{ pid: tg.p.id }];
         // packages of one or two of A's assets worth about as much on the market
         const pk: TradeAsset[][] = [];
-        for (const o of mine) if (o.v >= tg.mv * 0.8 && o.v <= tg.mv * 1.2) pk.push([o.x]);
+        const lo = onBlock.has(tg.p.id) ? 0.7 : 0.8, hi = onBlock.has(tg.p.id) ? 1.25 : 1.2;   // a player on the block: a wider look
+        for (const o of mine) if (o.v >= tg.mv * lo && o.v <= tg.mv * hi) pk.push([o.x]);
         const top = [...mine].sort((x, y) => y.v - x.v).slice(0, 12);
-        for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) { const v = top[i].v + top[j].v; if (v >= tg.mv * 0.85 && v <= tg.mv * 1.15) pk.push([top[i].x, top[j].x]); }
-        for (const give of rng.shuffle(pk).slice(0, 10)) {
+        for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) { const v = top[i].v + top[j].v; if (v >= tg.mv * (lo + 0.05) && v <= tg.mv * (hi - 0.05)) pk.push([top[i].x, top[j].x]); }
+        const blocked = onBlock.has(tg.p.id);
+        // what he is after (his trade block): packages that fit it first
+        const fit = (g: TradeAsset[]) => {
+          if (!blocked || !wants.length) return 0;
+          let f = 0;
+          for (const x of g) {
+            if (x.pick) { if (wants.includes('Draft picks')) f += x.pick.round === 1 ? 1.2 : 0.4; if (wants.includes('Cap space')) f += 0.5; continue; }
+            const q = x.pid ? lg.players[x.pid] : null; if (!q) continue;
+            const a = ageIn(q, S), o = shownOvr(q.z, q.id), pn = posNum(q.pos);
+            if (wants.includes('Young players') && a <= 24) f += 1;
+            if (wants.includes('Win-now help') && o >= 76 && a <= 31) f += 1;
+            if (wants.includes('A star') && o >= 84) f += 1.5;
+            if (wants.includes('Cap space')) f += q.contract.exp <= S ? 0.8 : -2 * q.contract.sal;
+            if (wants.includes('Guards') && pn <= 2.5) f += 0.7;
+            if (wants.includes('Wings') && pn > 2.2 && pn < 4) f += 0.7;
+            if (wants.includes('Bigs') && pn >= 3.8) f += 0.7;
+            if (wants.includes('Shooting') && (q.z[K.tp] ?? 0) > 0.5) f += 0.7;
+            if (wants.includes('Defense') && (q.z[K.def] ?? 0) > 0.5) f += 0.7;
+          }
+          return f;
+        };
+        const order = blocked && wants.length ? pk.map(g => ({ g, f: fit(g) + 0.3 * rng.next() })).sort((x, y) => y.f - x.f).map(x => x.g) : rng.shuffle(pk);
+        for (const give of order.slice(0, blocked ? 14 : 10)) {
           const e = evaluateTrade(lg, A.tid, H.tid, want, give);
-          if (!e.ok || e.gainA < threshold(lg, A.tid) || !looksFair(lg, want, give)) continue;
+          if (!e.ok || e.gainA < threshold(lg, A.tid) * (blocked ? 0.5 : 1) || !looksFair(lg, want, give)) continue;
           const id = (lg.proposals ?? []).reduce((a2, x) => Math.max(a2, x.id), 0) + 1;
           (lg.proposals ??= []).push({ id, from: A.tid, to: H.tid, fromGives: give, toGives: want, s: lg.season, day: lg.day, phase: lg.phase, ai: true,
-            exp: lg.phase === 'regular' ? lg.day + 7 : undefined, note: A.mode === 'tank' ? 'They are rebuilding.' : A.mode === 'allin' ? 'They are going all in.' : hA === 'contend' ? 'A contender looking for help.' : undefined });
-          busy.add(A.tid); made = true; break;
+            exp: lg.phase === 'regular' ? lg.day + 7 : undefined, note: [blocked ? `They saw ${tg.p.name} on your trade block.` : '', A.mode === 'tank' ? 'They are rebuilding.' : A.mode === 'allin' ? 'They are going all in.' : hA === 'contend' ? 'A contender looking for help.' : ''].filter(Boolean).join(' ') || undefined });
+          busy.add(A.tid); made = true; calls++; break;
         }
       }
     }
@@ -1116,28 +1145,19 @@ function draftPickWorth(lg: League, pk: { season: number; round: number; orig: s
   return Math.max(0.05, prospectValue(j + 1, h, moneyW) + 0.9 * (best - typical));
 }
 
-/**
- * Trade up / trade down while a pick is on the clock. Every team values the picks by the player it plans
- * to take with them (its own board), so a deal happens when another team wants the player available now
- * more than the team on the clock does – paid with its later pick plus a sweetener of other picks.
- */
-export function aiDraftTrade(lg: League, rng: Rng): TradeRec | null {
-  const d = lg.draftDay;
-  if (!d || d.done || (d.stage ?? 'draft') !== 'draft' || d.idx >= d.order.length || d.pool.length < 3) return null;
-  const i = d.idx, Y = d.year, cur = d.order[i];
-  const xid = pickOwner(lg, Y, cur.round, cur.orig);
+/** Deals for the pick on the clock (index i, owned by xid): teams with later picks (okY) moving up, best first. */
+function draftDeals(lg: League, i: number, xid: string, okY: (yid: string) => boolean) {
+  const d = lg.draftDay!, Y = d.year, cur = d.order[i];
   const X = lg.teams[xid];
-  if (!X || isHuman(lg, xid)) return null;
-  if (!rng.chance(cur.round === 1 ? 0.3 : 0.12)) return null;
   const curPk = { season: Y, round: cur.round, orig: cur.orig };
   const hX = horizonOf(X), wX = moneyWeight(lg, X.tid);
   const xCur = pickValue(lg, curPk, hX, wX, X);
-  let best: { Yt: Team; j: number; aGets: TradeAsset[]; surplus: number } | null = null;
+  const out: { Yt: Team; j: number; aGets: TradeAsset[]; surplus: number }[] = [];
   const seen = new Set<string>();
   for (let j = i + 1; j < Math.min(d.order.length, i + 16); j++) {
     const o = d.order[j];
     const yid = pickOwner(lg, Y, o.round, o.orig);
-    if (yid === xid || isHuman(lg, yid) || seen.has(yid) || !lg.teams[yid]?.active) continue;
+    if (yid === xid || !okY(yid) || seen.has(yid) || !lg.teams[yid]?.active) continue;
     seen.add(yid);
     const Yt = lg.teams[yid], hY = horizonOf(Yt), wY = moneyWeight(lg, yid);
     const laterPk = { season: Y, round: o.round, orig: o.orig };
@@ -1164,17 +1184,71 @@ export function aiDraftTrade(lg: League, rng: Rng): TradeRec | null {
     if (paidX < needX) continue;
     const surplus = gainY - costY;
     if (surplus <= 0.05) continue;
-    if (!best || surplus > best.surplus) best = { Yt, j, aGets, surplus };
+    if (tradeRules(lg, xid, yid, aGets, [{ pick: curPk }])) continue;
+    // a board can be wrong: no deal the market would call a giveaway
+    if (!looksFair(lg, aGets, [{ pick: curPk }])) continue;
+    out.push({ Yt, j, aGets, surplus });
   }
+  return out.sort((a, b) => b.surplus - a.surplus);
+}
+
+/**
+ * Trade up / trade down while a pick is on the clock. Every team values the picks by the player it plans
+ * to take with them (its own board), so a deal happens when another team wants the player available now
+ * more than the team on the clock does – paid with its later pick plus a sweetener of other picks.
+ */
+export function aiDraftTrade(lg: League, rng: Rng): TradeRec | null {
+  const d = lg.draftDay;
+  if (!d || d.done || (d.stage ?? 'draft') !== 'draft' || d.idx >= d.order.length || d.pool.length < 3) return null;
+  const i = d.idx, Y = d.year, cur = d.order[i];
+  const xid = pickOwner(lg, Y, cur.round, cur.orig);
+  const X = lg.teams[xid];
+  if (!X || isHuman(lg, xid)) return null;
+  if (!rng.chance(cur.round === 1 ? 0.3 : 0.12)) return null;
+  const curPk = { season: Y, round: cur.round, orig: cur.orig };
+  const best = draftDeals(lg, i, xid, yid => !isHuman(lg, yid))[0];
   if (!best) return null;
-  if (tradeRules(lg, X.tid, best.Yt.tid, best.aGets, [{ pick: curPk }])) return null;
-  // a board can be wrong: no deal the market would call a giveaway
-  if (!looksFair(lg, best.aGets, [{ pick: curPk }])) return null;
   const rec = executeTrade(lg, X.tid, best.Yt.tid, best.aGets, [{ pick: curPk }]);
   const text = `${best.Yt.name} move up to No. ${i + 1}; ${X.name} move down to No. ${best.j + 1}${best.aGets.length > 1 ? ` and add ${describeAssets(lg, best.aGets.slice(1))}` : ''}.`;
   lg.news.push({ s: Y, t: `Draft-day trade: ${text}` });
   (d.trades ??= []).push({ at: i, up: best.Yt.tid, down: X.tid, from: best.j + 1, to: i + 1, text });
   return rec;
+}
+
+/**
+ * The computer calls people's teams on draft day, once per pick: when a person is on the clock, teams further
+ * down that want his pick offer to move up (their later pick and more); when a computer team is on the clock,
+ * it may offer its pick to a person further down for theirs and more. Same valuation as between computer teams.
+ * The offers stand until the pick is made. Returns how many offers went out (the draft waits for them).
+ */
+export function aiDraftOffers(lg: League, rng: Rng): number {
+  const d = lg.draftDay;
+  if (!d || d.done || (d.stage ?? 'draft') !== 'draft' || d.idx >= d.order.length || d.pool.length < 3) return 0;
+  const i = d.idx, Y = d.year, cur = d.order[i];
+  if ((d.offered ??= []).includes(i)) return 0;
+  d.offered.push(i);
+  const xid = pickOwner(lg, Y, cur.round, cur.orig);
+  if (!lg.teams[xid]) return 0;
+  const curPk = { season: Y, round: cur.round, orig: cur.orig };
+  const nid = () => (lg.proposals ?? []).reduce((a, x) => Math.max(a, x.id), 0) + 1;
+  let n = 0;
+  if (isHuman(lg, xid)) {
+    // a person on the clock: up to two teams that want to move up into his spot
+    if (!rng.chance(cur.round === 1 ? 0.75 : 0.35)) return 0;
+    for (const dl of draftDeals(lg, i, xid, yid => !isHuman(lg, yid)).slice(0, 2)) {
+      (lg.proposals ??= []).push({ id: nid(), from: dl.Yt.tid, to: xid, fromGives: dl.aGets, toGives: [{ pick: curPk }], s: lg.season, day: lg.day, phase: lg.phase, ai: true, draftAt: i,
+        note: `They want to move up to No. ${i + 1} – you would pick at No. ${dl.j + 1}.` });
+      n++;
+    }
+    return n;
+  }
+  // a computer team on the clock that would move down: to a person with a later pick
+  if (!rng.chance(cur.round === 1 ? 0.3 : 0.12)) return 0;
+  const dl = draftDeals(lg, i, xid, yid => isHuman(lg, yid))[0];
+  if (!dl) return 0;
+  (lg.proposals ??= []).push({ id: nid(), from: xid, to: dl.Yt.tid, fromGives: [{ pick: curPk }], toGives: dl.aGets, s: lg.season, day: lg.day, phase: lg.phase, ai: true, draftAt: i,
+    note: `They would move down from No. ${i + 1} to your No. ${dl.j + 1}.` });
+  return 1;
 }
 
 // ------------------------------------------------------------ trade finder

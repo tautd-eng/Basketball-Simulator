@@ -100,7 +100,7 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
           <div><h4>You get</h4><Side lg={lg} xs={pr.fromGives} openPlayer={openPlayer} /></div>
           <div><h4>You give</h4><Side lg={lg} xs={pr.toGives} openPlayer={openPlayer} /></div>
         </div>
-        {pr.ai && <p className="dim small-t">{pr.exp !== undefined ? `The offer stands until day ${pr.exp + 1}.` : 'The offer stands until this stage ends.'}</p>}
+        {pr.ai && <p className="dim small-t">{pr.draftAt !== undefined ? `The offer stands until pick No. ${pr.draftAt + 1} is made.` : pr.exp !== undefined ? `The offer stands until day ${pr.exp + 1}.` : 'The offer stands until this stage ends.'}</p>}
         {(bad || closed) && <p className="hint neg">{bad ?? 'Trading is closed right now.'}</p>}
         <div className="dialog-actions">
           <button className="ghost" onClick={() => later(offerKey(pr))} title="Keep it in Trades → Trade offers and answer later">Later</button>
