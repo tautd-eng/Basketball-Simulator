@@ -15,6 +15,22 @@ import { isFreeAgent } from '../ai/trades';
 import { SortTable, f1 } from './sorttable';
 import { posNum } from '../engine/game';
 import { potOf, moneyOf, potCol } from './offseason';
+import { divisions, groupTids } from '../league/divisions';
+
+/** Team filter: everyone, a conference, a division or one team. */
+function GroupSelect({ lg, value, onChange, mine }: any) {
+  const teams = Object.values(lg.teams).filter((t: any) => t.active).sort((a: any, b: any) => a.name.localeCompare(b.name));
+  const ds = divisions(lg);
+  return (
+    <select aria-label="Teams" value={value} onChange={e => onChange(e.target.value)}>
+      <option value="all">All teams</option>
+      {mine && lg.userTid && <option value={lg.userTid}>My team</option>}
+      <optgroup label="Conferences"><option value="conf:E">Eastern Conference</option><option value="conf:W">Western Conference</option></optgroup>
+      <optgroup label="Divisions">{ds.map(v => <option key={v.name} value={'div:' + v.name}>{v.name} ({v.conf === 'E' ? 'East' : 'West'})</option>)}</optgroup>
+      <optgroup label="Teams">{teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}</option>)}</optgroup>
+    </select>
+  );
+}
 
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
 const OFF = [0, 1, 2, 3, 4, 5, 6];   // shooting, creation, ball security, offensive boards
@@ -62,7 +78,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
   const rows = useMemo(() => Object.values(lg.players)
     .filter((p: any) => !p.retired && !p.prospect && !(p as any).stash)
     .filter((p: any) => who === 'all' ? (p.tid || isFreeAgent(lg, p)) : who === 'fa' ? !p.tid && isFreeAgent(lg, p) : !!p.tid)
-    .filter((p: any) => team === 'all' || p.tid === team)
+    .filter((p: any) => { const g = groupTids(lg, team); return !g || g.has(p.tid); })
     .filter((p: any) => posOk(p, pos))
     .filter((p: any) => { const a = ageIn(p, S); return age === 'all' || (age === 'u23' ? a <= 23 : age === '24' ? a >= 24 && a <= 29 : a >= 30); })
     .filter((p: any) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
@@ -102,10 +118,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
         <select aria-label="Age" value={age} onChange={e => setAge(e.target.value)}>
           <option value="all">All ages</option><option value="u23">23 and under</option><option value="24">24–29</option><option value="30">30+</option>
         </select>
-        <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)}>
-          <option value="all">All teams</option>
-          {teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}</option>)}
-        </select>
+        <GroupSelect lg={lg} value={team} onChange={setTeam} />
         <input className="search" placeholder="Search player" aria-label="Search player" value={q} onChange={e => setQ(e.target.value)} />
       </div>
       <SortTable cols={cols} rows={rows} initial="ovr" limit={250} rowClass={(r: any) => (r.p.tid && r.p.tid === lg.userTid ? 'mine' : '')} />
@@ -151,7 +164,10 @@ export function teamRows(lg: any) {
 }
 
 function PowerRankings({ lg, openTeam, openPlayer }: any) {
-  const { rows, inSeason } = useMemo(() => teamRows(lg), [lg, lg.day, lg.phase, lg.trades?.length, lg.fa?.log.length, lg.season]);
+  const { rows: allRows, inSeason } = useMemo(() => teamRows(lg), [lg, lg.day, lg.phase, lg.trades?.length, lg.fa?.log.length, lg.season]);
+  const [grp, setGrp] = useNavState<string>('rankings.group', 'all');
+  const g = groupTids(lg, grp);
+  const rows = g ? allRows.filter((r: any) => g.has(r.t.tid)) : allRows;
   const S = lg.season;
   const hasGames = rows.some((r: any) => r.gp > 0);
   const maxP = Math.max(...rows.map((r: any) => r.power)), minP = Math.min(...rows.map((r: any) => r.power));
@@ -178,11 +194,12 @@ function PowerRankings({ lg, openTeam, openPlayer }: any) {
     <div className="panel">
       <div className="team-head">
         <h2>Power rankings · {S - 1}–{String(S).slice(2)}</h2>
+        <GroupSelect lg={lg} value={grp} onChange={setGrp} />
       </div>
       <p className="note">
         {hasGames
           ? 'The ranking blends roster strength with how the team actually plays (point margin per 100 possessions). The more games played, the more results count.'
-          : 'The season hasn\'t started – the ranking is based on roster strength only.'} Small numbers show the league rank in that stat. Click a column to sort.
+          : 'The season hasn\'t started – the ranking is based on roster strength only.'} Small numbers show the league rank in that stat; # is the league-wide rank, also when you filter by conference or division. Click a column to sort.
       </p>
       <SortTable cols={cols} rows={rows} initial="power" rowClass={(r: any) => (r.t.tid === lg.userTid ? 'mine' : '')} />
     </div>
@@ -230,8 +247,9 @@ export function Progression({ lg, openPlayer, openTeam }: any) {
   const [minOvr, setMinOvr] = useState(70);
   const all = useMemo(() => changes(lg, S), [lg, S, lg.phase, lg.season]);
   const teams = Object.values(lg.teams).filter((t: any) => t.active).sort((a: any, b: any) => a.name.localeCompare(b.name));
-  const rows = all.filter(r => !r.rookie && (team === 'all' || r.tid === team) && Math.max(r.before, r.after) >= minOvr && !r.retired);
-  const rookies = all.filter(r => r.rookie && (team === 'all' || r.tid === team) && !r.retired);
+  const grp = groupTids(lg, team);
+  const rows = all.filter(r => !r.rookie && (!grp || grp.has(r.tid)) && Math.max(r.before, r.after) >= minOvr && !r.retired);
+  const rookies = all.filter(r => r.rookie && (!grp || grp.has(r.tid)) && !r.retired);
   const vets = rows;
   const up = [...vets].sort((a, b) => b.d - a.d).slice(0, 10).filter(r => r.d > 0);
   const down = [...vets].sort((a, b) => a.d - b.d).slice(0, 10).filter(r => r.d < 0);
@@ -270,11 +288,7 @@ export function Progression({ lg, openPlayer, openTeam }: any) {
           <select aria-label="Season" value={S} onChange={e => setS(+e.target.value)}>
             {seasons.map(y => <option key={y} value={y}>Summer before {y - 1}–{String(y).slice(2)}</option>)}
           </select>
-          <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)}>
-            <option value="all">All teams</option>
-            {lg.userTid && <option value={lg.userTid}>My team</option>}
-            {teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}</option>)}
-          </select>
+          <GroupSelect lg={lg} value={team} onChange={setTeam} mine />
           <select aria-label="Minimum OVR" value={minOvr} onChange={e => setMinOvr(+e.target.value)}>
             {[0, 70, 75, 80, 85].map(v => <option key={v} value={v}>{v ? `OVR ${v}+` : 'All players'}</option>)}
           </select>
