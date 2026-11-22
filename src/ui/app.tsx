@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { startVisits, visitStats, onVisitStats } from '../online/visits';
-import { GuardDialog, guardMove } from './guard';
+import { GuardDialog, guardMove, setGuardRerender } from './guard';
 import { EditLog } from './editplayer';
 import { TradePopups } from './tradepop';
 import { LotteryReveal } from './draftday';
@@ -262,6 +262,7 @@ function App() {
     return () => mq.removeEventListener?.('change', on);
   }, [lg, lg?.userTid, rev]);
   const bump = () => setRev(r => r + 1);
+  setGuardRerender(bump);   // a hand-over to another of your teams shows its screen at once
 
   function run(target: Target, label: string) {
     if (!lg || busy) return;

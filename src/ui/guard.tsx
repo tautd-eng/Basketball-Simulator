@@ -4,6 +4,56 @@
 import { useEffect, useState } from 'react';
 import { onlineCtx } from '../online/sync';
 import { pickOwner } from '../ai/trades';
+import { humans, handTo } from '../league/humans';
+import { inbox } from '../league/proposals';
+
+// ---- several teams on this device: every one of them gets its turn before a step that decides for it ----
+let rerender: () => void = () => {};
+/** The app's re-render, so a hand-over shows the next team's screen at once. */
+export const setGuardRerender = (f: () => void) => { rerender = f; };
+let notice: string | null = null;
+
+/** This step, and the teams that must have their say in it (null = nobody waits for anybody). */
+function turnStep(lg: any): { key: string; who: (t: string) => string | null } | null {
+  const fa = lg.fa;
+  const sheets = (t: string) => (fa?.sheets ?? []).filter((x: any) => lg.players[x.pid]?.rfa === t).length;
+  if (lg.phase === 'freeagency' && fa && fa.stage <= 3) return {
+    key: `fa|${lg.season}|${fa.stage}`,
+    who: (t: string) => {
+      const dec = fa.stage === 0 ? (fa.decisions ?? []).filter((d: any) => (d.tid ?? lg.userTid) === t && d.choice === undefined).length : 0;
+      const pend = fa.stage === 1 ? fa.pending.filter((pid: string) => lg.players[pid]?.bird === t).length : 0;
+      const bits = [dec && `${dec} contract decision${dec > 1 ? 's' : ''}`, pend && `${pend} own free agent${pend > 1 ? 's' : ''} to re-sign`, sheets(t) && `an offer sheet to match`].filter(Boolean);
+      if (bits.length) return bits.join(', ');
+      return fa.stage >= 1 ? `wave ${fa.stage} of free agency` : null;   // a wave: everyone may sign someone
+    },
+  };
+  const e = lg.draftDay?.exp;
+  if (e && !e.confirmed && !e.done) return { key: `exp|${lg.season}`, who: (t: string) => (e.protect?.[t] ? 'the protected list for the expansion draft' : null) };
+  return null;
+}
+
+/** Offline with several teams of your own: hand over to the next one that has its say here. True = handed over. */
+function nextTurn(lg: any): boolean {
+  if (!lg || lg.online || onlineCtx()) return false;
+  const hs = humans(lg);
+  if (hs.length < 2) return false;
+  const st = turnStep(lg);
+  if (!st) { if (lg.turns) delete lg.turns; return false; }
+  const done: string[] = ((lg.turns ??= {})[st.key] ??= []);
+  if (lg.userTid && !done.includes(lg.userTid)) done.push(lg.userTid);
+  for (const t of hs) {
+    if (done.includes(t)) continue;
+    const why = st.who(t);
+    if (!why) { done.push(t); continue; }
+    handTo(lg, t);
+    notice = `Now the ${lg.teams[t].name}: ${why}. When you are done, press the same button again${hs.filter(x => !done.includes(x) && x !== t).length ? ' – the next of your teams follows' : ''}.`;
+    emit(); rerender();
+    try { window.scrollTo({ top: 0 }); } catch { /* */ }
+    return true;
+  }
+  delete lg.turns[st.key];
+  return false;
+}
 
 let pending: { msg: string; go: () => any } | null = null;
 const subs = new Set<() => void>();
@@ -33,6 +83,7 @@ export function moveOnWarning(lg: any, kind: 'step' | 'draft' = 'step'): string 
 
 /** Runs `go` at once, or after the host confirms when it would skip someone. */
 export function guardMove(lg: any, go: () => any, kind: 'step' | 'draft' = 'step') {
+  if (kind === 'step' && nextTurn(lg)) return;
   const msg = moveOnWarning(lg, kind);
   if (!msg) return go();
   pending = { msg, go }; emit();
@@ -41,6 +92,15 @@ export function guardMove(lg: any, go: () => any, kind: 'step' | 'draft' = 'step
 export function GuardDialog() {
   const [, set] = useState(0);
   useEffect(() => { const f = () => set(x => x + 1); subs.add(f); return () => { subs.delete(f); }; }, []);
+  if (notice && !pending) return (
+    <div className="overlay center guard-bg" onClick={() => { notice = null; emit(); }}>
+      <div className="dialog" role="dialog" aria-label="Your next team" onClick={e => e.stopPropagation()}>
+        <h2>Your next team</h2>
+        <p>{notice}</p>
+        <div className="dialog-actions"><button className="primary" onClick={() => { notice = null; emit(); }}>OK</button></div>
+      </div>
+    </div>
+  );
   if (!pending) return null;
   const p = pending;
   const close = () => { pending = null; emit(); };
