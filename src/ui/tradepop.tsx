@@ -7,6 +7,41 @@ import { pastDeadline, describeAssets } from '../ai/trades';
 import { Linkify, TL } from './nav';
 import { shownOvr } from '../data';
 import { ageIn } from '../players';
+import { humans, playAs } from '../league/humans';
+import { payroll, hardCap } from '../ai/value';
+import { money } from './money';
+import { posLabel } from './positions';
+
+/** Beside an offer: a team's roster and money, with the players in the deal marked (out struck through, in added). */
+function Glance({ lg, tid, out, inn, openPlayer }: any) {
+  const S = lg.season;
+  const outS = new Set(out.filter((x: any) => x.pid).map((x: any) => x.pid));
+  const inP = inn.filter((x: any) => x.pid).map((x: any) => lg.players[x.pid]).filter(Boolean);
+  const roster = lg.teams[tid].roster.map((pid: string) => lg.players[pid]).filter(Boolean);
+  const rows = [...roster, ...inP].sort((a: any, b: any) => shownOvr(b.z, b.id) - shownOvr(a.z, a.id));
+  const sal = (p: any) => p.contract?.sal ?? 0;
+  const now = payroll(lg, tid);
+  const after = now - roster.filter((p: any) => outS.has(p.id)).reduce((a: number, p: any) => a + sal(p), 0) + inP.reduce((a: number, p: any) => a + sal(p), 0);
+  const cap = hardCap(lg);
+  const t = lg.teams[tid];
+  return (
+    <div className="glance">
+      <div className="glance-head"><b><TL tid={tid} /></b> <span className="dim">{t.w}–{t.l}</span></div>
+      <table className="tbl glance-tbl">
+        <thead><tr><th className="l">Player</th><th>Pos</th><th>OVR</th><th>Age</th><th title="Salary this season (share of the cap)">Salary</th><th title="Contract runs through the season ending that year">Thru</th></tr></thead>
+        <tbody>{rows.map((p: any) => {
+          const k = outS.has(p.id) ? 'g-out' : p.tid !== tid ? 'g-in' : '';
+          return <tr key={p.id} className={k}>
+            <td className="l">{k === 'g-in' ? '+ ' : k === 'g-out' ? '− ' : ''}<button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button></td>
+            <td className="dim">{posLabel(p)}</td><td><b>{shownOvr(p.z, p.id)}</b></td><td className="dim">{ageIn(p, S)}</td>
+            <td>{money(sal(p), S)}</td><td className="dim">{p.contract?.exp ? `’${String(p.contract.exp).slice(2)}` : '–'}</td>
+          </tr>;
+        })}</tbody>
+      </table>
+      <p className="glance-foot">Roster {roster.length}{outS.size || inP.length ? <> → <b>{roster.length - outS.size + inP.length}</b></> : null} · Payroll {money(now, S)}{after !== now ? <> → <b className={after > cap ? 'neg' : ''}>{money(after, S)}</b></> : null} <span className="dim">· hard cap {money(cap, S)}</span></p>
+    </div>
+  );
+}
 
 const SEEN = 'nba-offers-seen';
 let seen: Set<string>;
@@ -31,7 +66,9 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
   const [msg, setMsg] = useState('');
   if (busy || !lg?.userTid || lg.phase === 'fantasy') return null;
   const closed = lg.phase === 'playoffs' || (lg.phase === 'regular' && pastDeadline(lg));
-  const offers = inbox(lg, lg.userTid).filter((pr: any) => !seen.has(offerKey(pr)));
+  // every team this person runs (hot seat: all of them; online: just his own)
+  const mine = (lg as any).online ? [lg.userTid] : humans(lg);
+  const offers = mine.flatMap((t: string) => inbox(lg, t)).filter((pr: any) => !seen.has(offerKey(pr)));
   const host = (lg as any).online?.role === 'host';
   const votes = reviews(lg).filter((r: any) => (canVote(lg, r, lg.userTid) && r.votes[lg.userTid] === undefined || (host && !voters(lg, r).length)) && !seen.has(reviewKey(lg, r)));
   const items = [...offers.map((pr: any) => ({ k: 'o', pr })), ...votes.map((r: any) => ({ k: 'r', r }))];
@@ -45,11 +82,13 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
   const it = items[0];
   if (it.k === 'o') {
     const pr = it.pr, bad = proposalProblem(lg, pr);
-    const act = (yes: boolean) => { const r = run(lg, { t: 'answer', id: pr.id, yes }); seen.add(offerKey(pr)); keep(); setMsg(r.msg); onChange(); };
+    // answered as the team it was made to (one of several the person runs), the controls stay where they were
+    const act = (yes: boolean) => { const was = lg.userTid; lg.userTid = pr.to; const r = run(lg, { t: 'answer', id: pr.id, yes }); lg.userTid = was; seen.add(offerKey(pr)); keep(); setMsg(r.msg); onChange(); };
+    const many = mine.length > 1;
     return (
-      <div className="overlay center"><div className="dialog trade-pop" role="dialog" aria-label="Trade offer">
-        <div className="team-head"><h2>Trade offer</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
-        <p>The <b><TL tid={pr.from} /></b> {pr.ai ? '(computer)' : `(${lg.teams[pr.from].name} – run by a person)`} offer a trade{pr.note ? <span className="dim"> – {pr.note}</span> : '.'}</p>
+      <div className="overlay center"><div className="dialog trade-pop wide" role="dialog" aria-label="Trade offer"><div className="tp-grid"><div className="tp-main">
+        <div className="team-head"><h2>Trade offer{many ? <> · <TL tid={pr.to} abbr /></> : null}</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
+        <p>The <b><TL tid={pr.from} /></b> {pr.ai ? '(computer)' : `(${lg.teams[pr.from].name} – run by a person)`} offer {many ? <>your <b><TL tid={pr.to} /></b></> : 'you'} a trade{pr.note ? <span className="dim"> – {pr.note}</span> : '.'}</p>
         <div className="pop-sides">
           <div><h4>You get</h4><Side lg={lg} xs={pr.fromGives} openPlayer={openPlayer} /></div>
           <div><h4>You give</h4><Side lg={lg} xs={pr.toGives} openPlayer={openPlayer} /></div>
@@ -58,11 +97,13 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
         {(bad || closed) && <p className="hint neg">{bad ?? 'Trading is closed right now.'}</p>}
         <div className="dialog-actions">
           <button className="ghost" onClick={() => later(offerKey(pr))} title="Keep it in Trades → Trade offers and answer later">Later</button>
-          <button onClick={() => { later(offerKey(pr)); goTrades(); }}>Open in Trades</button>
+          <button onClick={() => { later(offerKey(pr)); if (pr.to !== lg.userTid) playAs(lg, pr.to); goTrades(); onChange(); }}>Open in Trades</button>
           <button onClick={() => act(false)}>Decline</button>
           <button className="primary" disabled={!!bad || closed} onClick={() => act(true)}>Accept</button>
         </div>
-      </div></div>
+      </div>
+      <GlanceTabs lg={lg} pr={pr} openPlayer={openPlayer} key={pr.id} />
+      </div></div></div>
     );
   }
   const r = it.r;
@@ -122,6 +163,22 @@ export function CommitteePanel({ lg, openPlayer, onDone }: any) {
       </div>) : <p className="note">Nothing waiting.</p>}
       {past.length > 0 && <><h3>Decided</h3><ul className="news">{past.map((r: any, i: number) => <li key={i}><span className="yr">{r.done}</span><span><TL tid={r.pr.from} abbr /> get <Linkify text={describeSide(lg, r.pr.toGives)} />; <TL tid={r.pr.to} abbr /> get <Linkify text={describeSide(lg, r.pr.fromGives)} /> <span className="dim">· {r.by}</span></span></li>)}</ul></>}
       {msg && <p className="ok-msg">{msg}</p>}
+    </div>
+  );
+}
+
+/** Your team or theirs, as the deal would leave them. */
+function GlanceTabs({ lg, pr, openPlayer }: any) {
+  const [who, setWho] = useState<'you' | 'them'>('you');
+  return (
+    <div className="tp-side">
+      <div className="seg" role="group" aria-label="Team">
+        <button className={who === 'you' ? 'on' : ''} onClick={() => setWho('you')}>{lg.teams[pr.to].abbr} <span className="dim">(yours)</span></button>
+        <button className={who === 'them' ? 'on' : ''} onClick={() => setWho('them')}>{lg.teams[pr.from].abbr}</button>
+      </div>
+      {who === 'you'
+        ? <Glance lg={lg} tid={pr.to} out={pr.toGives} inn={pr.fromGives} openPlayer={openPlayer} />
+        : <Glance lg={lg} tid={pr.from} out={pr.fromGives} inn={pr.toGives} openPlayer={openPlayer} />}
     </div>
   );
 }

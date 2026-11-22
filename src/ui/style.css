@@ -1279,3 +1279,16 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .also-item { display: flex; gap: 6px; align-items: center; font-size: 0.9rem; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
 .also-item.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 @media (max-width: 640px) { .top .playing-as .pa-l { display: none; } .top .playing-as select { max-width: 86px; } }
+/* trade offer pop-up: the offer, and beside it the team as the deal leaves it */
+.dialog.trade-pop.wide { width: min(1040px, 100%); max-width: min(1040px, 100%); max-height: 92vh; overflow: auto; }
+.tp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+.tp-side { border-left: 1px solid var(--line); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.glance-head { font-size: 0.95rem; }
+.glance-tbl { font-size: 0.8rem; width: 100%; }
+.glance-tbl td, .glance-tbl th { padding: 3px 5px; }
+.glance-tbl tr.g-out td { text-decoration: line-through; opacity: 0.55; }
+.glance-tbl tr.g-in td { background: color-mix(in srgb, var(--pos, #2e9e5b) 14%, transparent); }
+.glance-foot { font-size: 0.82rem; margin: 4px 0 0; }
+.glance { overflow-x: auto; }
+@media (max-width: 820px) { .tp-grid { grid-template-columns: 1fr; } .tp-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 10px; } }
+@media (max-width: 560px) { .glance-tbl th:nth-child(4), .glance-tbl td:nth-child(4) { display: none; } }
