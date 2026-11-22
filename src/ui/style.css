@@ -1301,3 +1301,11 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .block-tbl tbody tr.on td { background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .vbar { display: inline-block; width: 64px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 25%, transparent); vertical-align: middle; overflow: hidden; }
 .vbar > span { display: block; height: 100%; background: var(--accent); }
+/* free agency: answers to your offers */
+.offer-answers { margin: 12px 0; }
+.offer-answers h3 { margin-bottom: 4px; }
+.ans-list li { display: flex; gap: 8px; align-items: baseline; }
+.ans-ic { width: 1.1em; text-align: center; font-weight: 700; flex: none; }
+.ans-signed .ans-ic { color: var(--pos, #2e9e5b); }
+.ans-declined .ans-ic, .ans-elsewhere .ans-ic, .ans-matched .ans-ic { color: var(--neg, #d24b4b); }
+.ans-waiting .ans-ic, .ans-sheet .ans-ic { color: var(--muted); }

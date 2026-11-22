@@ -611,7 +611,7 @@ export function faDemand(lg: League, p: Player, tid: string, years?: number) {
 }
 
 /** Why the team cannot pay this salary, or null. Sets which exception is used. */
-function capCheck(lg: League, tid: string, p: Player, sal: number, reserve = 0): { err: string | null; mle?: boolean } {
+export function capCheck(lg: League, tid: string, p: Player, sal: number, reserve = 0): { err: string | null; mle?: boolean } {
   const N = lg.season;
   const t = lg.teams[tid];
   if (t.roster.length >= ROSTER_MAX) return { err: `Roster is full (${ROSTER_MAX}) – release a player first.` };
@@ -729,12 +729,39 @@ function dropDeadOffers(lg: League) {
   }
 }
 
+
+/** How people's offers came out at one step (a free-agency wave, a day in the season): kept for the "answers" list. */
+export interface OfferOutcome { s: number; day: number; st?: number; tid: string; pid: string; sal: number; yrs: number; res: 'signed' | 'sheet' | 'elsewhere' | 'matched' | 'declined' | 'waiting'; to?: string; under?: boolean }
+const snapOffers = (lg: League) => (lg.offers ?? []).filter(o => isHuman(lg, o.tid)).map(o => ({ ...o }));
+function noteOutcomes(lg: League, snap: FAOfferRec[], st?: number) {
+  if (!snap.length) return;
+  const out: OfferOutcome[] = [];
+  for (const o of snap) {
+    const p = lg.players[o.pid];
+    if (!p || !lg.teams[o.tid]) continue;
+    let res: OfferOutcome['res'], to: string | undefined;
+    if (p.tid === o.tid) res = 'signed';
+    else if (lg.fa?.sheets?.some(x => x.pid === o.pid && x.tid === o.tid)) res = 'sheet';
+    else if (p.tid) { to = p.tid; res = p.tid === p.rfa || lg.fa?.log.some(x => x.kind === 'match' && x.pid === p.id && x.tid === p.tid) ? 'matched' : 'elsewhere'; }
+    else if ((lg.offers ?? []).some(x => x.pid === o.pid && x.tid === o.tid)) res = 'waiting';
+    else res = 'declined';
+    let under = false;
+    try { under = o.sal + 1e-9 < faDemand(lg, p, o.tid, o.yrs); } catch { /* */ }
+    out.push({ s: lg.season, day: lg.day, st, tid: o.tid, pid: o.pid, sal: o.sal, yrs: o.yrs, res, to, under });
+  }
+  (lg as any).offerResults = [...out, ...((lg as any).offerResults ?? [])].slice(0, 300);
+}
 /** What a team meant to him besides money (his top reasons), kept with each offer for the explanation. */
 const whyOf = (lg: League, p: Player, tid: string) => reasons(lg, p, tid).slice(0, 3).map(x => x.t);
 
 /** In the season: each day, free agents answer the offers people made them. */
 export function resolveOffersInSeason(lg: League, rng: Rng) {
   if (!lg.offers?.length) return;
+  const snap = snapOffers(lg);
+  resolveOffersDay(lg, rng);
+  noteOutcomes(lg, snap);
+}
+function resolveOffersDay(lg: League, rng: Rng) {
   for (const pid of [...new Set(lg.offers.map(o => o.pid))]) {
     const p = lg.players[pid];
     if (!p || p.tid || p.retired) continue;
@@ -1017,6 +1044,7 @@ export function faStage(lg: League) {
   const rng = rngOf(lg);
   const st = fa.stage;
   if (st === 0) { applyDecisions(lg); fa.stage = 1; readMarket(lg); save(lg, rng); return; }
+  const snap = snapOffers(lg);   // people's offers going in: how each came out, for the answers list
   if (st === 1) {
     // the league is being run on (a full year, five years): the GM decides on people's own free agents they made no offer to
     if ((lg as any)._auto) fa.pending = Object.values(lg.players).filter(p => p.bird && isHuman(lg, p.bird) && isFreeAgent(lg, p) && !offersOn(lg, p.id).some(o => o.tid === p.bird)).map(p => p.id);
@@ -1035,6 +1063,7 @@ export function faStage(lg: League) {
   if (st === 3) reachFloor(lg, rng);
   // sheets from earlier waves are decided now; this wave's wait for their team (the last wave's: until the season)
   resolveSheets(lg, st);
+  noteOutcomes(lg, snap, st);
   complyHardCap(lg, rng);
   const before = lg.trades?.length ?? 0;
   aiTradeRound(lg, rng, STAGE_TRADE[st]);

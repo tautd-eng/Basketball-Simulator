@@ -20,7 +20,7 @@ import { discount, reasons, preferredYears, lengthPrice, offerUtility } from '..
 import { isFreeAgent } from '../ai/trades';
 import {
   initDraft, draftOnClock, draftAdvance, draftPick, draftSuggest, finishDraft,
-  enterFreeAgency, faStage, startSeason, faOffer, faDemand, offersOn, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, prevTeam, faOffersFor, faBudget, myOffers,
+  enterFreeAgency, faStage, startSeason, faOffer, faDemand, offersOn, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, prevTeam, faOffersFor, faBudget, myOffers, capCheck,
 } from '../league/offseason';
 import { DecisionsBoard } from './offsteps';
 import { isHuman, handTo, canRun } from '../league/humans';
@@ -595,6 +595,7 @@ function BidsDialog({ lg, pid, close }: any) {
 // ---------------------------------------------------------------- free agents list
 export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
   const [pos, setPos] = useState('all');
+  const [afford, setAfford] = useState(false);   // only players you could sign at their asking price
   const [sel, setSel] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [rel, setRel] = useState<string | null>(null);
@@ -603,7 +604,14 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
   const u = lg.userTid ? lg.teams[lg.userTid] : null;
   const canSign = u && (lg.phase === 'freeagency' || lg.phase === 'regular');
   const list = Object.values(lg.players).filter((p: any) => (isFreeAgent(lg, p) || (lg.fa?.stage === 1 && lg.fa.pending.includes(p.id))) && posOk(p, pos));
-  const rows = list.map((p: any) => ({ key: p.id, p, l: lastLine(p), need: u ? faDemand(lg, p, u.tid, preferredYears(p, N)) : askingSalary(p, N) }));
+  // affordable: his asking price fits your cap room, an exception or the minimum – with the room your open offers already claim set aside
+  const fits = (p: any, need: number) => {
+    if (!u) return true;
+    const reserve = myOffers(lg, u.tid).filter((o: any) => o.pid !== p.id).reduce((a: number, o: any) => a + o.sal, 0);
+    try { return !capCheck(lg, u.tid, p, need, reserve).err; } catch { return true; }
+  };
+  const rows0 = list.map((p: any) => ({ key: p.id, p, l: lastLine(p), need: u ? faDemand(lg, p, u.tid, preferredYears(p, N)) : askingSalary(p, N) }));
+  const rows = afford && u ? rows0.filter((r: any) => fits(r.p, r.need)) : rows0;
   const pick = (r: any) => { setSel(r.p.id); setMsg(null); };
   // who is interested in whom right now (AI teams that would make an offer, and people's offers) – the amounts stay secret
   const [offersOf, setOffersOf] = useState<string | null>(null);
@@ -658,7 +666,9 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
         </p>
         <div className="def-row">
           <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
+          {u && <label className="chk" title="Only players whose asking price you could pay now: under the cap, with an exception, or at the minimum – counting the room your open offers already take"><input type="checkbox" checked={afford} onChange={e => setAfford(e.target.checked)} /> Affordable{afford ? <span className="dim"> ({rows.length} of {rows0.length})</span> : null}</label>}
         </div>
+        {afford && u && !rows.length && <p className="hint">Nobody fits right now{(() => { try { const e = rows0[0] && capCheck(lg, u.tid, rows0[0].p, MIN_SAL).err; return e ? ` – ${e}` : ' – not even at the minimum.'; } catch { return '.'; } })()}</p>}
         {offersOf && <OffersDialog lg={lg} p={lg.players[offersOf]} offers={market.get(offersOf) ?? faOffersFor(lg, lg.players[offersOf])} close={() => setOffersOf(null)} openPlayer={openPlayer} />}
         {lg.phase === 'freeagency' && <BirdRights lg={lg} openPlayer={openPlayer} onPick={(pid: string) => { setSel(pid); setMsg(null); }} />}
         {sp && canSign && interest(sp) && <p className="hint">{interest(sp)!.length ? <>Competition for {sp.name}: <b>{interest(sp)!.length}</b> other team{interest(sp)!.length > 1 ? 's' : ''} interested – <button className="link-btn" onClick={() => setOffersOf(sp.id)}>see who</button>.</> : <>No other team is after {sp.name} right now.</>}</p>}
@@ -681,6 +691,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
                 : <button className="small" onClick={() => setRel(p.id)}>Release</button>)}</td>
             </tr>)}</tbody>
           </table></div>
+          <OfferAnswers lg={lg} openPlayer={openPlayer} />
           <MyOffers lg={lg} onChange={onChange} setSel={setSel} setMsg={setMsg} />
         </section>
       )}
@@ -777,6 +788,36 @@ export function BudgetBar({ lg, tid, extra = 0 }: any) {
 }
 
 /** Your open offers in the order you want them to go through when the room runs short. */
+/** How your offers came out: the last step's answers (a wave of free agency, or yesterday in the season), earlier ones folded away. */
+function OfferAnswers({ lg, openPlayer }: any) {
+  const u = lg.userTid, N = lg.season;
+  const all = ((lg as any).offerResults ?? []).filter((x: any) => x.tid === u && lg.players[x.pid]);
+  if (!all.length) return null;
+  const k = (x: any) => `${x.s}|${x.st ?? ''}|${x.day}`;
+  const batches: any[][] = [];
+  for (const x of all) { const b = batches[batches.length - 1]; if (b && k(b[0]) === k(x)) b.push(x); else batches.push([x]); }
+  const when = (x: any) => x.st != null ? `free agency ${x.s - 1}–${String(x.s).slice(2)}, wave ${x.st}` : `${x.s - 1}–${String(x.s).slice(2)} season, day ${x.day}`;
+  const ICON: any = { signed: '✔', sheet: '…', matched: '✖', elsewhere: '✖', declined: '✖', waiting: '…' };
+  const line = (x: any) => {
+    const p = lg.players[x.pid], deal = `${moneyOf(x.sal, N)} × ${x.yrs} yr${x.yrs > 1 ? 's' : ''}`;
+    const name = <button className="link" onClick={() => openPlayer(x.pid)}>{p.name}</button>;
+    const text = x.res === 'signed' ? <>{name} signed – {deal}</>
+      : x.res === 'sheet' ? <>{name} signed your offer sheet ({deal}) – the <TL tid={p.rfa} /> can still match</>
+      : x.res === 'matched' ? <>{name}: the <TL tid={x.to} /> matched your offer sheet ({deal})</>
+      : x.res === 'elsewhere' ? <>{name} chose the <TL tid={x.to} /> over your {deal}</>
+      : x.res === 'waiting' ? <>{name} has not decided – your {deal} stays open{x.under ? ' (under his asking price)' : ''}</>
+      : <>{name} turned down your {deal}{x.under ? ' – under his asking price' : ''}</>;
+    return <li key={x.pid + x.res} className={`ans-${x.res}`}><span className="ans-ic" aria-hidden>{ICON[x.res]}</span> <span>{text}</span></li>;
+  };
+  return <div className="offer-answers">
+    <h3>Answers to your offers <span className="dim">· {when(batches[0][0])}</span></h3>
+    <ul className="news ans-list">{batches[0].map(line)}</ul>
+    {batches.length > 1 && <details><summary className="dim">Earlier answers</summary>
+      {batches.slice(1, 12).map(b => <div key={k(b[0])}><p className="small-t dim">{when(b[0])}</p><ul className="news ans-list">{b.map(line)}</ul></div>)}
+    </details>}
+  </div>;
+}
+
 function MyOffers({ lg, onChange, setSel, setMsg }: any) {
   const u = lg.userTid, N = lg.season;
   const list = myOffers(lg, u);
