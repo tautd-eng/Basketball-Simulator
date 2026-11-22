@@ -17,14 +17,14 @@ export function teamPill(lg: any, tid: string) {
   return { background: a, color: fg, borderColor: b };
 }
 
-/** Who runs a human team: the online member's name, the name given in “Players & teams”, or just “You”. */
+/** Who runs a human team: the online member's name, the name given in “My teams”, or just “You”. */
 export function ownerName(lg: any, tid: string): string | null {
   if (!isHuman(lg, tid)) return null;
   const m = onlineCtx()?.members?.find((x: any) => x.tid === tid);
   if (m?.name) return m.name;
   const n = lg.humanNames?.[tid];
   if (n && n.trim()) return n.trim();
-  return humans(lg).length > 1 ? 'User' : 'You';
+  return onlineCtx() || Object.values(lg.humanNames ?? {}).some((x: any) => x && x.trim()) ? 'User' : 'You';   // one person with several teams: still "You"
 }
 
 export interface BoardSlot { n: number; round: number; tid: string; via?: string; pid?: string }

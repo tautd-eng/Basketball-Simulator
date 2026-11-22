@@ -237,7 +237,8 @@ export function Guide({ onBack }: any) {
 
       <Sec id="multi" title="Playing with friends" open={all}>
         <ul>
-          <li><b>One device (hot seat):</b> “Players & teams” at the bottom of a league – tick the teams people run and give them names; the game stops for each of them; switch with “Playing as”.</li>
+          <li><b>Several teams of your own:</b> pick them when you start a league (“More teams you run”) or later in “My teams” at the bottom – the game stops for each of them; switch with “Playing as” at the top.</li>
+          <li><b>One device (hot seat):</b> the same “My teams” – tick the teams your friends run and give them names; you take turns.</li>
           <li><b>Online:</b> Host online game puts a league online; friends join with its code and pick teams. The host moves the league on; everyone marks “done”; the draft waits only for whoever is on the clock. Free-agent bids are blind until the player signs. You can play your own games when the other side is the computer or done, and watch replays of the others.</li>
           <li><b>Commissioner:</b> in an online league the host is the commissioner. Players pick their first team themselves; any later switch is a request the commissioner approves or declines (People in the online bar).</li>
           <li><b>Trade committee:</b> online, a trade between two people that looks one-sided (one side gets half again as much market value, or more) is not done at once – the trade committee votes on it (the commissioner ticks who is on it under People; a majority of the members not in the deal decides). The commissioner can approve or veto it at once. If time runs out (3 days in the season, or the end of the offseason step), the votes cast decide and a tie lets it through.</li>

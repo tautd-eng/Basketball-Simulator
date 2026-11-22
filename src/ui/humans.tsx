@@ -7,10 +7,11 @@ import { inbox } from '../league/proposals';
 export function PlayingAs({ lg, onChange }: any) {
   const hs = humans(lg);
   if (hs.length < 2 || lg.online) return null; // online: everyone plays his own team on his own screen
+  let narrow = false; try { narrow = window.matchMedia('(max-width: 640px)').matches; } catch { /* */ }   // phone: abbreviations, so the header still fits
   return (
-    <label className="playing-as" htmlFor="playing-as">Playing as
-      <select id="playing-as" value={lg.userTid ?? ''} onChange={e => { playAs(lg, e.target.value); onChange(); }}>
-        {hs.map(t => { const n = inbox(lg, t).length; return <option key={t} value={t}>{lg.teams[t].name}{n ? ` (${n} offer${n > 1 ? 's' : ''})` : ''}</option>; })}
+    <label className="playing-as" htmlFor="playing-as" title="Switch between the teams you run"><span className="pa-l">Playing as</span>
+      <select id="playing-as" aria-label="Playing as" value={lg.userTid ?? ''} onChange={e => { playAs(lg, e.target.value); onChange(); }}>
+        {hs.map(t => { const n = inbox(lg, t).length; return <option key={t} value={t}>{narrow ? lg.teams[t].abbr : lg.teams[t].name}{n ? ` (${n}${narrow ? '' : ` offer${n > 1 ? 's' : ''}`})` : ''}</option>; })}
       </select>
     </label>
   );
@@ -24,13 +25,13 @@ export function HumansPanel({ lg, close, onChange }: any) {
   const set = (tid: string, on: boolean) => { setHuman(lg, tid, on); bump(x => x + 1); onChange(); };
   return (
     <div className="overlay center" onClick={close}>
-      <div className="dialog saves" role="dialog" aria-label="Human players" onClick={e => e.stopPropagation()}>
-        <h2>Players & teams</h2>
-        <p className="note">Tick every team a person runs – friends can share one league on this device and take turns. The game stops for each of those teams: their draft picks, contract decisions, free agents and trade offers. Switch with “Playing as” at the top. Trades between two people's teams go as offers the other side accepts or declines.</p>
+      <div className="dialog saves" role="dialog" aria-label="My teams" onClick={e => e.stopPropagation()}>
+        <h2>My teams</h2>
+        <p className="note">Tick every team you run yourself – one person can run several teams, or friends can share the league on this device and take turns. The game stops for each ticked team: draft picks, contract decisions, free agents and trade offers; the rest are run by their GMs. Switch with “Playing as” at the top. A trade between two of these teams goes as an offer: switch to the other team to accept it. A name is optional – handy when friends share the league.</p>
         <ul className="save-list hum-list">{teams.map(t => (
           <li key={t.tid} className={t.tid === lg.userTid ? 'mine' : ''}>
             <label><input type="checkbox" checked={hs.has(t.tid)} onChange={e => set(t.tid, e.target.checked)} /> <b>{t.name}</b>{t.tid === lg.userTid ? <span className="chip tiny">playing now</span> : null}</label>
-            {hs.has(t.tid) && <input className="hum-name" placeholder="Name" aria-label={`Who runs ${t.name}`} defaultValue={lg.humanNames?.[t.tid] ?? ''} onChange={e => { (lg.humanNames ??= {})[t.tid] = e.target.value.slice(0, 24); onChange(); }} />}
+            {hs.has(t.tid) && <input className="hum-name" placeholder="Name (optional)" aria-label={`Who runs ${t.name}`} defaultValue={lg.humanNames?.[t.tid] ?? ''} onChange={e => { (lg.humanNames ??= {})[t.tid] = e.target.value.slice(0, 24); onChange(); }} />}
             {hs.has(t.tid) && t.tid !== lg.userTid && <button className="small" onClick={() => { playAs(lg, t.tid); bump(x => x + 1); onChange(); }}>Play as</button>}
           </li>
         ))}</ul>

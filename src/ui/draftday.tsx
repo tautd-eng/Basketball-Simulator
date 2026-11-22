@@ -125,7 +125,7 @@ export function ExpansionRoom({ lg, onChange, onTick, openPlayer, openTeam }: an
               {myTurn ? <span className="hint">You're on the clock – pick from the list.</span>
                 : canRun(lg) ? <button className="primary host-only" disabled={!on || playing} onClick={() => act(() => expAdvance(lg, 'one'))}>Next pick</button> : <span className="hint">Waiting for the host.</span>}
               {canRun(lg) && <AutoControls playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} disabled={!on || myTurn} />}
-              {canRun(lg) && !myTurn && on && humanLeft && <button className="host-only" disabled={playing} onClick={() => act(() => expAdvance(lg, 'user'))}>{(lg.humans?.length ?? 0) > 1 ? 'To the next user pick' : 'To my pick'}</button>}
+              {canRun(lg) && !myTurn && on && humanLeft && <button className="host-only" disabled={playing} onClick={() => act(() => expAdvance(lg, 'user'))}>{(lg.humans?.length ?? 0) > 1 ? 'To my next pick' : 'To my pick'}</button>}
               {canRun(lg) && <button className="host-only" onClick={() => { setPlaying(false); guardMove(lg, () => act(() => expAdvance(lg, 'all'))); }}>To the end</button>}
             </div>
             <h3>Available players ({avail.length}) <span className="dim">– from {new Set(avail.map((a: any) => a.from)).size} teams that haven't lost anyone yet</span></h3>

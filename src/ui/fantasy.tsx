@@ -66,7 +66,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
         <div className="def-row">
           {myTurn ? <span className="chip on-clock">You're on the clock – pick from the list!</span> : on && canRun(lg) ? <button className="primary" disabled={playing} onClick={() => act(() => fantasyStep(lg))}>Next pick</button> : on ? <span className="hint">Waiting for the host to move the draft on.</span> : null}
           {on && canRun(lg) && <AutoControls playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} disabled={myTurn} />}
-          {!myTurn && lg.userTid && on && canRun(lg) && <button disabled={playing} onClick={() => act(() => fantasyAdvance(lg))}>{(lg.humans?.length ?? 0) > 1 ? 'To the next user pick' : 'To my pick'}</button>}
+          {!myTurn && lg.userTid && on && canRun(lg) && <button disabled={playing} onClick={() => act(() => fantasyAdvance(lg))}>{(lg.humans?.length ?? 0) > 1 ? 'To my next pick' : 'To my pick'}</button>}
           {on && canRun(lg) && <button onClick={() => { setPlaying(false); act(() => fantasyAdvance(lg, true)); }}>{lg.userTid ? 'Auto-finish (AI picks for me too)' : 'Run the whole draft'}</button>}
         </div>
         <div className="def-row">

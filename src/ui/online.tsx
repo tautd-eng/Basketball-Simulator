@@ -75,7 +75,7 @@ export function OnlinePanel({ lg, close, onOpen, joinCode }: any) {
 
             {lg && !lg.online && <>
               <h3>Put this league online</h3>
-              <p className="note">You become the host: your browser runs the league, the others join with the code and pick their teams. You keep {lg.userTid ? <b>{lg.teams[lg.userTid]?.name}</b> : <b>no team – pick one under Players & teams first</b>}.</p>
+              <p className="note">You become the host: your browser runs the league, the others join with the code and pick their teams. You keep {lg.userTid ? <b>{lg.teams[lg.userTid]?.name}</b> : <b>no team – pick one under My teams first</b>}.</p>
               <div className="def-row"><input value={lname} onChange={e => setLname(e.target.value)} placeholder="League name" />
                 <button className="primary" disabled={busy || !lg.userTid || !lname.trim() || !name.trim()} onClick={() => act(async () => { const l = await createOnline(lg, lname.trim(), name.trim()); await refresh(); await open(l.id); })}>Create online league</button></div>
             </>}

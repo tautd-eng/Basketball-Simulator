@@ -1272,3 +1272,10 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
   .of-line { font-size: 9px; letter-spacing: -0.3px; white-space: normal; line-height: 1.25; }
   .of-sub { display: none; }
 }
+/* setup: more teams the same person runs */
+.also-teams summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.also-teams summary > span:first-child { font-weight: 600; }
+.also-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 12px; margin-top: 8px; max-height: 260px; overflow: auto; }
+.also-item { display: flex; gap: 6px; align-items: center; font-size: 0.9rem; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.also-item.on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+@media (max-width: 640px) { .top .playing-as .pa-l { display: none; } .top .playing-as select { max-width: 86px; } }

@@ -309,9 +309,10 @@ function App() {
     if (lg) setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
 
-  function start(destiny: number, seed: number, userTid: string | null, settings: any, fantasy = false, startYear = 1980, classMode: any = 'real', futureMode: any = 'shuffle') {
+  function start(destiny: number, seed: number, userTid: string | null, settings: any, fantasy = false, startYear = 1980, classMode: any = 'real', futureMode: any = 'shuffle', also: string[] = []) {
     const l = newLeague(destiny, seed, settings, { fantasy, start: startYear, classMode, futureMode });
     l.userTid = userTid;
+    if (userTid && also.length) l.humans = [userTid, ...also.filter(t => l.teams[t] && t !== userTid)];
     setLg(l); setTeam(userTid ?? 'LAL'); setTab('overview'); try { window.scrollTo(0, 0); } catch { /* */ }
     saveLeague(l).then(ok => setSaved(ok ? 'ok' : 'fail'));
     if (hostAfter) { setHostAfter(false); setShowOnline(true); }
@@ -390,7 +391,7 @@ function App() {
         ))}
         <div className="side-foot">
           <button className="host-only" onClick={() => setShowSettings(true)}><TabIcon k="format" /><span className="tl">Season format</span></button>
-          {!octx && <button onClick={() => setShowHumans(true)}><TabIcon k="people" /><span className="tl">Players & teams</span></button>}
+          {!octx && <button onClick={() => setShowHumans(true)}><TabIcon k="people" /><span className="tl">My teams</span></button>}
           <button onClick={() => setShowSaves(true)}><TabIcon k="saves" /><span className="tl">Saves</span></button>
           <button onClick={() => setShowOnline(true)}><TabIcon k="online" /><span className="tl">Online league</span></button>
           <button onClick={toMenu}><TabIcon k="menu" /><span className="tl">Main menu</span></button>
@@ -402,7 +403,7 @@ function App() {
           {tabsFor(lg).filter(([, , m]) => !m).map(([k, l]) => <button key={k} role="menuitem" className={tab === k ? 'on' : ''} onClick={() => { go(k); setMore(false); }}><TabIcon k={k} /><span>{l}</span></button>)}
           <div className="more-sep" />
           <button className="host-only" onClick={() => { setMore(false); setShowSettings(true); }}><TabIcon k="format" /><span>Season format</span></button>
-          {!octx && <button onClick={() => { setMore(false); setShowHumans(true); }}><TabIcon k="people" /><span>Players & teams</span></button>}
+          {!octx && <button onClick={() => { setMore(false); setShowHumans(true); }}><TabIcon k="people" /><span>My teams</span></button>}
           <button onClick={() => { setMore(false); setShowSaves(true); }}><TabIcon k="saves" /><span>Saves</span></button>
           <button onClick={() => { setMore(false); setShowOnline(true); }}><TabIcon k="online" /><span>Online league</span></button>
           <button onClick={() => { setMore(false); toMenu(); }}><TabIcon k="menu" /><span>Main menu</span></button>
@@ -430,7 +431,7 @@ function App() {
         <span className="foot-actions">
           <button className="ghost small host-only" onClick={() => setShowSettings(true)}>Season format</button>
           <button className="ghost small" onClick={() => setShowOnline(true)}>Online league</button>
-          {!octx && <button className="ghost small" onClick={() => setShowHumans(true)}>Players & teams</button>}
+          {!octx && <button className="ghost small" onClick={() => setShowHumans(true)}>My teams</button>}
           <button className="ghost small" onClick={() => setShowSaves(true)}>Saves</button>
           <button className="ghost small" onClick={toMenu}>Main menu</button>
         </span>
@@ -868,6 +869,7 @@ function Setup({ onStart, onBack, host }: any) {
   // every league gets its own hidden random seed
   const [seed] = useState(() => Math.floor(Math.random() * 1e9));
   const [user, setUser] = useState('');
+  const [also, setAlso] = useState<string[]>([]);   // more teams the same person (or friends on this device) run
   const [start, setStart] = useState(LAST_SEASON + 1); // today's league first
   const [mode, setMode] = useState<'real' | 'shuffle' | 'mixed' | 'fictional'>('fictional');
   const [fmode, setFmode] = useState<'shuffle' | 'chrono' | 'mixed' | 'fictional'>('fictional');
@@ -879,7 +881,7 @@ function Setup({ onStart, onBack, host }: any) {
   // generated classes have no real careers to follow: the "how closely to follow reality" question goes away
   const generated = (future ? fmode : mode) === 'fictional';
   const label = `${start - 1}–${String(start).slice(2)}`;
-  const pickYear = (y: number) => { setStart(y); if (user && !seasonInfo(y).teams[user]) setUser(''); };
+  const pickYear = (y: number) => { setStart(y); if (user && !seasonInfo(y).teams[user]) setUser(''); setAlso(xs => xs.filter(t => seasonInfo(y).teams[t])); };
   return (
     <div className="setup">
       <div className="setup-card">
@@ -902,6 +904,13 @@ function Setup({ onStart, onBack, host }: any) {
             {teams.map(([tid, t]) => <option key={tid} value={tid}>{t.name}</option>)}
           </select>
         </label>
+        {user && <details className="field also-teams" open={also.length > 0}>
+          <summary><span>More teams you run</span> <span className="dim">{also.length ? also.map(t => si.teams[t]?.abbr ?? t).join(', ') : 'optional'}</span></summary>
+          <small>Run several teams yourself (or share the league with friends on this device). The game stops for each of them – picks, contracts, free agents, trade offers – and “Playing as” at the top switches between them. You can change this later in “My teams”.</small>
+          <div className="also-grid">{teams.filter(([tid]) => tid !== user).map(([tid, t]) => (
+            <label key={tid} className={`also-item ${also.includes(tid) ? 'on' : ''}`}><input type="checkbox" checked={also.includes(tid)} onChange={e => setAlso(xs => e.target.checked ? [...xs, tid] : xs.filter(x => x !== tid))} /> {t.name}</label>
+          ))}</div>
+        </details>}
         <div className="opt-list">
           {!generated && <Opt title="How closely to follow reality" value={destinyName(d)}>
             <fieldset className="field radio-set">
@@ -950,7 +959,7 @@ function Setup({ onStart, onBack, host }: any) {
             <small className="dim">Can be changed later inside the league under “Season format”.</small>
           </Opt>
         </div>
-        <button className="primary big" onClick={() => onStart(generated ? 0 : d / 100, seed, user || null, settingsOf(form), fantasy ? { rr } : false, start, mode, fmode)}>{fantasy ? 'To the fantasy draft' : 'Start the league'}</button>
+        <button className="primary big" onClick={() => onStart(generated ? 0 : d / 100, seed, user || null, settingsOf(form), fantasy ? { rr } : false, start, mode, fmode, user ? also.filter(t => t !== user) : [])}>{fantasy ? 'To the fantasy draft' : 'Start the league'}</button>
       </div>
     </div>
   );
