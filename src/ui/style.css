@@ -1292,3 +1292,5 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .glance { overflow-x: auto; }
 @media (max-width: 820px) { .tp-grid { grid-template-columns: 1fr; } .tp-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 10px; } }
 @media (max-width: 560px) { .glance-tbl th:nth-child(4), .glance-tbl td:nth-child(4) { display: none; } }
+.pop-nav { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+.pop-nav button { min-width: 34px; font-size: 1.1rem; line-height: 1; padding: 4px 8px; }

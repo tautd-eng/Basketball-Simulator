@@ -64,6 +64,7 @@ function Side({ lg, xs, openPlayer }: any) {
 export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
   const [, bump] = useState(0);
   const [msg, setMsg] = useState('');
+  const [at, setAt] = useState(0);   // which of the waiting pop-ups is shown: step back and forth between them
   if (busy || !lg?.userTid || lg.phase === 'fantasy') return null;
   const closed = lg.phase === 'playoffs' || (lg.phase === 'regular' && pastDeadline(lg));
   // every team this person runs (hot seat: all of them; online: just his own)
@@ -79,7 +80,13 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
       <p>{msg}</p><div className="dialog-actions"><button className="primary" onClick={() => setMsg('')}>OK</button></div>
     </div></div>
   );
-  const it = items[0];
+  const ix = Math.min(at, items.length - 1);
+  const it = items[ix];
+  const Nav = () => items.length > 1 ? <span className="pop-nav">
+    <button className="small ghost" aria-label="Previous" disabled={ix === 0} onClick={() => setAt(ix - 1)}>‹</button>
+    <span className="dim">{ix + 1} of {items.length}</span>
+    <button className="small ghost" aria-label="Next" disabled={ix === items.length - 1} onClick={() => setAt(ix + 1)}>›</button>
+  </span> : null;
   if (it.k === 'o') {
     const pr = it.pr, bad = proposalProblem(lg, pr);
     // answered as the team it was made to (one of several the person runs), the controls stay where they were
@@ -87,7 +94,7 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
     const many = mine.length > 1;
     return (
       <div className="overlay center"><div className="dialog trade-pop wide" role="dialog" aria-label="Trade offer"><div className="tp-grid"><div className="tp-main">
-        <div className="team-head"><h2>Trade offer{many ? <> · <TL tid={pr.to} abbr /></> : null}</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
+        <div className="team-head"><h2>Trade offer{many ? <> · <TL tid={pr.to} abbr /></> : null}</h2><Nav /></div>
         <p>The <b><TL tid={pr.from} /></b> {pr.ai ? '(computer)' : `(${lg.teams[pr.from].name} – run by a person)`} offer {many ? <>your <b><TL tid={pr.to} /></b></> : 'you'} a trade{pr.note ? <span className="dim"> – {pr.note}</span> : '.'}</p>
         <div className="pop-sides">
           <div><h4>You get</h4><Side lg={lg} xs={pr.fromGives} openPlayer={openPlayer} /></div>
@@ -111,7 +118,7 @@ export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {
   const doVote = (yes: boolean) => { const res = asCommish ? commissionerDecide(lg, r.id, yes) : run(lg, { t: 'tcVote', id: r.id, yes }); seen.add(reviewKey(lg, r)); keep(); setMsg(res.msg); onChange(); };
   return (
     <div className="overlay center"><div className="dialog trade-pop" role="dialog" aria-label="Trade committee">
-      <div className="team-head"><h2>{asCommish ? 'Trade committee – your decision' : 'Trade committee vote'}</h2>{items.length > 1 && <span className="dim">1 of {items.length}</span>}</div>
+      <div className="team-head"><h2>{asCommish ? 'Trade committee – your decision' : 'Trade committee vote'}</h2><Nav /></div>
       <ReviewBody lg={lg} r={r} openPlayer={openPlayer} />
       <div className="dialog-actions">
         <button className="ghost" onClick={() => later(reviewKey(lg, r))}>Later</button>
