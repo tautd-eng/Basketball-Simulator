@@ -78,6 +78,7 @@ function Rotation({ lg, openPlayer, onChange }: any) {
             <span className="seg">{[8, 9, 10, 11].map(d => <button key={d} className={m.depth === d ? 'on' : ''} onClick={() => upd(m => (m.depth = d))}>{d}</button>)}</span>
             <span className="dim small-t">players who get real minutes (playoffs: the coach shortens it anyway)</span>
           </label>
+          <p className="dim small-t">Want someone on the floor more (or less)? Pick him in the <b>Minutes</b> column below: + more, ++ much more, Less fewer – the plan shows what it does.{Object.keys(m.more ?? {}).length ? <> <button className="small ghost" onClick={() => upd(m => { m.more = {}; })}>Clear picks</button></> : null}</p>
           <label>Young players
             <span className="seg">{[[0, 'Earn it'], [0.35, 'Some push'], [0.7, 'Develop'], [1, 'Play the kids']].map(([v, l]: any) => <button key={l} className={Math.abs(m.youth - v) < 0.01 ? 'on' : ''} onClick={() => upd(m => (m.youth = v))}>{l}</button>)}</span>
             <span className="dim small-t">extra minutes for players 25 and under – the younger, the more (regular season only)</span>
@@ -90,13 +91,15 @@ function Rotation({ lg, openPlayer, onChange }: any) {
         </div>
       )}
       <div className="tbl-wrap"><table className="tbl compact">
-        <thead><tr><th className="l">Player</th><th>Pos</th><th>Age</th><th>OVR</th><th title="Minutes per game so far this season">MPG now</th><th>Plan</th>{m.mode === 'manual' && <th>Your minutes</th>}</tr></thead>
+        <thead><tr><th className="l">Player</th><th>Pos</th><th>Age</th><th>OVR</th><th title="Minutes per game so far this season">MPG now</th><th>Plan</th>{m.mode === 'auto' && <th title="Pick players for more (or fewer) minutes – the coach still plays the rest by how good they are">Minutes</th>}{m.mode === 'manual' && <th>Your minutes</th>}</tr></thead>
         <tbody>{rows.map((p: any) => {
           const v = plan[p.id];
           return <tr key={p.id} className={p.injury ? 'dim' : ''}>
             <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{(m.starters ?? []).includes(p.id) ? <span className="chip tiny on-clock" title="Named starter (Lineup & positions)">Starter · {SLOTS[(m.starters ?? []).indexOf(p.id)]}</span> : null}{p.injury ? <span className="inj"> out {p.injury}</span> : null}</td>
             <td className="dim">{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td>{ovrOf(p.z, p.id)}</td><td>{mpg(p) ? mpg(p).toFixed(1) : '–'}</td>
             <td><span className="pr-bar" style={{ width: `${Math.round((v ?? 0) * 1.6)}px` }}></span>{v === undefined ? '–' : v.toFixed(0)}</td>
+            {m.mode === 'auto' && <td><span className="seg mini" role="group" aria-label={`Minutes for ${p.name}`}>{[[-1, 'Less', 'Fewer minutes'], [0, '·', 'As the coach sees fit'], [1, '+', 'More minutes'], [2, '++', 'Much more minutes']].map(([v, l, tt]: any) =>
+              <button key={v} title={tt} className={(m.more?.[p.id] ?? 0) === v ? 'on' : ''} onClick={() => upd(m => { m.more ??= {}; if (v) m.more[p.id] = v; else delete m.more[p.id]; })}>{l}</button>)}</span></td>}
             {m.mode === 'manual' && <td className="mg-min">
               <button className="small" onClick={() => setMin(p.id, (m.minutes[p.id] ?? 0) - 1)} aria-label="1 minute less">−</button>
               <input type="number" min={0} max={48} inputMode="numeric" className="min-in" aria-label={`Minutes for ${p.name}`} value={m.minutes[p.id] ?? 0}

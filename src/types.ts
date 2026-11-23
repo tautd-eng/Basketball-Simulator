@@ -82,7 +82,7 @@ export interface Team {
   plan?: import('./ai/plan').TeamPlan;
   /** the user's team management: rotation (auto with a depth and a youth push, or minutes by hand) and tactics */
   mgmt?: { mode: 'auto' | 'manual'; depth: number; youth: number; minutes: Record<string, number>; tac: any; choice?: Record<string, string>;
-    pos?: Record<string, number>; starters?: string[]; mm?: Record<string, Record<string, string>>;
+    pos?: Record<string, number>; starters?: string[]; more?: Record<string, number>; /* auto rotation: −1 fewer, 1 more, 2 much more minutes */ mm?: Record<string, Record<string, string>>;
     board?: { year: number; order: string[] } };  // a person's own draft board for the coming class   // the front office's read of its team (core, young pieces, picks, act or wait)
   paceZ: number;
   active: boolean;

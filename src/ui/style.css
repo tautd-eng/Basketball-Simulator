@@ -1314,3 +1314,4 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .playing-as-wrap { display: inline-flex; align-items: center; gap: 4px; }
 .top .next-team { padding: 4px 8px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; min-width: 0; }
 @media (max-width: 640px) { .top .next-team { padding: 4px 6px; font-size: 0.72rem; } }
+.seg.mini button { padding: 2px 7px; font-size: 0.75rem; min-width: 0; }
