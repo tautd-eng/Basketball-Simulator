@@ -1309,3 +1309,5 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .ans-signed .ans-ic { color: var(--pos, #2e9e5b); }
 .ans-declined .ans-ic, .ans-elsewhere .ans-ic, .ans-matched .ans-ic { color: var(--neg, #d24b4b); }
 .ans-waiting .ans-ic, .ans-sheet .ans-ic { color: var(--muted); }
+.done-fa { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.done-fa .chip.past { opacity: 0.6; }

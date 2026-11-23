@@ -6,6 +6,7 @@ import { onlineCtx } from '../online/sync';
 import { pickOwner } from '../ai/trades';
 import { humans, handTo } from '../league/humans';
 import { inbox } from '../league/proposals';
+import { waveUnseen } from '../api';
 
 // ---- several teams on this device: every one of them gets its turn before a step that decides for it ----
 let rerender: () => void = () => {};
@@ -20,6 +21,8 @@ function turnStep(lg: any): { key: string; who: (t: string) => string | null } |
   if (lg.phase === 'freeagency' && fa && fa.stage <= 3) return {
     key: `fa|${lg.season}|${fa.stage}`,
     who: (t: string) => {
+      // a team marked done with free agency: its GM handles the rest – only an offer sheet on its RFA still asks
+      if (fa.doneTeams?.includes(t)) return sheets(t) ? 'an offer sheet to match' : null;
       const dec = fa.stage === 0 ? (fa.decisions ?? []).filter((d: any) => (d.tid ?? lg.userTid) === t && d.choice === undefined).length : 0;
       const pend = fa.stage === 1 ? fa.pending.filter((pid: string) => lg.players[pid]?.bird === t).length : 0;
       const bits = [dec && `${dec} contract decision${dec > 1 ? 's' : ''}`, pend && `${pend} own free agent${pend > 1 ? 's' : ''} to re-sign`, sheets(t) && `an offer sheet to match`].filter(Boolean);
@@ -37,6 +40,8 @@ function nextTurn(lg: any): boolean {
   if (!lg || lg.online || onlineCtx()) return false;
   const hs = humans(lg);
   if (hs.length < 2) return false;
+  // the button only closes a results screen (decisions summary, a wave's results): nothing moves, nobody waits
+  if (lg.fa && ((lg.fa.stage === 1 && !lg.fa.sumSeen) || waveUnseen(lg))) return false;
   const st = turnStep(lg);
   if (!st) { if (lg.turns) delete lg.turns; return false; }
   const done: string[] = ((lg.turns ??= {})[st.key] ??= []);
@@ -52,6 +57,9 @@ function nextTurn(lg: any): boolean {
     return true;
   }
   delete lg.turns[st.key];
+  // everyone had his say: the step goes on – and the controls go back to a team still in free agency
+  const fin: string[] = lg.fa?.doneTeams ?? [];
+  if (lg.userTid && fin.includes(lg.userTid)) { const nx = hs.find(t => !fin.includes(t)); if (nx) { handTo(lg, nx); rerender(); } }
   return false;
 }
 

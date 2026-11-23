@@ -193,6 +193,7 @@ export interface FreeAgency {
   /** offer sheets to the user's restricted free agents, waiting for match / no match */
   sheets?: { pid: string; tid: string; sal: number; exp: number; st?: number }[];
   sumSeen?: boolean;                // the summary of the contract decisions was shown
+  doneTeams?: string[];              // people's teams marked done with free agency: no more turns for them
   waveSeen?: Record<string, number>; // per team: the last wave whose results screen it has seen
   flushed?: number;                 // log entries already copied into the players' histories
 }

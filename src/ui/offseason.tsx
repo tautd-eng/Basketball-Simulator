@@ -24,7 +24,7 @@ import {
   enterFreeAgency, faStage, startSeason, faOffer, faDemand, offersOn, withdrawOffer, faRenounce, faRelease, faDecide, faMatch, prevTeam, faOffersFor, faBudget, myOffers, capCheck,
 } from '../league/offseason';
 import { DecisionsBoard } from './offsteps';
-import { isHuman, handTo, canRun } from '../league/humans';
+import { isHuman, handTo, canRun, humans } from '../league/humans';
 import { OthersWaiting } from './humans';
 import { SortTable, f1 } from './sorttable';
 import { ExpansionRoom, LotteryRoom, LotteryReveal, AutoControls, useAutoPlay } from './draftday';
@@ -383,6 +383,16 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
               : <button className="primary host-only" onClick={() => guardMove(lg, () => act(() => startSeason(lg)))}>To the season preview →</button>}
             <button onClick={goFA}>All free agents</button>
           </div>
+          {u && fa.stage <= 3 && !lg.online && humans(lg).length > 1 && (() => {
+            const done = fa.doneTeams ?? [];
+            const on = done.includes(u.tid);
+            return <div className="done-fa">
+              <label className="chk" title="This team will not get a turn in the remaining steps of free agency – its GM decides whatever is left open (an offer sheet on your restricted free agent still asks you)">
+                <input type="checkbox" checked={on} onChange={e => { fa.doneTeams = e.target.checked ? [...done.filter((t: string) => t !== u.tid), u.tid] : done.filter((t: string) => t !== u.tid); onChange(); }} /> {u.name}: done with free agency
+              </label>
+              {humans(lg).filter((t: string) => t !== u.tid).length > 0 && <span className="dim small-t"> · {humans(lg).filter((t: string) => t !== u.tid).map((t: string) => <span key={t} className={`chip tiny ${done.includes(t) ? 'past' : ''}`} title={done.includes(t) ? 'Done with free agency' : 'Still gets its turn each step'}>{lg.teams[t].abbr}{done.includes(t) ? ' ✓' : ''}</span>)}</span>}
+            </div>;
+          })()}
           {msg && <p className="hint" role="status">{msg}</p>}
         </div>
         <OthersWaiting lg={lg} onChange={onChange} />
