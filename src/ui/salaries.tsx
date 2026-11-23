@@ -43,42 +43,46 @@ export function SalaryView({ lg, openPlayer, openTeam, onChange = () => {} }: an
   );
 }
 
-function TeamSalary({ lg, tid, openPlayer, openTeam }: any) {
+export function TeamSalary({ lg, tid, openPlayer, openTeam, title, focus }: any) {
   const t = lg.teams[tid];
   const S = lg.season, YRS = [S, S + 1, S + 2, S + 3, S + 4];
   const ps = t.roster.map((pid: string) => lg.players[pid]).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id));
   const pay = payroll(lg, tid), hc = hardCap(lg);
-  const on = (p: any, s: number) => s <= p.contract.exp;
+  // a signed extension takes over the season after the current deal ends
+  const ext = (p: any, s: number) => !!p.ext && s > p.contract.exp && s <= p.ext.exp;
+  const salIn = (p: any, s: number) => (s <= p.contract.exp ? p.contract.sal : ext(p, s) ? p.ext.sal : 0);
+  const on = (p: any, s: number) => s <= p.contract.exp || ext(p, s);
   const opt = (p: any, s: number) => p.contract.opts?.find((o: any) => o.s === s)?.k;
   const dead = (lg.dead ?? []).filter((d: any) => d.tid === tid && d.exp >= S);
-  const total = (s: number) => ps.reduce((a: number, p: any) => a + (on(p, s) ? p.contract.sal : 0), 0) + deadPay(lg, tid, s);
-  const after = (p: any) => (p.contract.rookie ? 'RFA' : 'UFA');
+  const total = (s: number) => ps.reduce((a: number, p: any) => a + salIn(p, s), 0) + deadPay(lg, tid, s);
+  const after = (p: any) => (p.contract.rookie && !p.ext ? 'RFA' : 'UFA');
+  const endOf = (p: any) => (p.ext ? p.ext.exp : p.contract.exp);
   const fmtS = (x: number, s: number) => money(x, s);
   const rows: (string | number)[][] = [['Player', 'Pos', 'Age', 'OVR', ...YRS.map(seasonLabel)],
-    ...ps.map((p: any) => [p.name, p.pos, ageIn(p, S), ovrOf(p.z, p.id), ...YRS.map(s => on(p, s) ? pc(p.contract.sal) + (opt(p, s) ? ` (${opt(p, s)} option)` : '') : (s === p.contract.exp + 1 ? after(p) : ''))]),
+    ...ps.map((p: any) => [p.name, p.pos, ageIn(p, S), ovrOf(p.z, p.id), ...YRS.map(s => on(p, s) ? pc(salIn(p, s)) + (opt(p, s) ? ` (${opt(p, s)} option)` : '') + (ext(p, s) ? ' (extension)' : '') : (s === endOf(p) + 1 ? after(p) : ''))]),
     ...dead.map((d: any) => [`${lg.players[d.pid]?.name ?? d.pid} (released)`, '', '', '', ...YRS.map(s => (s <= d.exp ? pc(d.sal) : ''))]),
     ['Total', '', '', '', ...YRS.map(s => pc(total(s)))]];
   return (
     <div className="panel sal-panel">
-      <div className="team-head"><h2><button className="link" onClick={() => openTeam(tid)}>{t.name}</button></h2></div>
+      <div className="team-head"><h2>{title ?? <button className="link" onClick={() => openTeam(tid)}>{t.name}</button>}</h2></div>
       <div className="sal-top">
         <div><span>Team salary</span><b>{pc(pay)}</b><small>of the cap{usd(pay, S)}</small></div>
         {hc < Infinity
           ? <div><span>Free-agent room</span><b className={pay > 1.1 ? 'neg' : 'pos'}>{pay > 1.1 ? '−' : ''}{pc(Math.abs(Math.min(hc, 1.1) - pay))}</b><small>{pay > 1.1 ? 'over 110% – minimum deals and your own players only' : 'to sign other teams\' free agents (up to 110%)'}</small></div>
           : <div><span>Cap room</span><b className={pay > 1 ? 'neg' : 'pos'}>{pay > 1 ? '−' : ''}{pc(Math.abs(1 - pay))}</b><small>{pay > 1 ? 'over the cap – exceptions and minimum deals only' : 'free to sign players'}</small></div>}
         <div><span>Hard cap room</span><b className={hc - pay < 0.05 ? 'neg' : ''}>{pc(hc - pay)}</b><small>to the {Math.round(hc * 100)}% limit</small></div>
-        <div className="sal-legend"><span><i className="sw team"></i>Team option</span><span><i className="sw player"></i>Player option</span><span><i className="sw rk"></i>Rookie deal</span></div>
+        <div className="sal-legend"><span><i className="sw team"></i>Team option</span><span><i className="sw player"></i>Player option</span><span><i className="sw rk"></i>Rookie deal</span><span><i className="sw ext"></i>Extension</span></div>
       </div>
       <div className="tbl-wrap"><table className="tbl sal-tbl" ref={el => registerTable(el, () => rows)}>
         <thead><tr><th className="l">Player</th><th>Pos</th><th>Age</th><th>OVR</th>{YRS.map(s => <th key={s}>{seasonLabel(s)}</th>)}</tr></thead>
         <tbody>
-          {ps.map((p: any) => <tr key={p.id} className={tid === lg.userTid ? '' : ''}>
+          {ps.map((p: any) => <tr key={p.id} className={focus?.includes(p.id) ? 'sal-focus' : ''}>
             <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{p.contract.rookie ? <span className="chip tiny" title="Rookie contract – a restricted free agent when it ends">R</span> : null}</td>
             <td className="dim">{posLabel(p)}</td><td>{ageIn(p, S)}</td><td>{ovrOf(p.z, p.id)}</td>
             {YRS.map(s => {
               const o = opt(p, s);
-              return <td key={s} className={on(p, s) ? `sal ${o ? 'opt-' + o : p.contract.rookie ? 'rk' : ''}` : 'dim'} title={o ? `${o === 'team' ? 'Team' : 'Player'} option` : undefined}>
-                {on(p, s) ? fmtS(p.contract.sal, s) : s === p.contract.exp + 1 ? <span className="fa-tag">{after(p)}</span> : '–'}
+              return <td key={s} className={on(p, s) ? `sal ${ext(p, s) ? 'ext' : o ? 'opt-' + o : p.contract.rookie ? 'rk' : ''}` : 'dim'} title={ext(p, s) ? 'Extension (signed)' : o ? `${o === 'team' ? 'Team' : 'Player'} option` : undefined}>
+                {on(p, s) ? fmtS(salIn(p, s), s) : s === endOf(p) + 1 ? <span className="fa-tag">{after(p)}</span> : '–'}
               </td>;
             })}
           </tr>)}

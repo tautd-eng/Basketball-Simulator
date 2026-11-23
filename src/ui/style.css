@@ -1315,3 +1315,7 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .top .next-team { padding: 4px 8px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; min-width: 0; }
 @media (max-width: 640px) { .top .next-team { padding: 4px 6px; font-size: 0.72rem; } }
 .seg.mini button { padding: 2px 7px; font-size: 0.75rem; min-width: 0; }
+.sw.ext, .sal-tbl td.ext { --c: #c27a12; }
+.sal-tbl td.ext { color: var(--c); font-weight: 600; font-style: italic; }
+.sal-tbl tr.sal-focus td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.sal-tbl tr.sal-focus td:first-child { box-shadow: inset 3px 0 0 var(--accent); }

@@ -13,6 +13,7 @@ import { ageIn } from '../players';
 import { rotationPreview } from '../league/league';
 import { extendable } from '../league/extensions';
 import { ExtensionBox } from './player';
+import { TeamSalary } from './salaries';
 import { RoleCell } from './roles';
 import { readSheet } from './xlsx';
 import { importRotations, rotationTemplate, ImportReport } from '../league/rotimport';
@@ -204,6 +205,8 @@ function Extensions({ lg, openPlayer, onChange }: any) {
         {lg.phase !== 'regular' && <p className="hint">Extensions open in the regular season and close at the trade deadline.</p>}
         {done.length > 0 && <p className="note">Already extended: {done.map((p: any, i: number) => <span key={p.id}>{i ? ', ' : ''}<button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button> ({(p.ext.sal * 100).toFixed(1)}% through {p.ext.exp})</span>)}.</p>}
       </div>
+      {/* the money picture: this season and what is already committed after it (signed extensions included) – the players up for an extension are marked */}
+      <TeamSalary lg={lg} tid={lg.userTid} openPlayer={openPlayer} openTeam={() => {}} title={<>Your payroll <span className="dim">· this season and what is committed after it</span></>} focus={ext.map((p: any) => p.id)} />
       {ext.map((p: any) => <div key={p.id} className="panel"><ExtensionBox lg={lg} p={p} onChange={ch} compact openPlayer={openPlayer} /></div>)}
       {lg.phase === 'regular' && !ext.length && <div className="panel"><p className="note">Nobody on your roster has a contract ending this season (or everyone is already extended).</p></div>}
     </div>
