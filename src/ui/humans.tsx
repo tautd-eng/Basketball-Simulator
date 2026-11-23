@@ -8,12 +8,17 @@ export function PlayingAs({ lg, onChange }: any) {
   const hs = humans(lg);
   if (hs.length < 2 || lg.online) return null; // online: everyone plays his own team on his own screen
   let narrow = false; try { narrow = window.matchMedia('(max-width: 640px)').matches; } catch { /* */ }   // phone: abbreviations, so the header still fits
+  // the next of your teams, on the same screen (wraps round)
+  const nx = hs[(hs.indexOf(lg.userTid) + 1) % hs.length];
   return (
-    <label className="playing-as" htmlFor="playing-as" title="Switch between the teams you run"><span className="pa-l">Playing as</span>
-      <select id="playing-as" aria-label="Playing as" value={lg.userTid ?? ''} onChange={e => { playAs(lg, e.target.value); onChange(); }}>
-        {hs.map(t => { const n = inbox(lg, t).length; return <option key={t} value={t}>{narrow ? lg.teams[t].abbr : lg.teams[t].name}{n ? ` (${n}${narrow ? '' : ` offer${n > 1 ? 's' : ''}`})` : ''}</option>; })}
-      </select>
-    </label>
+    <span className="playing-as-wrap">
+      <label className="playing-as" htmlFor="playing-as" title="Switch between the teams you run"><span className="pa-l">Playing as</span>
+        <select id="playing-as" aria-label="Playing as" value={lg.userTid ?? ''} onChange={e => { playAs(lg, e.target.value); onChange(); }}>
+          {hs.map(t => { const n = inbox(lg, t).length; return <option key={t} value={t}>{narrow ? lg.teams[t].abbr : lg.teams[t].name}{n ? ` (${n}${narrow ? '' : ` offer${n > 1 ? 's' : ''}`})` : ''}</option>; })}
+        </select>
+      </label>
+      <button className="next-team" title={`Switch to the ${lg.teams[nx].name} – same screen`} aria-label={`Switch to the ${lg.teams[nx].name}`} onClick={() => { playAs(lg, nx); onChange(); }}>{lg.teams[nx].abbr} ›</button>
+    </span>
   );
 }
 
