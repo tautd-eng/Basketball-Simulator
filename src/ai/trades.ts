@@ -2,7 +2,7 @@
 // (player value by strategy, draft picks by expected slot), looks at the whole
 // roster rather than single players (two decent players do not equal one star),
 // pays attention to money, and only agrees when the deal helps its own team.
-import { expireAiOffers, coolingOff } from '../league/proposals';
+import { expireAiOffers, coolingOff, declinedValue } from '../league/proposals';
 import { tradeLocked, lockLabel } from '../league/contracts';
 import { H, seasonInfo, LAST_SEASON, ovrOf, bpmOf } from '../data';
 import { Rng, hash01 } from '../rng';
@@ -759,7 +759,10 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
           }
           return f;
         };
-        const order = blocked && wants.length ? pk.map(g => ({ g, f: fit(g) + 0.3 * rng.next() })).sort((x, y) => y.f - x.f).map(x => x.g) : rng.shuffle(pk);
+        let order = blocked && wants.length ? pk.map(g => ({ g, f: fit(g) + 0.3 * rng.next() })).sort((x, y) => y.f - x.f).map(x => x.g) : rng.shuffle(pk);
+        // told no before about him: come back with the cheapest package that beats the last one (a step up, still fair)
+        const prevV = declinedValue(lg, A.tid, H.tid, tg.p.id);
+        if (prevV !== null) order = order.map(g => ({ g, v: marketValue(lg, g) })).filter(x => x.v > prevV * 1.05 + 0.1).sort((x, y) => x.v - y.v).map(x => x.g);
         for (const give of order.slice(0, blocked ? 14 : 10)) {
           if (coolingOff(lg, A.tid, H.tid, tg.p.id, give)) continue;   // told no to that offer lately: a different one, or wait
           const e = evaluateTrade(lg, A.tid, H.tid, want, give);
@@ -806,7 +809,7 @@ export function lopsided(lg: League, aGets: TradeAsset[], bGets: TradeAsset[]): 
 /** Neutral market value of one player (the same number the fairness check and the trade market use). */
 export function marketPlayerValue(lg: League, p: Player) { fresh(lg); return pv(lg, p, 'middle'); }
 /** Neutral market value of a package, bad contracts below zero. */
-function marketValue(lg: League, xs: TradeAsset[]) {
+export function marketValue(lg: League, xs: TradeAsset[]) {
   let v = 0;
   for (const x of xs) v += x.pid ? pv(lg, lg.players[x.pid], 'middle') : x.right ? rightValue(lg, x.right, 'middle', 0.45) : pickValue(lg, x.pick!, 'middle', 0.45);
   return v;

@@ -1,6 +1,6 @@
 // Hot seat: trade offers between two human-run teams wait in the other team's inbox until that team is played.
 import { League, Proposal, TradeAsset } from '../types';
-import { tradeRules, executeTrade, fillRoster, pickUsed, describeAssets, pastDeadline, lopsided } from '../ai/trades';
+import { tradeRules, executeTrade, fillRoster, pickUsed, describeAssets, pastDeadline, lopsided, marketValue } from '../ai/trades';
 import { isHuman } from './humans';
 
 const owned = (lg: League, tid: string, xs: TradeAsset[]) => xs.every(x =>
@@ -32,17 +32,23 @@ export function tradeClock(lg: League): number {
 }
 export const assetKey = (x: TradeAsset) => x.pid ? 'p:' + x.pid : x.pick ? `k:${x.pick.season}:${x.pick.round}:${x.pick.orig}` : x.right ? `r:${x.right.season}:${x.right.a}:${x.right.b}` : JSON.stringify(x);
 /**
- * Was this team told no lately when it asked for this player with (part of) this package? It may ask for him
- * again, but with a different offer: none of the players it offered then, and not the same picks again.
+ * After a no, the same team may ask for the same player again – with a better offer each time (at a fair price,
+ * which the usual checks still hold it to). The value of the best offer turned down lately, or null.
  */
-export function coolingOff(lg: League, from: string, to: string, pid: string, give: TradeAsset[]): boolean {
+export function declinedValue(lg: League, from: string, to: string, pid: string): number | null {
   const now = tradeClock(lg);
   const c = ((lg as any).tradeCool ?? []).filter((x: any) => x.until > now);
   (lg as any).tradeCool = c;
+  const hit = c.filter((x: any) => x.from === from && x.to === to && x.pids.includes(pid));
+  return hit.length ? Math.max(...hit.map((x: any) => x.val ?? 0)) : null;
+}
+/** Not the very same package again, and not one worth no more than what was turned down. */
+export function coolingOff(lg: League, from: string, to: string, pid: string, give: TradeAsset[]): boolean {
+  const prev = declinedValue(lg, from, to, pid);
+  if (prev === null) return false;
   const g = give.map(assetKey);
-  return c.some((x: any) => x.from === from && x.to === to && x.pids.includes(pid) && (
-    g.some(k => k.startsWith('p:') && (x.gives ?? []).includes(k)) ||                                     // one of the same players again
-    (g.length === (x.gives ?? []).length && g.every(k => (x.gives ?? []).includes(k)))));                    // the very same package
+  if (((lg as any).tradeCool ?? []).some((x: any) => x.from === from && x.to === to && x.pids.includes(pid) && g.length === (x.gives ?? []).length && g.every((k: string) => x.gives.includes(k)))) return true;
+  return marketValue(lg, give) <= prev * 1.05 + 0.1;
 }
 
 export function answer(lg: League, id: number, accept: boolean) {
@@ -53,7 +59,7 @@ export function answer(lg: League, id: number, accept: boolean) {
     // a computer team that was told no does not call about the same players again for about three weeks
     if (pr.ai && pr.draftAt === undefined) {
       const pids = pr.toGives.map(x => x.pid).filter(Boolean) as string[];
-      if (pids.length) ((lg as any).tradeCool ??= []).push({ from: pr.from, to: pr.to, pids, gives: pr.fromGives.map(assetKey), until: tradeClock(lg) + COOL_DAYS });
+      if (pids.length) ((lg as any).tradeCool ??= []).push({ from: pr.from, to: pr.to, pids, gives: pr.fromGives.map(assetKey), val: marketValue(lg, pr.fromGives), until: tradeClock(lg) + COOL_DAYS });
     }
     lg.news.push({ s: lg.season, t: `The ${lg.teams[pr.to].name} turned down a trade offer from the ${lg.teams[pr.from].name}.` });
     return { ok: true, msg: 'Offer declined.' };
