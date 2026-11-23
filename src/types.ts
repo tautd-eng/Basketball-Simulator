@@ -193,6 +193,7 @@ export interface FreeAgency {
   /** offer sheets to the user's restricted free agents, waiting for match / no match */
   sheets?: { pid: string; tid: string; sal: number; exp: number; st?: number }[];
   sumSeen?: boolean;                // the summary of the contract decisions was shown
+  waveSeen?: Record<string, number>; // per team: the last wave whose results screen it has seen
   flushed?: number;                 // log entries already copied into the players' histories
 }
 /** A player who retired this summer: team, age, rating and why; `back` = he would come back if asked. */

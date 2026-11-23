@@ -32,10 +32,17 @@ export function stepOnce(lg: League): boolean {
   if (lg.phase === 'offseason') { enterFreeAgency(lg); return !lg.ended; } // saves from older versions
   if (lg.phase === 'freeagency') {
     if (lg.fa && lg.fa.stage === 1 && !lg.fa.sumSeen) lg.fa.sumSeen = true; // past the decisions summary
+    else if (lg.fa && waveUnseen(lg)) (lg.fa.waveSeen ??= {})[lg.userTid ?? '-'] = lg.fa.stage - 1; // past the results of the last wave
     else if (lg.fa && lg.fa.stage <= 3) faStage(lg); else startSeason(lg);
     return true;
   }
   return false;
+}
+
+/** The last wave's results screen not yet seen by the team being played (stage 2–4). */
+export function waveUnseen(lg: League): boolean {
+  const fa = lg.fa;
+  return !!fa && fa.stage >= 2 && fa.stage <= 4 && (fa.waveSeen?.[lg.userTid ?? '-'] ?? 0) < fa.stage - 1;
 }
 
 export async function advance(lg: League, target: Target, onProgress: () => void, shouldStop: () => boolean) {

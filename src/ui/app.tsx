@@ -90,7 +90,7 @@ function FatigueBar({ f }: any) {
   return <span className={`fbar ${cls}`} title={`${fatigueLabel(f)} (${Math.round(f)})`}><span style={{ width: `${Math.max(4, pctv)}%` }}></span></span>;
 }
 import { CLASS_MODES, FUTURE_MODES } from '../league/classes';
-import { advance, saveLeague, loadLeague, Target, listSaves, setSlot, newSlotId, deleteSave, renameSave, currentSlot } from '../api';
+import { waveUnseen, advance, saveLeague, loadLeague, Target, listSaves, setSlot, newSlotId, deleteSave, renameSave, currentSlot } from '../api';
 import { ageIn } from '../players';
 import { payroll, peakBpm, hardCap } from '../ai/value';
 import cal from '../engine/eracal.json';
@@ -552,7 +552,7 @@ function Controls({ lg, busy, run, stop, saved }: any) {
       {lg.phase === 'draft' && offStep(lg) === 'draft' && (lg.draftDay?.year !== lg.season ? b('day', 'Start draft day', true)
         : !lg.draftDay.done ? b('day', 'Finish the draft') : b('day', 'To free agency', true))}
       {lg.phase === 'offseason' && b('day', 'To free agency', true)}
-      {lg.phase === 'freeagency' && (lg.fa && lg.fa.stage === 0 ? b('day', 'Confirm decisions', true) : lg.fa && lg.fa.stage === 1 && !lg.fa.sumSeen ? b('day', 'Open the market', true) : lg.fa && lg.fa.stage <= 3 ? b('day', `Finish FA wave ${lg.fa.stage}`, true) : b('day', 'To the season preview', true))}
+      {lg.phase === 'freeagency' && (lg.fa && lg.fa.stage === 0 ? b('day', 'Confirm decisions', true) : lg.fa && lg.fa.stage === 1 && !lg.fa.sumSeen ? b('day', 'Open the market', true) : waveUnseen(lg) ? b('day', lg.fa!.stage <= 3 ? `Continue to FA wave ${lg.fa!.stage}` : 'Continue', true) : lg.fa && lg.fa.stage <= 3 ? b('day', `Finish FA wave ${lg.fa.stage}`, true) : b('day', 'To the season preview', true))}
       {b('nextSeason', 'Full year')}
       {b('years5', '5 years')}
       {more()}

@@ -10,6 +10,7 @@ import { htStr, htCol, htDiff } from './units';
 import { Linkify, PL, TL, nav } from './nav';
 import { MyBoard, BoardToggle, boardOf } from './myboard';
 import { run } from '../league/commands';
+import { waveUnseen } from '../api';
 import { RoleCell, roleSortKey, projectedZ } from './roles';
 import { money, usd, showDollars, dollarsOf } from './money';
 import { useMemo, useState } from 'react';
@@ -302,6 +303,10 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
   }, [fa?.stage, fa?.log.length, lg.trades?.length]);
   if (!fa) return null;
   if (fa.stage === 1 && !fa.sumSeen) return <OptionsSummary lg={lg} openPlayer={openPlayer} onOpen={() => { fa.sumSeen = true; onChange(); try { window.scrollTo({ top: 0 }); } catch { /* */ } }} />;
+  // after each wave: its results on a screen of their own, then on to the next wave
+  { const me = lg.userTid ?? '-', w = fa.stage - 1;
+    if (waveUnseen(lg))
+      return <WaveSummary lg={lg} w={w} openPlayer={openPlayer} onNext={() => { (fa.waveSeen ??= {})[me] = w; onChange(); try { window.scrollTo({ top: 0 }); } catch { /* */ } }} />; }
   const act = (fn: () => any) => { const r = fn(); if (r?.msg) setMsg(r.msg); onChange(); };
   const N = lg.season;
   const u = lg.userTid ? lg.teams[lg.userTid] : null;
@@ -485,6 +490,90 @@ export function FAHub({ lg, onChange, openPlayer, openTeam, goFA }: any) {
 }
 
 /** After the contract decisions: what happened, and who is on the market. */
+/** One wave of free agency done: how your offers came out, what is still open, every move around the league. */
+function WaveSummary({ lg, w, openPlayer, onNext }: any) {
+  const fa = lg.fa, N = lg.season, u = lg.userTid;
+  const [all, setAll] = useState(false);
+  const nm = (p: any) => <button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>;
+  const info = (p: any) => <span className="dim">{posLabel(p)} · OVR {ovrOf(p.z, p.id)} · age {ageIn(p, N)}</span>;
+  const deal = (sal: number, exp?: number) => `${moneyOf(sal, N)}${exp ? ` through ${exp}` : ''}`;
+  // your offers: the answers from this wave, and those still open
+  const ans = ((lg as any).offerResults ?? []).filter((x: any) => x.tid === u && x.s === N && x.st === w && lg.players[x.pid]);
+  const open = u ? myOffers(lg, u).filter((o: any) => lg.players[o.pid] && isFreeAgent(lg, lg.players[o.pid])) : [];
+  const ICON: any = { signed: '✔', sheet: '…', matched: '✖', elsewhere: '✖', declined: '✖', waiting: '…' };
+  const ansLine = (x: any, i: number) => {
+    const p = lg.players[x.pid], d = `${moneyOf(x.sal, N)} × ${x.yrs} yr${x.yrs > 1 ? 's' : ''}`;
+    const t = x.res === 'signed' ? <>{nm(p)} signed – {d}</>
+      : x.res === 'sheet' ? <>{nm(p)} signed your offer sheet ({d}) – the <TL tid={p.rfa} /> can still match</>
+      : x.res === 'matched' ? <>{nm(p)}: the <TL tid={x.to} /> matched your offer sheet</>
+      : x.res === 'elsewhere' ? <>{nm(p)} chose the <TL tid={x.to} /> over your {d}</>
+      : x.res === 'waiting' ? <>{nm(p)} has not decided – your {d} stays open{(() => { try { return isFreeAgent(lg, p) && x.sal + 1e-9 < faDemand(lg, p, x.tid, x.yrs) ? ' (under what he asks now)' : ''; } catch { return ''; } })()}</>
+      : <>{nm(p)} turned down your {d}{x.under ? ' – under his asking price' : ''}</>;
+    return <li key={i} className={`ans-${x.res}`}><span className="ans-ic" aria-hidden>{ICON[x.res]}</span> <span>{t}</span></li>;
+  };
+  // the wave's moves
+  const moves = fa.log.filter((x: any) => x.st === w);
+  const signs = moves.filter((x: any) => x.pid && lg.players[x.pid] && ['sign', 'resign', 'match', 'sheet'].includes(x.kind) && !(x.kind === 'sheet' && /awaiting/.test(x.desc ?? '')))
+    .sort((a: any, b: any) => ovrOf(lg.players[b.pid].z, b.pid) - ovrOf(lg.players[a.pid].z, a.pid));
+  const trades = moves.filter((x: any) => x.kind === 'trade');
+  const cuts = moves.filter((x: any) => x.kind === 'release' && x.pid && lg.players[x.pid]);
+  const mine = moves.filter((x: any) => x.tid === u && x.pid && lg.players[x.pid]);
+  const K: any = { sign: 'signed', resign: 're-signed', match: 'matched the offer sheet', sheet: 'offer sheet', release: 'released', leave: 'left', option: 'option', qo: 'qualifying offer' };
+  const moveLine = (x: any, i: number) => { const p = lg.players[x.pid];
+    return <li key={i} className={x.tid === u ? 'mine' : ''}><span className="yr">{x.tid && lg.teams[x.tid] ? <TL tid={x.tid} abbr /> : ''}</span><span>{nm(p)} {info(p)} · {K[x.kind] ?? x.kind}{x.sal ? ` · ${deal(x.sal, x.exp)}` : ''}{x.from && x.from !== x.tid && lg.teams[x.from] ? <span className="dim"> · from {lg.teams[x.from].abbr}</span> : null}</span></li>; };
+  const left = Object.values(lg.players).filter((p: any) => isFreeAgent(lg, p)).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id)).slice(0, 12);
+  const next = w < 3 ? `Continue to wave ${w + 1} →` : 'Continue →';
+  return (
+    <div className="col">
+      <div className="panel accent step-head">
+        <div className="team-head">
+          <h2>Wave {w} is done · free agency {N - 1}–{String(N).slice(2)}</h2>
+          <button className="primary" onClick={onNext}>{next}</button>
+        </div>
+        <p className="note">{signs.length} signing{signs.length === 1 ? '' : 's'}{trades.length ? `, ${trades.length} trade${trades.length > 1 ? 's' : ''}` : ''}{cuts.length ? `, ${cuts.length} release${cuts.length > 1 ? 's' : ''}` : ''} around the league this wave.{w < 3 ? ` Wave ${w + 1} is next: new offers, and the open ones are answered at its end.` : ' The market is closed now – the rest sign late, at the minimum.'}</p>
+      </div>
+      <div className="grid-2">
+        <section className="col">
+          {u && <div className="panel">
+            <h2>Answers to your offers</h2>
+            {ans.length ? <ul className="news ans-list">{ans.map(ansLine)}</ul> : <p className="note">You had no offers out in this wave.</p>}
+          </div>}
+          {u && <div className="panel">
+            <h2>Your open offers <span className="dim">({open.length})</span></h2>
+            {open.length ? <ul className="news">{open.map((o: any) => { const p = lg.players[o.pid]; let ask = 0; try { ask = faDemand(lg, p, u, o.yrs); } catch { /* */ }
+              return <li key={o.pid}><span className="yr">{ovrOf(p.z, p.id)}</span><span>{nm(p)} {info(p)} · your offer {moneyOf(o.sal, N)} × {o.yrs} yr{o.yrs > 1 ? 's' : ''}{ask ? <span className={o.sal + 1e-9 < ask ? 'neg' : 'dim'}> · he asks {moneyOf(ask, N)}</span> : null}</span></li>; })}</ul>
+              : <p className="note">{w < 3 ? 'None – make offers in the next wave.' : 'None.'}</p>}
+          </div>}
+          {u && mine.length > 0 && <div className="panel">
+            <h2>Your moves</h2>
+            <ul className="news">{mine.map(moveLine)}</ul>
+          </div>}
+          <div className="panel">
+            <h2>Best still on the market</h2>
+            {left.length ? <ul className="news">{left.map((p: any) => <li key={p.id}><span className="yr">{ovrOf(p.z, p.id)}</span><span>{nm(p)} <span className="dim">{posLabel(p)} · age {ageIn(p, N)} · asks {moneyOf(u ? faDemand(lg, p, u, preferredYears(p, N)) : askingSalary(p, N), N)}</span>{p.rfa ? <span className="chip tiny rfa">RFA</span> : null}</span></li>)}</ul> : <p className="note">Nobody left.</p>}
+          </div>
+        </section>
+        <section className="col">
+          <div className="panel">
+            <h2>Signings this wave <span className="dim">({signs.length})</span></h2>
+            {signs.length ? <ul className="news">{(all ? signs : signs.slice(0, 25)).map(moveLine)}</ul> : <p className="note">None.</p>}
+            {signs.length > 25 && <button className="ghost small" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${signs.length}`}</button>}
+          </div>
+          {trades.length > 0 && <div className="panel">
+            <h2>Trades this wave</h2>
+            <ul className="news">{trades.map((x: any, i: number) => <li key={i}><span className="yr">⇄</span><span><Linkify text={x.desc} /></span></li>)}</ul>
+          </div>}
+          {cuts.length > 0 && <div className="panel">
+            <h2>Released</h2>
+            <ul className="news">{cuts.slice(0, 15).map(moveLine)}</ul>
+          </div>}
+        </section>
+      </div>
+      <div className="def-row"><button className="primary" onClick={onNext}>{next}</button></div>
+    </div>
+  );
+}
+
 function OptionsSummary({ lg, openPlayer, onOpen }: any) {
   const fa = lg.fa, N = lg.season;
   const log = fa.log.filter((x: any) => x.st === 0 && x.pid && lg.players[x.pid]);
@@ -825,7 +914,7 @@ function OfferAnswers({ lg, openPlayer }: any) {
       : x.res === 'sheet' ? <>{name} signed your offer sheet ({deal}) – the <TL tid={p.rfa} /> can still match</>
       : x.res === 'matched' ? <>{name}: the <TL tid={x.to} /> matched your offer sheet ({deal})</>
       : x.res === 'elsewhere' ? <>{name} chose the <TL tid={x.to} /> over your {deal}</>
-      : x.res === 'waiting' ? <>{name} has not decided – your {deal} stays open{x.under ? ' (under his asking price)' : ''}</>
+      : x.res === 'waiting' ? <>{name} has not decided – your {deal} stays open{(() => { try { return isFreeAgent(lg, p) && x.sal + 1e-9 < faDemand(lg, p, x.tid, x.yrs) ? ' (under what he asks now)' : ''; } catch { return ''; } })()}</>
       : <>{name} turned down your {deal}{x.under ? ' – under his asking price' : ''}</>;
     return <li key={x.pid + x.res} className={`ans-${x.res}`}><span className="ans-ic" aria-hidden>{ICON[x.res]}</span> <span>{text}</span></li>;
   };
