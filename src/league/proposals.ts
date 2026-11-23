@@ -30,12 +30,19 @@ export function tradeClock(lg: League): number {
   const d = ph === 'regular' ? lg.day : ph === 'playoffs' ? 250 : 300 + (ph === 'freeagency' ? 10 + (lg.fa?.stage ?? 0) * 7 : ph === 'draft' ? 5 : 0);
   return lg.season * 1000 + d;
 }
-/** Has this team been told no about this player lately? (old entries are dropped on the way) */
-export function coolingOff(lg: League, from: string, to: string, pid: string): boolean {
+export const assetKey = (x: TradeAsset) => x.pid ? 'p:' + x.pid : x.pick ? `k:${x.pick.season}:${x.pick.round}:${x.pick.orig}` : x.right ? `r:${x.right.season}:${x.right.a}:${x.right.b}` : JSON.stringify(x);
+/**
+ * Was this team told no lately when it asked for this player with (part of) this package? It may ask for him
+ * again, but with a different offer: none of the players it offered then, and not the same picks again.
+ */
+export function coolingOff(lg: League, from: string, to: string, pid: string, give: TradeAsset[]): boolean {
   const now = tradeClock(lg);
   const c = ((lg as any).tradeCool ?? []).filter((x: any) => x.until > now);
   (lg as any).tradeCool = c;
-  return c.some((x: any) => x.from === from && x.to === to && x.pids.includes(pid));
+  const g = give.map(assetKey);
+  return c.some((x: any) => x.from === from && x.to === to && x.pids.includes(pid) && (
+    g.some(k => k.startsWith('p:') && (x.gives ?? []).includes(k)) ||                                     // one of the same players again
+    (g.length === (x.gives ?? []).length && g.every(k => (x.gives ?? []).includes(k)))));                    // the very same package
 }
 
 export function answer(lg: League, id: number, accept: boolean) {
@@ -46,7 +53,7 @@ export function answer(lg: League, id: number, accept: boolean) {
     // a computer team that was told no does not call about the same players again for about three weeks
     if (pr.ai && pr.draftAt === undefined) {
       const pids = pr.toGives.map(x => x.pid).filter(Boolean) as string[];
-      if (pids.length) ((lg as any).tradeCool ??= []).push({ from: pr.from, to: pr.to, pids, until: tradeClock(lg) + COOL_DAYS });
+      if (pids.length) ((lg as any).tradeCool ??= []).push({ from: pr.from, to: pr.to, pids, gives: pr.fromGives.map(assetKey), until: tradeClock(lg) + COOL_DAYS });
     }
     lg.news.push({ s: lg.season, t: `The ${lg.teams[pr.to].name} turned down a trade offer from the ${lg.teams[pr.from].name}.` });
     return { ok: true, msg: 'Offer declined.' };

@@ -730,7 +730,6 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
         ...(lg.picks ?? []).filter(p => p.owner === A.tid && !pickUsed(lg, p) && !pickTied(lg, p)).map(p => ({ x: { pick: { season: p.season, round: p.round, orig: p.orig } } as TradeAsset })),
       ].map(o => ({ ...o, v: neutralValue(lg, [o.x]) })).filter(o => o.v > 0.05);
       for (const tg of theirs) {
-        if (coolingOff(lg, A.tid, H.tid, tg.p.id)) continue;   // told no about him lately: wait
         if (made) break;
         const want: TradeAsset[] = [{ pid: tg.p.id }];
         // packages of one or two of A's assets worth about as much on the market
@@ -762,6 +761,7 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
         };
         const order = blocked && wants.length ? pk.map(g => ({ g, f: fit(g) + 0.3 * rng.next() })).sort((x, y) => y.f - x.f).map(x => x.g) : rng.shuffle(pk);
         for (const give of order.slice(0, blocked ? 14 : 10)) {
+          if (coolingOff(lg, A.tid, H.tid, tg.p.id, give)) continue;   // told no to that offer lately: a different one, or wait
           const e = evaluateTrade(lg, A.tid, H.tid, want, give);
           if (!e.ok || e.gainA < threshold(lg, A.tid) * (blocked ? 0.5 : 1) || !looksFair(lg, want, give)) continue;
           const id = (lg.proposals ?? []).reduce((a2, x) => Math.max(a2, x.id), 0) + 1;
