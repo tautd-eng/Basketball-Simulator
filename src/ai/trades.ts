@@ -2,7 +2,7 @@
 // (player value by strategy, draft picks by expected slot), looks at the whole
 // roster rather than single players (two decent players do not equal one star),
 // pays attention to money, and only agrees when the deal helps its own team.
-import { expireAiOffers } from '../league/proposals';
+import { expireAiOffers, coolingOff } from '../league/proposals';
 import { tradeLocked, lockLabel } from '../league/contracts';
 import { H, seasonInfo, LAST_SEASON, ovrOf, bpmOf } from '../data';
 import { Rng, hash01 } from '../rng';
@@ -730,6 +730,7 @@ export function aiTradeRound(lg: League, rng: Rng, intensity = 1): TradeRec[] {
         ...(lg.picks ?? []).filter(p => p.owner === A.tid && !pickUsed(lg, p) && !pickTied(lg, p)).map(p => ({ x: { pick: { season: p.season, round: p.round, orig: p.orig } } as TradeAsset })),
       ].map(o => ({ ...o, v: neutralValue(lg, [o.x]) })).filter(o => o.v > 0.05);
       for (const tg of theirs) {
+        if (coolingOff(lg, A.tid, H.tid, tg.p.id)) continue;   // told no about him lately: wait
         if (made) break;
         const want: TradeAsset[] = [{ pid: tg.p.id }];
         // packages of one or two of A's assets worth about as much on the market

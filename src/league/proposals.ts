@@ -23,11 +23,31 @@ export function propose(lg: League, from: string, to: string, fromGives: TradeAs
   return { ok: true, msg: `Offer sent to the ${lg.teams[to].name}. They answer when their team is played.` };
 }
 
+export const COOL_DAYS = 21;
+/** A running day count for trade talk: the regular season by days, the playoffs and the offseason after it (each free-agency wave about a week). */
+export function tradeClock(lg: League): number {
+  const ph = lg.phase as string;
+  const d = ph === 'regular' ? lg.day : ph === 'playoffs' ? 250 : 300 + (ph === 'freeagency' ? 10 + (lg.fa?.stage ?? 0) * 7 : ph === 'draft' ? 5 : 0);
+  return lg.season * 1000 + d;
+}
+/** Has this team been told no about this player lately? (old entries are dropped on the way) */
+export function coolingOff(lg: League, from: string, to: string, pid: string): boolean {
+  const now = tradeClock(lg);
+  const c = ((lg as any).tradeCool ?? []).filter((x: any) => x.until > now);
+  (lg as any).tradeCool = c;
+  return c.some((x: any) => x.from === from && x.to === to && x.pids.includes(pid));
+}
+
 export function answer(lg: League, id: number, accept: boolean) {
   const pr = (lg.proposals ?? []).find(x => x.id === id);
   if (!pr) return { ok: false, msg: 'The offer is gone.' };
   lg.proposals = lg.proposals!.filter(x => x !== pr);
   if (!accept) {
+    // a computer team that was told no does not call about the same players again for about three weeks
+    if (pr.ai && pr.draftAt === undefined) {
+      const pids = pr.toGives.map(x => x.pid).filter(Boolean) as string[];
+      if (pids.length) ((lg as any).tradeCool ??= []).push({ from: pr.from, to: pr.to, pids, until: tradeClock(lg) + COOL_DAYS });
+    }
     lg.news.push({ s: lg.season, t: `The ${lg.teams[pr.to].name} turned down a trade offer from the ${lg.teams[pr.from].name}.` });
     return { ok: true, msg: 'Offer declined.' };
   }
