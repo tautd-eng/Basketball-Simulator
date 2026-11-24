@@ -67,6 +67,8 @@ export function ensureDev(p: Player, rng: Rng) {
 }
 
 const TENDENCY = new Set<number>([K.usg, K.tpr]);
+/** Usage (z) the real league reaches only in its most extreme seasons (99.9th percentile): above it, development pulls back. */
+export const USG_CAP = 2.5;
 let OVR_DIR: number[] = [];
 /** unit change in BPM along the skills the overall rating rewards (tendencies excluded) */
 export function initDev() {
@@ -195,6 +197,10 @@ export function performanceShift(lg: League, Y: number) {
   const ROLE = new Set<number>([K.usg, K.ast, K.tpr, K.drw, K.orb, K.drb]);
   // 1) skill by skill
   for (const o of OBS) {
+    // tendencies (how many shots he takes, how many of them threes) are handed out by the game engine itself:
+    // reading them back as a skill would feed on itself – the engine gives a star a little more of the ball than
+    // his rating says, the rating goes up, he gets more again ... (a usage that only ever climbs)
+    if (TENDENCY.has(o.k)) continue;
     const xs: number[] = [], ys: number[] = [], ws: number[] = [], who: { p: Player; n: number }[] = [];
     for (const { p, l } of lines) {
       const n = o.den(l);
@@ -446,6 +452,9 @@ export function develop(lg: League, rng: Rng) {
         }
       }
     }
+    // a usage beyond the real league's extremes (top 0.1 % of seasons) comes back halfway each summer – it can
+    // only have come from an engine loop, and it is what turns a star into a 40-point scorer
+    if (p.z[K.usg] > USG_CAP) p.z[K.usg] -= 0.5 * (p.z[K.usg] - USG_CAP);
     // young players who did not flop lose at most a little in one summer
     const maxDrop = age <= 25 ? atAge(AGE.young, age) : Infinity;
     // grown players don't swing wildly: one summer moves a single skill by at most maxSkillStep (≈7 rating points)
