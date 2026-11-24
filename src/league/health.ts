@@ -18,7 +18,7 @@ import { zClamp } from '../ai/value';
 import { roleOf } from '../archetypes';
 import { posNum } from '../engine/game';
 
-export const DEV = { idio: 0.4, noise: 0.32, ar: 0.55, maxOvrStep: 8, soft: 2.7, maxSkillStep: 0.5, primeDrop: 2.5, maxUp: 6, rookieUp: 5 };
+export const DEV = { idio: 0.4, noise: 0.21, ar: 0.55, maxOvrStep: 8, soft: 2.7, maxSkillStep: 0.5, primeDrop: 2.5, maxUp: 6, rookieUp: 5 };
 /**
  * Leniency for young players: up to maxAge, a season slightly below expectations
  * (performance signal above -deadZone OVR) does not hurt, a flop (below `flop`)
