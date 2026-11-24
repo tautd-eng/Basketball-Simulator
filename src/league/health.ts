@@ -286,6 +286,10 @@ export const minutesTrust = (mpg: number, up: boolean) => up
  *  benchCap-th best regular of his position at most, and his season counts benchW as much; k scales the step. */
 /** Memory of what performance has already moved a player (OVR): same-way signals count less the further he went
  *  (nothing left at `span`, at least `floor`); it fades by `fade` a year, so a later breakout counts in full again. */
+/** Breakout summers: chance by age (index = age − 19), the leap in OVR (min–max), and what makes one likelier:
+ *  hidden potential (per sd, exponent), a season above his rating, a jump the summer before. */
+export const BREAK = { p: [0, 0, 0, 0, 0.075, 0.04, 0.07, 0.06, 0.04, 0.008, 0.008, 0], min: 2.5, max: 4.5, pot: 0.35, elite: 86, played: 1.4, momentum: 1.5,
+  skills: ['tp', 'ins', 'ast', 'def', 'ft', 'drb', 'tov'] };
 export const PCUM = { span: 8, floor: 0.15, fade: 0.8 };
 export const ROT = { min: 1200, bench: 300, benchCap: 15, benchW: 0.6, k: 0.85 };
 export const MPG = { upFrom: 15, upMin: 0.35, upFull: 30, downFrom: 10, downMin: 0.25, downFull: 26 };
@@ -409,6 +413,39 @@ export function develop(lg: League, rng: Rng) {
     const s3 = sh();
     why.trend = s2 - s1; why.luck = s3 - s2;
     dev.e = eNew;
+    // 3) a breakout summer: now and then a player in his early-to-mid twenties makes a real leap – he adds a skill
+    // (a reliable three, playmaking, defence ...) and the rest of his game comes along. As often as in the real league
+    // (by age), likelier with hidden potential, after a season he outplayed his rating, and right after a jump
+    {
+      const bp = atAge(BREAK.p, age);
+      if (bp > 0 && (p.injury ?? 0) < 30) {
+        let mult = Math.exp(BREAK.pot * (dev.pot ?? 0));
+        if (pf && pf.ovrGain > 0) mult *= BREAK.played;
+        const pw = p.devWhy;
+        if (pw && pw.s === Y && (pw.total ?? 0) >= 3) mult *= BREAK.momentum;
+        // the very best have less room to leap (and the league no more superstars than it should)
+        const elite = s0 >= BREAK.elite;
+        if (elite) mult *= 0.5;
+        if (rng.next() < bp * mult) {
+          const sb = sh();
+          const G = elite ? BREAK.min + rng.next() * 0.8 : BREAK.min + rng.next() * (BREAK.max - BREAK.min);
+          // the skill he adds: one of the trainable ones, likelier where he has room to grow
+          const cand = BREAK.skills.map(k => K[k as keyof typeof K] as number);
+          const wts = cand.map(k => Math.max(0.15, 1.6 - (H.ovr[H.keys[k]] < 0 ? -p.z[k] : p.z[k])));
+          let r = rng.next() * wts.reduce((a, b) => a + b, 0), fi = 0;
+          while (fi < cand.length - 1 && (r -= wts[fi]) > 0) fi++;
+          const fk = cand[fi], sgn = H.ovr[H.keys[fk]] < 0 ? -1 : 1;
+          p.z[fk] += sgn * (0.25 + 0.2 * rng.next());
+          const base = p.z.slice(), o0 = sb;
+          if (shownOvr(p.z, p.id) - o0 < G) {
+            let lo = 0, hi = 4;
+            for (let it = 0; it < 14; it++) { const t = (lo + hi) / 2; if (shownOvr(base.map((v, i) => v + t * OVR_DIR[i]), p.id) - o0 < G) lo = t; else hi = t; }
+            for (let i = 0; i < NK; i++) p.z[i] = base[i] + hi * OVR_DIR[i];
+          }
+          why.breakout = sh() - sb; why.focus = H.keys[fk];
+        }
+      }
+    }
     // young players who did not flop lose at most a little in one summer
     const maxDrop = age <= 25 ? atAge(AGE.young, age) : Infinity;
     // grown players don't swing wildly: one summer moves a single skill by at most maxSkillStep (≈7 rating points)
@@ -443,7 +480,7 @@ export function develop(lg: League, rng: Rng) {
       }
     }
     const s4 = sh();
-    why.cap = s4 - s3;
+    why.cap = s4 - s3 - (why.breakout ?? 0);
     // destiny: pull toward the real career
     const tgt = realTarget(p.id, Y + 1 - (p.shift ?? 0));
     if (tgt) for (let i = 0; i < NK; i++) p.z[i] += d * (tgt.z[i] - p.z[i]);
@@ -540,7 +577,7 @@ export function youngFloor(lg: League, S = lg.season) {
 
 /** League calibration: how hard it pulls toward the real league (share per summer), and how many more 80+ players
  *  than the real league of that season it tolerates before pulling the top down. */
-export const CAL = { str: 0.4, room: 25, top: 1.5 };
+export const CAL = { str: 0.4, room: 25, top: 1.3 };
 export function normalizeLeague(lg: League, S = lg.season, maxStep = Infinity) {
   const real = realProfile(S);
   const before = simProfile(lg);
