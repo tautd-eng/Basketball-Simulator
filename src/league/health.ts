@@ -232,22 +232,47 @@ export function performanceShift(lg: League, Y: number) {
   const roleOfP = lines.map(x => roleOf(x.p.z, x.p.pos).arch.id);
   ores0.forEach((r, i) => { const m = roleMean.get(roleOfP[i]) ?? [0, 0]; m[0] += ws[i] * r; m[1] += ws[i]; roleMean.set(roleOfP[i], m); });
   const ores = ores0.map((r, i) => { const m = roleMean.get(roleOfP[i])!; return m[1] > 3000 ? r - m[0] / m[1] : r; });
-  if (f) lines.forEach(({ p, l }, i) => {
-    const sl = Math.max(0.3, f.slope(xs[i]));
-    const bpmShift = Math.max(-4, Math.min(4, ores[i] / sl));
-    const w = l.min / (l.min + 900);
-    const d = out.get(p.id)!.dz;
-    for (let k = 0; k < NK; k++) d[k] += PERF.overall * bpmShift * w * OVR_DIR[k];
-  });
+  // the skill-by-skill signal (1) counts by minutes per game, as before
   for (const { p, l } of lines) {
     const d = out.get(p.id)!;
     d.dz[K.def] += 0.3 * (d.dz[K.stl] + d.dz[K.blk] + d.dz[K.drb]) / 3;
-    d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z);
-    // small minutes say little: a good stretch in garbage time or as the tenth man is no proof he got better, and a
-    // reserve on a deep team is not punished for his role – the signal counts in full only in a real rotation role
-    const f = minutesTrust(l.min / Math.max(1, l.gp), d.ovrGain > 0);
-    if (f < 1) { for (let k = 0; k < NK; k++) d.dz[k] *= f; d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z); }
+    const g0 = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z);
+    const tr = minutesTrust(l.min / Math.max(1, l.gp), g0 > 0);
+    if (tr < 1) for (let k = 0; k < NK; k++) d.dz[k] *= tr;
   }
+  // 2) overall: where his season ranks among the players of his position against where his rating ranks them.
+  // What he showed is his rating plus what his box score beat (or missed) players of his exact profile by; ranking
+  // it inside his position takes out whatever the engine does to a whole position or to the very top (a superstar
+  // who plays like the best SF stays the best SF – no yearly bonus for being a star). The rank he played to is
+  // turned back into a rating: the rating the player at that rank has. Regulars (ROT.min+ minutes) are ranked among
+  // regulars; reserves (ROT.bench+) among reserves of their position – the best of them can play himself up to
+  // about the level of the ROT.benchCap-th best regular there, and a reserve's season counts less.
+  if (f) {
+    const obs = lines.map((x, i) => xs[i] + Math.max(-4, Math.min(4, ores[i] / Math.max(0.3, f.slope(xs[i])))));
+    const posOf = (p: Player) => Math.min(5, Math.max(1, Math.round(posNum(p.pos))));
+    const idx = lines.map((_, i) => i);
+    for (let g = 1; g <= 5; g++) {
+      const rot = idx.filter(i => posOf(lines[i].p) === g && lines[i].l.min >= ROT.min);
+      const bench = idx.filter(i => posOf(lines[i].p) === g && lines[i].l.min >= ROT.bench && lines[i].l.min < ROT.min);
+      const rotR = rot.map(i => xs[i]).sort((a, b) => b - a);
+      const cap = rotR.length ? rotR[Math.min(ROT.benchCap - 1, rotR.length - 1)] : Infinity;
+      for (const [pool, isBench] of [[rot, false], [bench, true]] as [number[], boolean][]) {
+        if (pool.length < 4) continue;
+        const ratings = pool.map(i => xs[i]).sort((a, b) => b - a);
+        const byObs = pool.slice().sort((a, b) => obs[b] - obs[a]);
+        byObs.forEach((i, r) => {
+          let deserved = ratings[r];
+          if (isBench && deserved > xs[i]) deserved = Math.max(xs[i], Math.min(deserved, cap));
+          const gap = Math.max(-4, Math.min(4, deserved - xs[i]));
+          const m = lines[i].l.min;
+          const w = (isBench ? ROT.benchW : 1) * m / (m + 900);
+          const d = out.get(lines[i].p.id)!.dz;
+          for (let k = 0; k < NK; k++) d[k] += PERF.overall * ROT.k * gap * w * OVR_DIR[k];
+        });
+      }
+    }
+  }
+  for (const { p } of lines) { const d = out.get(p.id)!; d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z); }
   return out;
 }
 /** How much a season's signal counts by minutes per game: a step up only from ~15 mpg (in full from ~30),
@@ -255,6 +280,12 @@ export function performanceShift(lg: League, Y: number) {
 export const minutesTrust = (mpg: number, up: boolean) => up
   ? (mpg < MPG.upFrom ? 0 : MPG.upMin + (1 - MPG.upMin) * Math.min(1, (mpg - MPG.upFrom) / (MPG.upFull - MPG.upFrom)))
   : MPG.downMin + (1 - MPG.downMin) * Math.min(1, Math.max(0, (mpg - MPG.downFrom) / (MPG.downFull - MPG.downFrom)));
+/** The positional ranking: regulars from `min` minutes, reserves from `bench`; a reserve can play himself up to the
+ *  benchCap-th best regular of his position at most, and his season counts benchW as much; k scales the step. */
+/** Memory of what performance has already moved a player (OVR): same-way signals count less the further he went
+ *  (nothing left at `span`, at least `floor`); it fades by `fade` a year, so a later breakout counts in full again. */
+export const PCUM = { span: 8, floor: 0.15, fade: 0.8 };
+export const ROT = { min: 1200, bench: 300, benchCap: 15, benchW: 0.6, k: 0.6 };
 export const MPG = { upFrom: 15, upMin: 0.35, upFull: 30, downFrom: 10, downMin: 0.25, downFull: 26 };
 const gameScore = (l: StatLine) => l.pts + 0.4 * l.fgm - 0.7 * l.fga - 0.4 * (l.fta - l.ftm) + 0.7 * l.orb + 0.3 * l.drb + l.stl + 0.7 * l.ast + 0.7 * l.blk - 0.4 * l.pf - l.tov;
 
@@ -288,7 +319,13 @@ export function develop(lg: League, rng: Rng) {
       // a season below his rating: up to 22 it costs nothing (the young grow into their game), from 23 the bill
       // comes in step by step, and a veteran who no longer delivers pays in full (he will not grow back into it).
       // A good season counts most for the young – and right away (below).
-      const a = PERF.alpha * atAge(pf.ovrGain < 0 ? AGE.neg : AGE.pos, age);
+      // the signal moves his overall, not the skills behind it – so a profile the engine keeps over- (or under-)
+      // rating would push him the same way every year without end. What earlier seasons already moved him is
+      // remembered (fading a little each year): the further he has gone one way, the less the same signal counts
+      const pc = (dev as any).pcum ?? 0;
+      const same = Math.sign(pc) === Math.sign(pf.ovrGain) && pc !== 0;
+      const damp = same ? Math.max(PCUM.floor, 1 - Math.abs(pc) / PCUM.span) : 1;
+      const a = PERF.alpha * atAge(pf.ovrGain < 0 ? AGE.neg : AGE.pos, age) * damp;
       if (age <= 22 && pf.ovrGain < 0) why.dz = true;
       const gain = pf.ovrGain * a;
       const cap = Math.abs(gain) > PERF.maxStep ? PERF.maxStep / Math.abs(gain) : 1;
@@ -306,6 +343,7 @@ export function develop(lg: League, rng: Rng) {
     why.flop = flop;
     const s1 = sh();
     why.perf = s1 - s0;
+    (dev as any).pcum = Math.round((((dev as any).pcum ?? 0) * PCUM.fade + (s1 - s0)) * 100) / 100;
     // 2) age, potential and year-to-year noise
     const before = ovrOf(p.z);
     const potBoost = age <= 24 ? 0.05 : age <= 27 ? 0.025 : 0;
