@@ -14,6 +14,11 @@ import { propose as sendOffer, answer, withdraw, inbox, outbox, proposalProblem,
 import { tradeRules, findTrades } from '../ai/trades';
 import { CommitteePanel } from './tradepop';
 import { TradeBlock } from './tradeblock';
+import { Pkg, yrsTxt } from './pkg';
+import { PotOf } from './potgrade';
+import { PosFilter } from './posfilter';
+import { posOk, posLabel } from './positions';
+import { humans } from '../league/humans';
 
 const pkKey = (p: any) => `${p.season}-${p.round}-${p.orig}`;
 const valCls = (v: number) => (v >= 15 ? 'hi' : v >= 5 ? 'mid' : v < 0 ? 'neg' : '');
@@ -61,11 +66,14 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
   const [found, setFound] = useState<any[] | null>(null);
   const [scope, setScope] = useState<'all' | 'partner'>('all');
   const [searching, setSearching] = useState(false);
+  const [fPos, setFPos] = useState('all');
+  const [sPos, setSPos] = useState('all');
+  const shown = found && (fPos === 'all' ? found : found.filter((r: any) => r.gets.some((x: any) => x.pid && lg.players[x.pid] && posOk(lg.players[x.pid], fPos)))).slice(0, 12);
   const find = () => {
     setSearching(true); setFound(null);
     setTimeout(() => {
       const partner = bGives.length || scope === 'partner' ? b : null;
-      setFound(findTrades(lg, a, aGives, bGives, partner, 12));
+      setFound(findTrades(lg, a, aGives, bGives, partner, 40));
       setSearching(false);
     }, 30);
   };
@@ -112,7 +120,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
 
   const Side = ({ tid, sel, setSel, label }: any) => {
     const t = lg.teams[tid];
-    const players = t.roster.map((pid: string) => lg.players[pid]).sort((x: any, y: any) => ovrOf(y.z, y.id) - ovrOf(x.z, x.id));
+    const players = t.roster.map((pid: string) => lg.players[pid]).filter((p: any) => sel.has('p:' + p.id) || posOk(p, sPos)).sort((x: any, y: any) => ovrOf(y.z, y.id) - ovrOf(x.z, x.id));
     const picks = (lg.picks ?? []).filter((p: any) => p.owner === tid && !pickUsed(lg, p)).sort((x: any, y: any) => x.season - y.season || x.round - y.round);
     const other = tid === a ? b : a;
     const rights = other && lg.teams[other] ? rightOptions(lg, tid, other) : [];
@@ -128,7 +136,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
                 <label className={sel.has(k) ? 'on' : ''}>
                   <input type="checkbox" id={`tr-${tid}-${p.id}`} checked={sel.has(k)} onChange={() => toggle(sel, setSel, k)} />
                   <span className="tp-name"><button type="button" className="link" onClick={e => { e.preventDefault(); e.stopPropagation(); openPlayer(p.id); }} title="Player card">{p.name}</button></span>
-                  <span className="tp-meta">age {ageIn(p, lg.season)} · OVR {ovrOf(p.z, p.id)} · {money(p.contract.sal, lg.season)} through {p.contract.exp}{b && lg.teams[b] ? <> · <span className={`tv ${valCls(tradeableValue(lg, p, b))}`} title={`How much the ${lg.teams[b].name} value this player in a trade (production minus salary cost)`}>value {tradeableValue(lg, p, b).toFixed(1)}</span></> : null}</span>
+                  <span className="tp-meta">{posLabel(p)} · age {ageIn(p, lg.season)} · OVR {ovrOf(p.z, p.id)} · pot. <PotOf p={p} s={lg.season} /> · {money(p.contract.sal, lg.season)}, {yrsTxt(lg, p.contract)} (’{String(p.contract.exp).slice(2)}){b && lg.teams[b] ? <> · <span className={`tv ${valCls(tradeableValue(lg, p, b))}`} title={`How much the ${lg.teams[b].name} value this player in a trade (production minus salary cost)`}>value {tradeableValue(lg, p, b).toFixed(1)}</span></> : null}</span>
                 </label>
               </li>
             );
@@ -172,14 +180,15 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         {inc.length > 0 && <ul className="news">{inc.map((pr: any) => {
           const bad = proposalProblem(lg, pr);
           return <li key={pr.id}><span className="yr"><TL tid={pr.from} abbr /></span><span>
-            The {lg.teams[pr.from].name} offer <b><Linkify text={describeSide(lg, pr.fromGives)} /></b> for <b><Linkify text={describeSide(lg, pr.toGives)} /></b>.
-            {pr.note ? <span className="dim"> {pr.note}</span> : null}{pr.ai ? <span className="dim small-t"> {pr.exp !== undefined ? `Stands until day ${pr.exp}.` : 'Stands until this stage ends.'}</span> : null}
+            The {lg.teams[pr.from].name} offer a trade{humans(lg).length > 1 ? <> to the <TL tid={pr.to} /></> : null}.
+            {pr.note ? <span className="dim"> {pr.note}</span> : null}
+            <div className="pop-sides"><div><h4>You get</h4><Pkg lg={lg} xs={pr.fromGives} openPlayer={openPlayer} /></div><div><h4>You give</h4><Pkg lg={lg} xs={pr.toGives} openPlayer={openPlayer} /></div></div>{pr.ai ? <span className="dim small-t"> {pr.exp !== undefined ? `Stands until day ${pr.exp}.` : 'Stands until this stage ends.'}</span> : null}
             {bad ? <span className="dim"> {bad}</span> : null}{' '}
             <button className="small primary" disabled={!!bad || closed} onClick={() => reply2(pr.id, true)}>Accept</button>{' '}
             <button className="small" onClick={() => reply2(pr.id, false)}>Decline</button></span></li>;
         })}</ul>}
         {out.length > 0 && <><p className="dim">Your offers waiting for an answer:</p><ul className="news">{out.map((pr: any) => <li key={pr.id}><span className="yr"><TL tid={pr.to} abbr /></span><span>
-          You offer <Linkify text={describeSide(lg, pr.fromGives)} /> for <Linkify text={describeSide(lg, pr.toGives)} />.{' '}
+          <div className="pop-sides"><div><h4>You give</h4><Pkg lg={lg} xs={pr.fromGives} openPlayer={openPlayer} /></div><div><h4>You get</h4><Pkg lg={lg} xs={pr.toGives} openPlayer={openPlayer} /></div></div>{' '}
           <button className="small" onClick={() => { run(lg, { t: 'withdrawProposal', id: pr.id }); setMsg('Offer withdrawn.'); onDone(); }}>Withdraw</button></span></li>)}</ul></>}
       </div>}
       <CommitteePanel lg={lg} openPlayer={openPlayer} onDone={onDone} />
@@ -198,6 +207,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
             </select>
           </label>
         </div>
+        <div className="def-row"><span className="dim">Show players at:</span><PosFilter value={sPos} onChange={setSPos} /></div>
         <div className="trade-grid">
           <Side tid={a} sel={selA} setSel={setSelA} label={`${lg.teams[a].abbr} send`} />
           <Side tid={b} sel={selB} setSel={setSelB} label={`${lg.teams[b].abbr} send`} />
@@ -205,6 +215,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         <div className={`verdict ${reply ? (reply.accept ? 'yes' : 'no') : ''}`}>
           {reply ? <>
             <p><b>{reply.text}</b></p>
+            <div className="pop-sides"><div><h4>{lg.teams[a].abbr} get</h4><Pkg lg={lg} xs={bGives} openPlayer={openPlayer} /></div><div><h4>{lg.teams[a].abbr} give</h4><Pkg lg={lg} xs={aGives} openPlayer={openPlayer} /></div></div>
             <p className="dim">Salaries: {lg.teams[a].abbr} send {money(aGives.reduce((s: number, x: any) => s + (x.pid ? lg.players[x.pid].contract.sal : 0), 0), lg.season)}, receive {money(bGives.reduce((s: number, x: any) => s + (x.pid ? lg.players[x.pid].contract.sal : 0), 0), lg.season)}</p>
           </> : <p className="dim">Select players or picks on both sides – the AI's answer appears here. “Value” is how much the partner GM values an asset: on-court benefit over the next few years (a star is worth far more than two average players) minus salary cost; a cheap deal or rookie contract adds value, an overpay subtracts it. A pick is the expected rookie at that slot on a cheap deal.</p>}
           <div className="def-row">
@@ -223,16 +234,17 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
             </select>
             <button className="primary" disabled={searching || (!aGives.length && !bGives.length)} onClick={find}>{searching ? 'Searching…' : 'Find trades'}</button>
           </div>
-          {found && (found.length ? <div className="tbl-wrap"><table className="tbl">
-            <thead><tr><th className="l">Partner</th><th className="l">{lg.teams[a].abbr} get</th><th className="l">{lg.teams[a].abbr} give</th><th title="Market value received vs given">Value</th><th></th></tr></thead>
-            <tbody>{found.map((r: any, i: number) => <tr key={i}>
+          {found && found.length > 0 && <div className="def-row"><span className="dim">Players you get at:</span><PosFilter value={fPos} onChange={setFPos} /></div>}
+          {shown && (shown.length ? <div className="tbl-wrap"><table className="tbl finder-tbl">
+            <thead><tr><th className="l">Partner</th><th className="l" title="Each player: position, age, OVR, potential (scouts), salary, contract">{lg.teams[a].abbr} get <span className="dim small-t">pos · age · OVR · pot. · salary · contract</span></th><th className="l">{lg.teams[a].abbr} give</th><th title="Market value received vs given">Value</th><th></th></tr></thead>
+            <tbody>{shown.map((r: any, i: number) => <tr key={i}>
               <td className="l"><TL tid={r.tid} abbr /></td>
-              <td className="l"><Linkify text={describeSide(lg, r.gets)} /></td>
-              <td className="l dim"><Linkify text={describeSide(lg, r.gives)} /></td>
+              <td className="l"><Pkg lg={lg} xs={r.gets} openPlayer={openPlayer} compact /></td>
+              <td className="l"><Pkg lg={lg} xs={r.gives} openPlayer={openPlayer} compact /></td>
               <td>{r.getV.toFixed(1)} / {r.giveV.toFixed(1)}</td>
               <td><button className="small" onClick={() => load(r)}>Load</button></td>
             </tr>)}</tbody>
-          </table></div> : <p className="note">No team would accept a deal like that. Add more, pick something else, or widen the search to all teams.</p>)}
+          </table></div> : <p className="note">{found.length ? 'No deal found brings back a player at that position – pick another position or All.' : 'No team would accept a deal like that. Add more, pick something else, or widen the search to all teams.'}</p>)}
         </div>
         {msg && <p className="ok-msg">{msg}</p>}
       </div>

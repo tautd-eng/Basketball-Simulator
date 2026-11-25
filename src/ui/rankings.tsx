@@ -1,6 +1,7 @@
 // @ts-nocheck
 // League-wide rankings: every player in the league sortable by any rating,
 // and power rankings of the teams (roster strength plus how they actually play).
+import { PosFilter } from './posfilter';
 import { fmtAttr, defCols, grouped } from './grades';
 import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { htStr, htCol, htDiff } from './units';
@@ -114,7 +115,7 @@ function AllPlayers({ lg, openPlayer, openTeam }: any) {
         <div className="seg" role="group" aria-label="Which players">
           {[['league', 'On teams'], ['fa', 'Free agents'], ['all', 'All']].map(([k, l]) => <button key={k} className={who === k ? 'on' : ''} onClick={() => setWho(k as any)}>{l}</button>)}
         </div>
-        <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
+        <PosFilter value={pos} onChange={setPos} />
         <select aria-label="Age" value={age} onChange={e => setAge(e.target.value)}>
           <option value="all">All ages</option><option value="u23">23 and under</option><option value="24">24–29</option><option value="30">30+</option>
         </select>
@@ -245,7 +246,8 @@ export function Progression({ lg, openPlayer, openTeam }: any) {
   const [S, setS] = useState(seasons[0]);
   const [team, setTeam] = useState('all');
   const [minOvr, setMinOvr] = useState(70);
-  const all = useMemo(() => changes(lg, S), [lg, S, lg.phase, lg.season]);
+  const [pos, setPos] = useState('all');
+  const all = useMemo(() => changes(lg, S), [lg, S, lg.phase, lg.season]).filter((r: any) => posOk(r.p, pos));
   const teams = Object.values(lg.teams).filter((t: any) => t.active).sort((a: any, b: any) => a.name.localeCompare(b.name));
   const grp = groupTids(lg, team);
   const rows = all.filter(r => !r.rookie && (!grp || grp.has(r.tid)) && Math.max(r.before, r.after) >= minOvr && !r.retired);
@@ -292,6 +294,7 @@ export function Progression({ lg, openPlayer, openTeam }: any) {
           <select aria-label="Minimum OVR" value={minOvr} onChange={e => setMinOvr(+e.target.value)}>
             {[0, 70, 75, 80, 85].map(v => <option key={v} value={v}>{v ? `OVR ${v}+` : 'All players'}</option>)}
           </select>
+          <PosFilter value={pos} onChange={setPos} />
         </div>
         <p className="note">Players change once a year – in the summer, right after the season (before the draft). The change depends on age, hidden talent, luck and how the player played last season: a great season pushes him up, a poor one pulls him down. Young players get leniency: a player 25 or younger who played roughly at his level loses at most 1 (22 and under), 2 (23–24) or 3 (25) OVR points over the summer, and a real flop costs him half as much as a veteran.</p>
         <div className="prog-grid">

@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
+import { PosFilter } from './posfilter';
 import { guardMove } from './guard';
 import { hash01 } from '../rng';
 import { POS_FILTER, natural, posLabel, posOk } from './positions';
@@ -33,13 +34,8 @@ import { posNum } from '../engine/game';
 export const moneyOf = (frac: number, s: number) => money(frac, s);
 export { potOf } from '../league/scouting';
 import { potOf, scoutNow } from '../league/scouting';
-const POT_STEPS: [number, string][] = [[90, 'A+'], [86, 'A'], [83, 'A-'], [80, 'B+'], [77, 'B'], [74, 'B-'], [71, 'C+'], [68, 'C'], [65, 'C-'], [62, 'D+'], [59, 'D'], [0, 'D-']];
-export const potLetter = (v: number) => POT_STEPS.find(([t]) => v >= t)![1];
-/** The scouts' potential as a letter grade (the number on hover). */
-export const PotGrade = ({ v }: { v: number }) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; };
-/** A potential column: the scouts' estimate as a letter grade (the number on hover). */
-export const potCol = (pOf: (r: any) => any, S: number) => ({ key: 'pot', label: 'Pot.', title: "Potential as the scouts see it – they can be wrong, especially about prospects; the real potential stays hidden", get: (r: any) => potOf(pOf(r), S),
-  fmt: (v: number) => { const l = potLetter(v); return <span className={`grade g-${l[0]}`} title={`Scouts: ${v}`}>{l}</span>; } });
+export { potLetter, PotGrade, potCol } from './potgrade';
+import { PotGrade, potCol } from './potgrade';
 export { scoutNow } from '../league/scouting';
 export const athOf = (p: any) => {
   const z = p.z, c = (z[K.drw] + z[K.orb] + z[K.drb] + z[K.stl] + z[K.blk] + 1.5 * perD(z, p.ht)) / 6.5;
@@ -201,7 +197,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
         {!myTurn && on && lg.online && isHuman(lg, on.tid) && <p className="note">Waiting for {lg.teams[on.tid].name} to pick.</p>}
         {lg.userTid && <TradeUp lg={lg} d={d} slots={slots} onChange={onChange} />}
         <div className="def-row">
-          <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
+          <PosFilter value={pos} onChange={setPos} />
           <SortBy cols={cols} value={sortKey} onChange={setSortKey} />
           <span className="hint">{d.pool.length} players left on the board</span>
         </div>
@@ -784,7 +780,7 @@ export function FreeAgentsView({ lg, onChange, openPlayer }: any) {
           {u ? ` Asking prices are for your team: players come cheaper to a strong team and where they'll get a big role.` : ''}
         </p>
         <div className="def-row">
-          <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
+          <PosFilter value={pos} onChange={setPos} />
           {u && <label className="chk" title="Only players whose asking price you could pay now: under the cap, with an exception, or at the minimum – counting the room your open offers already take"><input type="checkbox" checked={afford} onChange={e => setAfford(e.target.checked)} /> Affordable{afford ? <span className="dim"> ({rows.length} of {rows0.length})</span> : null}</label>}
         </div>
         {afford && u && !rows.length && <p className="hint">Nobody fits right now{(() => { try { const e = rows0[0] && capCheck(lg, u.tid, rows0[0].p, MIN_SAL).err; return e ? ` – ${e}` : ' – not even at the minimum.'; } catch { return '.'; } })()}</p>}

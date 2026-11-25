@@ -11,7 +11,7 @@ import { posLabel } from './positions';
 import { money } from './money';
 import { TL } from './nav';
 import { ownerName } from './pickboard';
-import { potOf } from '../league/scouting';
+import { PotOf } from './potgrade';
 import { tradeValue } from '../ai/tradevalue';
 
 /** This season's line (or last season's regular-season one before the games start). */
@@ -43,7 +43,7 @@ function BlockTable({ lg, tid, picked, toggle, openPlayer }: any) {
         return <tr key={p.id} className={on ? 'on' : ''} onClick={e => { if ((e.target as any).closest('button,input')) return; toggle(p.id, !on); }}>
           <td><input type="checkbox" aria-label={`Put ${p.name} on the block`} checked={on} onChange={e => toggle(p.id, e.target.checked)} /></td>
           <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{p.injury > 0 ? <span className="chip tiny neg" title={p.inj?.k ?? "Injured"}> out {p.injury}</span> : null}</td>
-          <td className="dim">{posLabel(p)}</td><td>{ageIn(p, S)}</td><td><b>{shownOvr(p.z, p.id)}</b></td><td className="dim">{potOf(p, S)}</td>
+          <td className="dim">{posLabel(p)}</td><td>{ageIn(p, S)}</td><td><b>{shownOvr(p.z, p.id)}</b></td><td><PotOf p={p} s={S} /></td>
           <td className="dim">{l ? l.gp : '–'}</td><td>{l ? f1(l.min / l.gp) : '–'}</td><td>{l ? f1(l.pts / l.gp) : '–'}</td><td>{l ? f1((l.orb + l.drb) / l.gp) : '–'}</td><td>{l ? f1(l.ast / l.gp) : '–'}</td>
           <td className="dim">{l?.fga ? (100 * l.fgm / l.fga).toFixed(0) : '–'}</td><td className="dim">{l?.tpa ? (100 * l.tpm / l.tpa).toFixed(0) : '–'}</td>
           <td>{money(c.sal ?? 0, S)}{c.opts?.length ? <span className="dim" title="Option years still to be decided"> opt</span> : null}{c.rookie ? <span className="dim" title="Rookie contract"> R</span> : null}</td>
@@ -82,7 +82,7 @@ export function TradeBlock({ lg, openPlayer, offer, onDone }: any) {
   const people = teams.filter(t => isHuman(lg, t.tid) && lg.tradeBlock?.[t.tid]?.pids?.length);
   const cpu = showAi ? teams.filter(t => !isHuman(lg, t.tid)).map(t => ({ t, b: aiBlock(lg, t.tid) })).filter(x => x.b.pids.length) : [];
   const Player = ({ pid, tid }: any) => { const p = lg.players[pid]; if (!p || p.tid !== tid) return null; return (
-    <li><button className="link" onClick={() => openPlayer(pid)}>{p.name}</button> <span className="dim">{posLabel(p)} · OVR {shownOvr(p.z, p.id)} (pot. {potOf(p, lg.season)}) · age {ageIn(p, lg.season)} · {money(p.contract.sal, lg.season)} through ’{String(p.contract.exp).slice(2)}{(() => { const x = lineOf(lg, p); return x ? ` · ${f1(x.l.pts / x.l.gp)} pts, ${f1((x.l.orb + x.l.drb) / x.l.gp)} reb, ${f1(x.l.ast / x.l.gp)} ast${x.last ? ' last season' : ''}` : ''; })()}</span>
+    <li><button className="link" onClick={() => openPlayer(pid)}>{p.name}</button> <span className="dim">{posLabel(p)} · OVR {shownOvr(p.z, p.id)} · pot. </span><PotOf p={p} s={lg.season} /><span className="dim"> · age {ageIn(p, lg.season)} · {money(p.contract.sal, lg.season)} through ’{String(p.contract.exp).slice(2)}{(() => { const x = lineOf(lg, p); return x ? ` · ${f1(x.l.pts / x.l.gp)} pts, ${f1((x.l.orb + x.l.drb) / x.l.gp)} reb, ${f1(x.l.ast / x.l.gp)} ast${x.last ? ' last season' : ''}` : ''; })()}</span>
       {tid !== me && me && <> <button className="small" onClick={() => offer(tid, pid)}>Make an offer</button></>}</li>); };
   const Card = ({ t, b, who }: any) => (
     <div className="block-card">

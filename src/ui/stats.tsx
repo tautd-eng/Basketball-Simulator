@@ -1,5 +1,7 @@
 // @ts-nocheck
 // Statistics: league leaders, sortable player stats and team stats, for any season played.
+import { PosFilter } from './posfilter';
+import { posOk } from './positions';
 import { useMemo, useState } from 'react';
 import { useNavState } from './nav';
 import { shownOvr as ovrOf, shownFromRaw, shownFromBpm } from '../data';
@@ -50,11 +52,13 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
   const [minGp, setMinGp] = useState(0);
   const [minMpg, setMinMpg] = useState(10);
   const [showSplits, setShowSplits] = useState(false);
+  const [pos, setPos] = useState('all');
   const S = seasons.includes(season) ? season : seasons[0] ?? lg.season;
 
-  const P = useMemo(() => playerLines(lg, S, po), [lg, S, po, lg.day, lg.phase]);
+  const P0 = useMemo(() => playerLines(lg, S, po), [lg, S, po, lg.day, lg.phase]);
+  const P = pos === 'all' ? P0 : P0.filter((r: any) => posOk(r.p, pos));
   const T = useMemo(() => teamLines(lg, S, po), [lg, S, po, lg.day, lg.phase]);
-  const maxGp = Math.max(1, ...P.map(r => r.l.gp));
+  const maxGp = Math.max(1, ...P0.map(r => r.l.gp));
   const qualGp = po ? 1 : Math.max(1, Math.round(maxGp * 0.6));
   const tAbbr = (tid: string) => lg.teams[tid]?.abbr ?? tid;
   const name = (r: any) => <button className="link" onClick={() => openPlayer(r.p.id)}>{r.p.name}</button>;
@@ -71,6 +75,7 @@ export function StatsView({ lg, openPlayer, openTeam }: any) {
         <button className={!po ? 'on' : ''} onClick={() => setPo(false)}>Regular season</button>
         <button className={po ? 'on' : ''} onClick={() => setPo(true)}>Playoffs</button>
       </div>
+      {view !== 'teams' && <PosFilter value={pos} onChange={setPos} />}
       {view !== 'leaders' && view !== 'adv' && (
         <div className="seg" role="group" aria-label="Show">
           <button className={mode === 'pg' ? 'on' : ''} onClick={() => setMode('pg')}>Per game</button>

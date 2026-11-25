@@ -4,7 +4,8 @@ import { GuardDialog, guardMove, setGuardRerender } from './guard';
 import { EditLog } from './editplayer';
 import { TradePopups } from './tradepop';
 import { LotteryReveal } from './draftday';
-import { posLabel, natural } from './positions';
+import { posLabel, natural, posOk } from './positions';
+import { PosFilter } from './posfilter';
 import { DraftSummary } from './offseason';
 import { Guide } from './guide';
 import { applyTeamTheme, themeMode, setThemeMode } from './teamtheme';
@@ -1359,7 +1360,8 @@ function TeamPicks({ lg, tid }: any) {
 function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
   const t = lg.teams[tid] ?? Object.values(lg.teams)[0];
   const teams = Object.values(lg.teams).filter((x: any) => x.active).sort((a: any, b: any) => a.name.localeCompare(b.name));
-  const roster = t.roster.map((pid: string) => lg.players[pid]).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id));
+  const [pos, setPos] = useState('all');
+  const roster = t.roster.map((pid: string) => lg.players[pid]).filter((p: any) => posOk(p, pos)).sort((a: any, b: any) => ovrOf(b.z, b.id) - ovrOf(a.z, a.id));
   const pay = payroll(lg, t.tid);
   const strat = t.mode ? { allin: 'All-in', tank: 'Tanking', rising: 'Rising', capclear: 'Clearing salary', retool: 'Retooling' }[t.mode] : { contend: 'Contender', middle: 'Middle of the pack', rebuild: 'Rebuilding' }[t.strategy];
   const titles = lg.history.filter((s: any) => s.champion === t.tid).map((s: any) => s.season);
@@ -1412,12 +1414,13 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
           <button className={view === 'rec' ? 'on' : ''} onClick={() => setView('rec')}>Records</button>
           <button className={view === 'h2h' ? 'on' : ''} onClick={() => setView('h2h')}>Head-to-head</button>
         </div>
+        {(view === 'stats' || view === 'attr') && <PosFilter value={pos} onChange={setPos} />}
       </div>
       {view === 'h2h' ? <TeamH2H lg={lg} tid={t.tid} openTeam={setTid} /> : view === 'picks' ? <TeamPicks lg={lg} tid={t.tid} /> : view === 'hist' ? <TeamHistory lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'rec' ? <TeamRecords lg={lg} tid={t.tid} openPlayer={openPlayer} /> : view === 'attr' ? <SortTable cols={attrCols} rows={roster.map((p: any) => ({ key: p.id, p }))} initial="ovr" rowClass={(r: any) => (r.p.injury > 0 ? 'inj-row' : '')} /> : (
       <div className="tbl-wrap">
           <table className="tbl roster">
             <thead><tr>
-              <th className="l">Player</th><th>Pos</th><th className="l role-col">Role</th><th>Age</th><th>OVR</th><th>GP</th><th>Min</th><th>Pts</th><th>Reb</th><th>Ast</th><th>FG%</th><th>3P%</th><th title="Fatigue before the next game">Fat.</th><th className="l">Contract</th>
+              <th className="l">Player</th><th>Pos</th><th className="l role-col">Role</th><th>Age</th><th>OVR</th><th title="Potential as the scouts project it – they can be wrong">Pot.</th><th>GP</th><th>Min</th><th>Pts</th><th>Reb</th><th>Ast</th><th>FG%</th><th>3P%</th><th title="Fatigue before the next game">Fat.</th><th className="l">Contract</th>
             </tr></thead>
             <tbody>
               {roster.map((p: any) => (
@@ -1432,6 +1435,7 @@ function TeamView({ lg, tid, setTid, openPlayer, openGame }: any) {
                   })()}</td>
                   <td>{ageIn(p, lg.season)}</td>
                   <td><Ovr v={ovrOf(p.z, p.id)} small /></td>
+                  <td><PotGrade v={potOf(p, lg.season)} /></td>
                   <td>{p.cur.gp || '–'}</td>
                   <td>{per(p.cur.min, p.cur.gp)}</td>
                   <td>{per(p.cur.pts, p.cur.gp)}</td>
@@ -1550,7 +1554,8 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
   const cons = [...ps].sort((a: any, b: any) => a.draft.realPick - b.draft.realPick);
   const you = lg.userTid ? lg.teams[lg.userTid] : null;
   const yours = you ? new Map([...ps].map((p: any) => [p.id, boardScore(lg, p, you, c.year)]).sort((a: any, b: any) => b[1] - a[1]).map((x: any, i: number) => [x[0], i + 1])) : null;
-  const rows = cons.map((p: any, i: number) => ({ key: p.id, p, cons: i + 1, mine: yours?.get(p.id) }));
+  const [pos, setPos] = useState('all');
+  const rows = cons.map((p: any, i: number) => ({ key: p.id, p, cons: i + 1, mine: yours?.get(p.id) })).filter((r: any) => posOk(r.p, pos));
   const cols = [
     { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts', asc: true, get: (r: any) => r.cons },
     ...(yours ? [{ key: 'mine', label: 'Your board', title: 'Where your own scouts rank him (talent, their projection and your needs) – other teams do not see this', asc: true, get: (r: any) => r.mine }] : []),
@@ -1564,7 +1569,7 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
   ];
   return (
     <div className="panel">
-      <h2>{c.year} draft class</h2>
+      <div className="team-head"><h2>{c.year} draft class</h2><PosFilter value={pos} onChange={setPos} /></div>
       <p className="dim">Announced at the start of the season – every front office scouts it all year and values this season's picks by how deep it is.{you ? ' Your board is your scouts\' view and your needs; other teams have their own, which you do not see.' : ''}</p>
       <SortTable cols={cols} rows={rows.slice(0, 60)} initial="cons" initialAsc={true} />
       {you && <MyBoard lg={lg} year={c.year} pool={c.pool} openPlayer={openPlayer} onChange={changed} />}
@@ -1575,9 +1580,10 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
 function Drafts({ lg, openPlayer, openTeam, onChange }: any) {
   const years = lg.history.filter((s: any) => s.draft?.length).map((s: any) => s.season);
   const [y, setY] = useState(years[years.length - 1] ?? null);
+  const [pos, setPos] = useState('all');
   if (!years.length) return <><UpcomingClass lg={lg} openPlayer={openPlayer} onChange={onChange} /><div className="panel empty"><h2>Draft classes</h2><p>The first draft takes place after the {(lg.start ?? 1980) - 1}–{String(lg.start ?? 1980).slice(2)} season. Sim the season to the end.</p></div></>;
   const s = lg.history.find((h: any) => h.season === y) ?? lg.history[lg.history.length - 1];
-  const rows = s.draft.map((d: any) => {
+  const rows = s.draft.filter((d: any) => lg.players[d.pid] && posOk(lg.players[d.pid], pos)).map((d: any) => {
     const p = lg.players[d.pid];
     const reg = p.career.filter((c: any) => !c.po);
     if ((lg.phase === 'regular' || lg.phase === 'playoffs') && p.cur.gp) reg.push(p.cur);
@@ -1613,6 +1619,7 @@ function Drafts({ lg, openPlayer, openTeam, onChange }: any) {
         <select aria-label="Draft year" value={s.season} onChange={e => setY(+e.target.value)}>
           {years.slice().reverse().map((x: number) => <option key={x} value={x}>{x} draft</option>)}
         </select>
+        <PosFilter value={pos} onChange={setPos} />
         <span className="dim">How each pick's career is going in this league. Click a column to sort – e.g. by peak OVR to see who was the steal of the draft.</span>
       </div>
       <SortTable cols={cols} rows={rows} initial="pick" initialAsc={true} rowClass={(r: any) => (r.d.tid === lg.userTid ? 'mine' : '')} />

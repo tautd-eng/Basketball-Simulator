@@ -11,6 +11,7 @@ import { humans, playAs } from '../league/humans';
 import { payroll, hardCap } from '../ai/value';
 import { money } from './money';
 import { posLabel } from './positions';
+import { Pkg } from './pkg';
 
 /** Beside an offer: a team's roster and money, with the players in the deal marked (out struck through, in added). */
 function Glance({ lg, tid, out, inn, openPlayer }: any) {
@@ -50,15 +51,8 @@ const keep = () => { try { localStorage.setItem(SEEN, JSON.stringify([...seen].s
 const offerKey = (pr: any) => `o|${pr.s}|${pr.phase}|${pr.day}|${pr.id}|${pr.from}|${pr.to}`;
 const reviewKey = (lg: any, r: any) => `r|${r.s}|${r.id}|${r.pr.from}|${r.pr.to}|${lg.userTid}`;
 
-/** One side of a deal: players with OVR and age, picks as text. */
-function Side({ lg, xs, openPlayer }: any) {
-  if (!xs.length) return <i>nothing</i>;
-  return <ul className="pop-assets">{xs.map((x: any, i: number) => {
-    if (!x.pid) return <li key={i}>{describeAssets(lg, [x])}</li>;
-    const p = lg.players[x.pid];
-    return <li key={i}><button className="link" onClick={() => openPlayer(x.pid)}>{p?.name ?? x.pid}</button>{p ? <span className="dim"> · OVR {shownOvr(p.z, p.id)} · age {ageIn(p, lg.season)}</span> : null}</li>;
-  })}</ul>;
-}
+/** One side of a deal: each player with position, age, OVR, potential, salary and contract; picks with where they project. */
+const Side = ({ lg, xs, openPlayer }: any) => <Pkg lg={lg} xs={xs} openPlayer={openPlayer} />;
 
 /** The pop-up: offers to your team you have not seen yet, then trades waiting for your committee vote. */
 export function TradePopups({ lg, openPlayer, goTrades, onChange, busy }: any) {

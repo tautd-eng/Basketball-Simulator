@@ -1,5 +1,6 @@
 // @ts-nocheck
 // Fantasy draft room.
+import { PosFilter } from './posfilter';
 import { useMemo, useState } from 'react';
 import { POS_FILTER, natural, posLabel, posOk } from './positions';
 import { canRun } from '../league/humans';
@@ -70,7 +71,7 @@ export function FantasyRoom({ lg, onChange, onTick = () => {}, openPlayer }: any
           {on && canRun(lg) && <button onClick={() => { setPlaying(false); act(() => fantasyAdvance(lg, true)); }}>{lg.userTid ? 'Auto-finish (AI picks for me too)' : 'Run the whole draft'}</button>}
         </div>
         <div className="def-row">
-          <div className="seg" role="group" aria-label="Position">{POS.map(([k, l]) => <button key={k} className={pos === k ? 'on' : ''} onClick={() => setPos(k)}>{l}</button>)}</div>
+          <PosFilter value={pos} onChange={setPos} />
           <SortBy cols={cols} value={sortKey} onChange={setSortKey} />
           <input id="fan-q" className="search" placeholder="Search player" value={q} onChange={e => setQ(e.target.value)} aria-label="Search player" />
         </div>

@@ -1319,3 +1319,20 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .sal-tbl td.ext { color: var(--c); font-weight: 600; font-style: italic; }
 .sal-tbl tr.sal-focus td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .sal-tbl tr.sal-focus td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* trade packages in detail */
+.pkg { min-width: 0; }
+.pkg-tbl { font-size: 12px; width: 100%; margin: 0; }
+.pkg-tbl th, .pkg-tbl td { padding: 2px 5px; white-space: nowrap; }
+.pkg-tbl .pkg-pick td { white-space: normal; }
+.pkg-foot { margin: 2px 0 0; }
+.finder-tbl > tbody > tr > td { vertical-align: top; }
+.news .pop-sides { margin: 6px 0; }
+.verdict .pop-sides { margin: 8px 0; }
+/* position filter: the groups set apart */
+.pos-seg .seg-sep { width: 1px; align-self: stretch; background: var(--line, #ccc); margin: 2px 4px; }
+.pos-seg { flex-wrap: wrap; }
+.pkg.compact .pkg-tbl { width: auto; }
+.pkg.compact .pkg-tbl td { padding: 1px 4px; border: 0; }
+.pkg.compact .pkg-tbl td:first-child { max-width: 150px; overflow: hidden; text-overflow: ellipsis; padding-left: 0; }
+.trade-pop .tp-main .pop-sides { grid-template-columns: 1fr; }

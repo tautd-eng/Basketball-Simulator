@@ -41,6 +41,12 @@ export function posLabel(p: any): string {
   return other ? `${SLOTS[n - 1]}/${SLOTS[other - 1]}` : SLOTS[n - 1];
 }
 
-/** Position filter buttons: All, then each position (a player counts for both of his positions). */
+/** Position filter buttons: All, each position (a player counts for both of his positions), then groups. */
 export const POS_FILTER: [string, string][] = [['all', 'All'], ...SLOTS.map(x => [x, x] as [string, string])];
-export const posOk = (p: any, f: string) => f === 'all' || posLabel(p).split('/').includes(f);
+export const POS_GROUPS: [string, string, string[]][] = [['G', 'Guards', ['PG', 'SG']], ['W', 'Wings', ['SG', 'SF']], ['B', 'Bigs', ['PF', 'C']]];
+export const posOk = (p: any, f: string) => {
+  if (!f || f === 'all') return true;
+  const mine = posLabel(p).split('/');
+  const g = POS_GROUPS.find(x => x[0] === f);
+  return g ? mine.some(x => g[2].includes(x)) : mine.includes(f);
+};
