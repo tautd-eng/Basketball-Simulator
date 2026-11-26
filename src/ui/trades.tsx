@@ -11,7 +11,7 @@ import { payroll, hardCap } from '../ai/value';
 import { isHuman } from '../league/humans';
 import { Linkify } from './nav';
 import { propose as sendOffer, answer, withdraw, inbox, outbox, proposalProblem, describeSide } from '../league/proposals';
-import { tradeRules, findTrades } from '../ai/trades';
+import { tradeRules, findTrades, type FindKind } from '../ai/trades';
 import { CommitteePanel } from './tradepop';
 import { TradeBlock } from './tradeblock';
 import { Pkg, yrsTxt } from './pkg';
@@ -67,13 +67,16 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
   const [scope, setScope] = useState<'all' | 'partner'>('all');
   const [searching, setSearching] = useState(false);
   const [fPos, setFPos] = useState('all');
+  const [kind, setKind] = useState<FindKind>('any');
   const [sPos, setSPos] = useState('all');
-  const shown = found && (fPos === 'all' ? found : found.filter((r: any) => r.gets.some((x: any) => x.pid && lg.players[x.pid] && posOk(lg.players[x.pid], fPos)))).slice(0, 12);
+  const fl = found && (fPos === 'all' ? found : found.filter((r: any) => r.gets.some((x: any) => x.pid && lg.players[x.pid] && posOk(lg.players[x.pid], fPos))));
+  const ovs = fl ? fl.filter((r: any) => r.overpay) : [];
+  const shown = fl && [...fl.filter((r: any) => !r.overpay).slice(0, 12 - ovs.length), ...ovs];
   const find = () => {
     setSearching(true); setFound(null);
     setTimeout(() => {
       const partner = bGives.length || scope === 'partner' ? b : null;
-      setFound(findTrades(lg, a, aGives, bGives, partner, 40));
+      setFound(findTrades(lg, a, aGives, bGives, partner, 40, kind));
       setSearching(false);
     }, 30);
   };
@@ -226,25 +229,32 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         </div>
         <div className="finder">
           <h3>Trade finder</h3>
-          <p className="note">Tick what {lg.teams[a].abbr} would give, what {lg.teams[a].abbr} want, or both – the finder looks for deals the other GM accepts and that are worth about as much as what you put in. “Load” puts the deal into the proposal above.</p>
+          <p className="note">Tick what {lg.teams[a].abbr} would give, what {lg.teams[a].abbr} want, or both – the finder looks for deals the other GM accepts and that are worth about as much as what you put in. When you want someone, it also shows what it would take if you are willing to overpay. “Any return” can be narrowed to young players, picks, win-now players or cap relief – the GMs judge your players the same either way. “Load” puts the deal into the proposal above.</p>
           <div className="def-row">
             <select aria-label="Where to look" value={scope} onChange={e => setScope(e.target.value as any)} disabled={bGives.length > 0}>
               <option value="all">All teams</option>
               <option value="partner">Only {lg.teams[b].name}</option>
+            </select>
+            <select aria-label="What you want back" title="What kind of return to look for. It changes only what the finder tries – each GM still values your players as always and says yes only if the deal is worth it to him." value={kind} onChange={e => setKind(e.target.value as FindKind)}>
+              <option value="any">Any return</option>
+              <option value="young">Young players (23 or under)</option>
+              <option value="picks">Draft picks</option>
+              <option value="now">Win-now players (OVR 76+)</option>
+              <option value="cap">Cap relief (much less salary back)</option>
             </select>
             <button className="primary" disabled={searching || (!aGives.length && !bGives.length)} onClick={find}>{searching ? 'Searching…' : 'Find trades'}</button>
           </div>
           {found && found.length > 0 && <div className="def-row"><span className="dim">Players you get at:</span><PosFilter value={fPos} onChange={setFPos} /></div>}
           {shown && (shown.length ? <div className="tbl-wrap"><table className="tbl finder-tbl">
             <thead><tr><th className="l">Partner</th><th className="l" title="Each player: position, age, OVR, potential (scouts), salary, contract">{lg.teams[a].abbr} get <span className="dim small-t">pos · age · OVR · pot. · salary · contract</span></th><th className="l">{lg.teams[a].abbr} give</th><th title="Market value received vs given">Value</th><th></th></tr></thead>
-            <tbody>{shown.map((r: any, i: number) => <tr key={i}>
-              <td className="l"><TL tid={r.tid} abbr /></td>
+            <tbody>{shown.map((r: any, i: number) => <tr key={i} className={r.overpay ? 'overpay' : ''}>
+              <td className="l"><TL tid={r.tid} abbr />{r.overpay && <div><span className="chip tiny warn" title="They would take it – but you give far more than the market says it is worth. Sometimes that is the price of getting your man.">Overpay</span></div>}</td>
               <td className="l"><Pkg lg={lg} xs={r.gets} openPlayer={openPlayer} compact /></td>
               <td className="l"><Pkg lg={lg} xs={r.gives} openPlayer={openPlayer} compact /></td>
               <td>{r.getV.toFixed(1)} / {r.giveV.toFixed(1)}</td>
               <td><button className="small" onClick={() => load(r)}>Load</button></td>
             </tr>)}</tbody>
-          </table></div> : <p className="note">{found.length ? 'No deal found brings back a player at that position – pick another position or All.' : 'No team would accept a deal like that. Add more, pick something else, or widen the search to all teams.'}</p>)}
+          </table></div> : <p className="note">{found.length ? 'No deal found brings back a player at that position – pick another position or All.' : kind !== 'any' && !bGives.length ? 'No GM would give that kind of return for it – they judge your players as always, and for this one nobody finds it worth paying that way. Try another kind of return or “Any return”.' : 'No team would accept a deal like that. Add more, pick something else, or widen the search to all teams.'}</p>)}
         </div>
         {msg && <p className="ok-msg">{msg}</p>}
       </div>

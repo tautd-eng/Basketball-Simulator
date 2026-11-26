@@ -1336,3 +1336,5 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .pkg.compact .pkg-tbl td { padding: 1px 4px; border: 0; }
 .pkg.compact .pkg-tbl td:first-child { max-width: 150px; overflow: hidden; text-overflow: ellipsis; padding-left: 0; }
 .trade-pop .tp-main .pop-sides { grid-template-columns: 1fr; }
+tr.overpay > td { background: color-mix(in srgb, var(--bad, #c0392b) 7%, transparent); }
+.chip.warn { background: var(--bad, #c0392b); color: #fff; border-color: transparent; }

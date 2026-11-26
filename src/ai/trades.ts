@@ -1078,6 +1078,8 @@ export function aiResponse(lg: League, a: string, b: string, aGets: TradeAsset[]
   // the AI does not give away clearly more market value than it gets, however well the package fits its plans
   if (marketValue(lg, aGets) > Math.max(0, marketValue(lg, bGets)) * 1.2 + 0.3) return { accept: false, e, text: `${t.name} decline: on the open market they would be giving away far more than they get.` };
   if (e.gainB >= th) return { accept: true, e, text: `${t.name} accept.` };
+  // an offer they can't refuse: far more on the open market than what they give, however it fits their plans
+  if (refuseMargin(lg, b, aGets, bGets) >= 0) return { accept: true, e, overpay: true, text: `${t.name} accept – an offer they can't refuse. On the open market you are paying far more than he is worth.` };
   const gap = th - e.gainB;
   const inB = bGets.filter(x => x.pid).map(x => lg.players[x.pid!]), outB = aGets.filter(x => x.pid).map(x => lg.players[x.pid!]);
   const why: string[] = [];
@@ -1087,6 +1089,27 @@ export function aiResponse(lg: League, a: string, b: string, aGets: TradeAsset[]
   if (inB.length >= 2 && outB.length === 1) why.push('several average players don\'t replace one good one');
   const strat = t.mode === 'capclear' ? 'They are near the hard cap – every dollar saved matters.' : t.mode === 'retool' ? 'They are stuck in the middle and open to side moves – a better fit matters more to them than raw value.' : t.mode === 'rising' ? 'A young rising team – they won\'t part with youth and want players who fit a few years out.' : t.mode === 'allin' ? 'They are all-in – only what helps them win now matters.' : t.mode === 'tank' ? 'They are tanking – wins don\'t matter this season, picks and youth do.' : t.strategy === 'rebuild' ? 'They are rebuilding, so they value young players and picks more.' : t.strategy === 'contend' ? 'They are contending and don\'t want to weaken the current roster.' : '';
   return { accept: false, e, text: `${t.name} decline: ${gap < 3 ? 'close, but they need a little more' : gap < 10 ? 'not enough value' : 'the offer is far from acceptable'}${why.length ? ` (${why.join('; ')})` : ''}. ${strat}`.trim() };
+}
+
+/**
+ * How far a human's offer is above the "can't refuse" line (≥ 0: they take it). The line is a multiple of the
+ * market value they give: low for sellers (tanking, rebuilding), high for contenders, higher still for the
+ * franchise player. A pile of picks counts extra – sellers above all love draft capital.
+ */
+export function refuseMargin(lg: League, b: string, aGets: TradeAsset[], bGets: TradeAsset[]) {
+  const t = lg.teams[b], h = horizonOf(t);
+  const mGive = marketValue(lg, aGets);
+  if (mGive <= 0.5) return -Infinity;
+  const seller = h === 'tank' || h === 'rebuild' || t.mode === 'rising';
+  const pickW = seller ? 1.8 : 1.4;
+  let mGet = 0;
+  for (const x of bGets) { const v = marketValue(lg, [x]); mGet += x.pid ? v : v * pickW; }
+  let ratio = h === 'tank' ? 1.15 : h === 'rebuild' ? 1.25 : h === 'allin' ? 1.8 : h === 'contend' ? 1.6 : 1.4;
+  // their best player costs more still
+  const outB = aGets.filter(x => x.pid).map(x => lg.players[x.pid!]);
+  const best = Math.max(...t.roster.map(id => marketValue(lg, [{ pid: id }])));
+  if (outB.some(p => marketValue(lg, [{ pid: p.id }]) >= best - 1e-9)) ratio += seller ? 0.15 : 0.4;
+  return mGet - (ratio * mGive + 1);
 }
 
 /** What a player is worth to a team in a trade (for the trade screen). */
@@ -1272,13 +1295,22 @@ export function aiDraftOffers(lg: League, rng: Rng): number {
 }
 
 // ------------------------------------------------------------ trade finder
-export interface FoundTrade { tid: string; gets: TradeAsset[]; gives: TradeAsset[]; gain: number; getV: number; giveV: number; text: string }
+export interface FoundTrade { tid: string; gets: TradeAsset[]; gives: TradeAsset[]; gain: number; getV: number; giveV: number; text: string; overpay?: boolean }
 /**
  * Deals an AI team would accept around what the user puts on the table: the user's offered assets (`give`)
  * for something of similar worth from them, or what it takes to land `want`. Ranked by how much they
  * help the user's team; at most a couple per partner so the list shows the market.
  */
-export function findTrades(lg: League, me: string, give: TradeAsset[], want: TradeAsset[], partner: string | null, limit = 12): FoundTrade[] {
+/** What the user wants back in the finder: it only picks which of the partner's assets to try – each GM still judges the deal as always. */
+export type FindKind = 'any' | 'young' | 'picks' | 'now' | 'cap';
+const kindOk = (lg: League, kind: FindKind, x: TradeAsset) => {
+  if (kind === 'any' || kind === 'cap') return true;
+  if (kind === 'picks') return !!x.pick;
+  if (!x.pid) return false;
+  const p = lg.players[x.pid];
+  return kind === 'young' ? ageIn(p, lg.season) <= 23 : shownOvr(p.z, p.id) >= 76 && ageIn(p, lg.season) >= 24;
+};
+export function findTrades(lg: League, me: string, give: TradeAsset[], want: TradeAsset[], partner: string | null, limit = 12, kind: FindKind = 'any'): FoundTrade[] {
   fresh(lg);
   const mv = (x: TradeAsset) => neutralValue(lg, [x]);
   const key = (x: TradeAsset) => x.pid ? 'p' + x.pid : 'k' + pkKey(x.pick!);
@@ -1291,8 +1323,8 @@ export function findTrades(lg: League, me: string, give: TradeAsset[], want: Tra
   const teams = (wantOwner ? [wantOwner] : partner ? [partner] : Object.values(lg.teams).filter(t => t.active && t.tid !== me).map(t => t.tid))
     .filter((t): t is string => !!t && t !== me && !isHuman(lg, t));
   const out: FoundTrade[] = [];
-  const combos = (pool: { x: TradeAsset; v: number }[], target: number, n: number) => {
-    const lo = target < 1 ? -Infinity : target * 0.6, hi = target < 1 ? target + 2 : target * 1.5;
+  const combos = (pool: { x: TradeAsset; v: number }[], target: number, n: number, deep = false) => {
+    const lo = target < 1 ? -Infinity : target * 0.6, hi = target < 1 ? target + 2 : target * (deep ? 1.8 : 1.5);
     const res: { xs: TradeAsset[]; v: number }[] = [];
     for (const a of pool) if (a.v >= lo && a.v <= hi) res.push({ xs: [a.x], v: a.v });
     const top = [...pool].sort((a, b) => b.v - a.v).slice(0, 14);
@@ -1300,12 +1332,28 @@ export function findTrades(lg: League, me: string, give: TradeAsset[], want: Tra
       const v = top[i].v + top[j].v;
       if (v >= lo && v <= hi && top[i].v > 0.3 && top[j].v > 0.1) res.push({ xs: [top[i].x, top[j].x], v });
     }
+    // a narrower pool (only picks, only young players …) often needs three or four pieces to add up
+    if (deep) {
+      const t2 = top.slice(0, 9);
+      for (let i = 0; i < t2.length; i++) for (let j = i + 1; j < t2.length; j++) for (let k = j + 1; k < t2.length; k++) {
+        const v3 = t2[i].v + t2[j].v + t2[k].v;
+        if (v3 >= lo && v3 <= hi) res.push({ xs: [t2[i].x, t2[j].x, t2[k].x], v: v3 });
+        for (let m = k + 1; m < t2.length; m++) {
+          const v4 = v3 + t2[m].v;
+          if (v4 >= lo && v4 <= hi) res.push({ xs: [t2[i].x, t2[j].x, t2[k].x, t2[m].x], v: v4 });
+        }
+      }
+    }
     return res.sort((a, b) => Math.abs(a.v - target) - Math.abs(b.v - target)).slice(0, n);
   };
+  const salOf = (xs: TradeAsset[]) => xs.reduce((a, x) => a + (x.pid ? lg.players[x.pid].contract?.sal ?? 0 : 0), 0);
   for (const tid of teams) {
     const found: FoundTrade[] = [];
     const tryDeal = (gets: TradeAsset[], gives: TradeAsset[]) => {
       if (!gets.length && !gives.length) return;
+      if (kind !== 'any' && gets.some(x => !want.some(w => aKey(w) === aKey(x)) && !kindOk(lg, kind, x))) return;
+      // cap relief: clearly less salary coming back than going out
+      if (kind === 'cap' && salOf(gets) > salOf(gives) * 0.7 - 0.005) return;
       const r = aiResponse(lg, me, tid, gets, gives);
       if (!r.accept) return;
       const getV = neutralValue(lg, gets), giveV = neutralValue(lg, gives);
@@ -1314,7 +1362,8 @@ export function findTrades(lg: League, me: string, give: TradeAsset[], want: Tra
       found.push({ tid, gets, gives, gain: r.e.gainA, getV, giveV, text: `${lg.teams[me].abbr} get ${describeAssets(lg, gets)}; ${lg.teams[tid].abbr} get ${describeAssets(lg, gives)}` });
     };
     if (give.length && !want.length) {
-      for (const c of combos(assetsOf(tid, new Set()), neutralValue(lg, give), 24)) tryDeal(c.xs, give);
+      const pool = assetsOf(tid, new Set()).filter(a => kindOk(lg, kind, a.x) && (kind !== 'cap' || !a.x.pid || (lg.players[a.x.pid].contract?.sal ?? 0) < salOf(give) * 0.7));
+      for (const c of combos(pool, neutralValue(lg, give), kind === 'any' ? 24 : 40, kind !== 'any')) tryDeal(c.xs, give);
     } else if (want.length && !give.length) {
       for (const c of combos(assetsOf(me, new Set()), neutralValue(lg, want), 30)) tryDeal(want, c.xs);
     } else {
@@ -1322,10 +1371,76 @@ export function findTrades(lg: League, me: string, give: TradeAsset[], want: Tra
       // sweeteners either way
       const gap = neutralValue(lg, want) - neutralValue(lg, give);
       if (gap > 0) for (const c of combos(assetsOf(me, new Set(give.map(key))), gap, 14)) tryDeal(want, [...give, ...c.xs]);
-      else for (const c of combos(assetsOf(tid, new Set(want.map(key))), -gap, 14)) tryDeal([...want, ...c.xs], give);
+      else for (const c of combos(assetsOf(tid, new Set(want.map(key))).filter(a => kindOk(lg, kind, a.x)), -gap, 14, kind !== 'any')) tryDeal([...want, ...c.xs], give);
     }
     found.sort((a, b) => (b.getV - b.giveV) - (a.getV - a.giveV));
     out.push(...found.slice(0, partner || wantOwner ? limit : 2));
+    // "make them an offer they can't refuse": when the user wants something, pile on until the GM says yes –
+    // however lopsided. Shown as an overpay so the user knows what he is doing.
+    if (want.length) for (const ov of overpays(lg, me, tid, want, give)) {
+      if (out.some(o => o.tid === tid && sameSet(o.gives, ov.gives) && sameSet(o.gets, ov.gets))) continue;
+      out.push(ov);
+    }
   }
-  return out.sort((a, b) => (b.getV - b.giveV) - (a.getV - a.giveV)).slice(0, limit);
+  const fair = out.filter(o => !o.overpay).sort((a, b) => (b.getV - b.giveV) - (a.getV - a.giveV));
+  const ovs = out.filter(o => o.overpay).sort((a, b) => a.giveV - b.giveV).slice(0, 3);
+  return [...fair.slice(0, Math.max(0, limit - ovs.length)), ...ovs];
+}
+
+const aKey = (x: TradeAsset) => x.pid ? 'p' + x.pid : x.pick ? 'k' + pkKey(x.pick) : 'r' + JSON.stringify(x.right);
+const sameSet = (a: TradeAsset[], b: TradeAsset[]) => a.length === b.length && a.every(x => b.some(y => aKey(y) === aKey(x)));
+
+/**
+ * Packages a GM would take for what the user wants, built greedily: each step adds whichever of the user's assets
+ * moves the GM's verdict most (fixing cap or roster rules first), until he accepts or the package hits its limit.
+ * Three tries: anything goes, keep the user's two best players, and picks first.
+ */
+function overpays(lg: League, me: string, tid: string, want: TradeAsset[], give: TradeAsset[]): FoundTrade[] {
+  const mv = (x: TradeAsset) => neutralValue(lg, [x]);
+  const skip = new Set([...want, ...give].map(aKey));
+  const mine: { x: TradeAsset; v: number; sal: number; isPick: boolean }[] = [
+    ...lg.teams[me].roster.map(pid => lg.players[pid]).filter(p => !tradeLocked(lg, p)).map(p => ({ x: { pid: p.id } as TradeAsset, v: 0, sal: p.contract?.sal ?? 0, isPick: false })),
+    ...(lg.picks ?? []).filter(p => p.owner === me && !pickUsed(lg, p) && !pickTied(lg, p)).map(p => ({ x: { pick: { season: p.season, round: p.round, orig: p.orig } } as TradeAsset, v: 0, sal: 0, isPick: true })),
+  ].filter(c => !skip.has(aKey(c.x)));
+  for (const c of mine) c.v = mv(c.x);
+  const best2 = new Set(mine.filter(c => !c.isPick).sort((a, b) => b.v - a.v).slice(0, 2).map(c => aKey(c.x)));
+  const wantV = neutralValue(lg, want);
+  const res: FoundTrade[] = [];
+  const variants: ((c: typeof mine[number], step: number) => boolean)[] = [
+    () => true,
+    c => !best2.has(aKey(c.x)),
+    (c, step) => c.isPick || step >= 4,
+  ];
+  const th = threshold(lg, tid, true);
+  for (const allow of variants) {
+    let pkg = [...give];
+    let ok = false;
+    for (let step = 0; step < 9; step++) {
+      const r0 = aiResponse(lg, me, tid, want, pkg);
+      if (r0.accept) { ok = true; break; }
+      // candidates: the most valuable ones, plus the biggest salaries (to make the cap work)
+      const pool = mine.filter(c => allow(c, step) && !pkg.some(y => aKey(y) === aKey(c.x)));
+      const cand = [...new Set([...[...pool].sort((a, b) => b.v - a.v).slice(0, 16), ...[...pool].sort((a, b) => b.sal - a.sal).slice(0, 5)])];
+      let bestC: TradeAsset | null = null, bestS = -Infinity;
+      for (const c of cand) {
+        const e = evaluateTrade(lg, me, tid, want, [...pkg, c.x]);
+        const sc = Math.max(e.gainB - th, refuseMargin(lg, tid, want, [...pkg, c.x])) - (e.ok ? 0 : 50);
+        if (sc > bestS) { bestS = sc; bestC = c.x; }
+      }
+      if (!bestC) break;
+      pkg = [...pkg, bestC];
+    }
+    if (!ok || !pkg.length) continue;
+    // drop anything the deal does not need (cheapest first) – a lopsided offer, not a pointless one
+    for (const x of [...pkg].filter(x => !give.some(g => aKey(g) === aKey(x))).sort((a, b) => mv(a) - mv(b))) {
+      const less = pkg.filter(y => aKey(y) !== aKey(x));
+      if (less.length && aiResponse(lg, me, tid, want, less).accept) pkg = less;
+    }
+    if (res.some(o => sameSet(o.gives, pkg))) continue;
+    const r = aiResponse(lg, me, tid, want, pkg);
+    const giveV = neutralValue(lg, pkg);
+    res.push({ tid, gets: want, gives: pkg, gain: r.e.gainA, getV: wantV, giveV, overpay: !!(r as any).overpay || giveV > wantV * 1.25 + 0.3,
+      text: `${lg.teams[me].abbr} get ${describeAssets(lg, want)}; ${lg.teams[tid].abbr} get ${describeAssets(lg, pkg)}` });
+  }
+  return res;
 }

@@ -265,6 +265,7 @@ function App() {
   const bump = () => setRev(r => r + 1);
   setGuardRerender(bump);   // a hand-over to another of your teams shows its screen at once
 
+  const [dlStop, setDlStop] = useState<{ target: Target; label: string } | null>(null);
   function run(target: Target, label: string) {
     if (!lg || busy) return;
     guardMove(lg, () => doRun(target, label), lg.phase === 'draft' ? 'draft' : 'step');
@@ -273,8 +274,9 @@ function App() {
     if (!lg || busy) return;
     stop.current = false;
     setBusy(label);
-    await advance(lg, target, bump, () => stop.current);
+    const why = await advance(lg, target, bump, () => stop.current);
     setBusy(null);
+    if (why === 'deadline') setDlStop({ target, label });
     bump();
     setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
@@ -448,6 +450,18 @@ function App() {
       {live && <LiveGame lg={lg} data={live} close={closeLive} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
       <GuardDialog />
       {lg.phase !== 'fantasy' && <TradePopups lg={lg} busy={!!busy || !!live || !!clutch || !!gameView} openPlayer={openPlayer} goTrades={() => go('trades')} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+      {dlStop && lg && <div className="overlay center guard-bg" onClick={() => setDlStop(null)}>
+        <div className="dialog" role="alertdialog" aria-label="Trade deadline" onClick={e => e.stopPropagation()}>
+          <h2>Trade deadline day</h2>
+          <p>The sim stopped here so the deadline doesn't slip by: today is the last day to make trades this season. After it, no trades until the draft.</p>
+          <label className="check"><input type="checkbox" checked={!!lg.settings?.noDeadlineStop} onChange={e => { (lg.settings ??= {} as any).noDeadlineStop = e.target.checked; bump(); }} /> Don't stop at the deadline in this league</label>
+          <div className="dialog-actions">
+            <button className="primary" onClick={() => { setDlStop(null); go('trades'); }}>Go to Trades</button>
+            <button onClick={() => setDlStop(null)}>Stay here</button>
+            <button className="ghost" onClick={() => { const d = dlStop; setDlStop(null); doRun(d.target, d.label); }}>Continue: {dlStop.label}</button>
+          </div>
+        </div>
+      </div>}
       {player && <PlayerPanel lg={lg} pid={player} findTrades={(pid: string) => { setPlayer(null); setTradeSeed({ pid, n: Date.now() }); go('trades'); }} close={closePlayer} openTeam={(t) => { openTeam(t); }} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
     </div>
   );
@@ -759,7 +773,7 @@ function formOf(st: any) {
   const g = st?.games;
   const preset = st?.rr ? `rr${st.rr}` : g == null ? '' : GAME_OPTS.some(([v]) => v === String(g)) ? String(g) : 'custom';
   const rounds = (st?.poRounds ?? [null, null, null, null]).map((x: any, i: number) => (x ?? st?.series ?? '') === '' ? '' : String(x ?? st?.series));
-  return { games: preset, custom: g ? String(g) : '60', poTeams: st?.poTeams ? String(st.poTeams) : '', playIn: st?.playIn == null ? '' : st.playIn ? 'on' : 'off', rounds, hardCap: st?.hardCap === null ? 'none' : st?.hardCap ? String(st.hardCap) : '', rfa: st?.rfaHistoric ? 'all' : '', inj: st?.noInjuries ? 'off' : '' };
+  return { games: preset, custom: g ? String(g) : '60', poTeams: st?.poTeams ? String(st.poTeams) : '', playIn: st?.playIn == null ? '' : st.playIn ? 'on' : 'off', rounds, hardCap: st?.hardCap === null ? 'none' : st?.hardCap ? String(st.hardCap) : '', rfa: st?.rfaHistoric ? 'all' : '', inj: st?.noInjuries ? 'off' : '', dl: st?.noDeadlineStop ? 'off' : '' };
 }
 function settingsOf(f: any) {
   const rr = f.games.startsWith('rr') ? +f.games.slice(2) : null;
@@ -772,6 +786,7 @@ function settingsOf(f: any) {
     hardCap: f.hardCap === 'none' ? null : f.hardCap ? +f.hardCap : undefined,
     rfaHistoric: f.rfa === 'all',
     noInjuries: f.inj === 'off',
+    ...(f.dl === 'off' ? { noDeadlineStop: true } : {}),
   };
 }
 
@@ -848,6 +863,14 @@ function SeasonFields({ form, setForm, idp = '', noInj = false }: any) {
         <option value="off">Off – nobody gets hurt</option>
       </select>
       <small>Turning them off also heals everyone who is injured now. It takes effect right away.</small>
+    </label>}
+    {!noInj && <label className="field" htmlFor={idp + 'dl'}>
+      <span>Trade deadline</span>
+      <select id={idp + 'dl'} value={form.dl ?? ''} onChange={e => set('dl', e.target.value)}>
+        <option value="">Stop there – a long sim halts on deadline day</option>
+        <option value="off">Run through it</option>
+      </select>
+      <small>So you don't skip the last day to trade by accident with “Full year” or “To season end”.</small>
     </label>}
   </>;
 }

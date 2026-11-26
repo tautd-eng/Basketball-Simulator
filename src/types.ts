@@ -154,6 +154,7 @@ export interface Settings {
   hardCap?: number | null;                  // hard payroll limit as a share of the cap (null = none; default 1.35)
   rfaHistoric?: boolean;                    // before 1988–89 every free agent's team had the right of first refusal
   noInjuries?: boolean;                     // injuries off: nobody gets hurt (and current injuries heal)
+  noDeadlineStop?: boolean;                 // a long sim runs through the trade deadline without stopping there
 }
 
 export type Phase = 'fantasy' | 'regular' | 'playoffs' | 'draft' | 'offseason' | 'freeagency';

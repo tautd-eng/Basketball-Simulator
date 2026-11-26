@@ -45,14 +45,21 @@ export function waveUnseen(lg: League): boolean {
   return !!fa && fa.stage >= 2 && fa.stage <= 4 && (fa.waveSeen?.[lg.userTid ?? '-'] ?? 0) < fa.stage - 1;
 }
 
-export async function advance(lg: League, target: Target, onProgress: () => void, shouldStop: () => boolean) {
+/**
+ * Moves the league on. A long sim that would run past the trade deadline stops on deadline day (the last day
+ * to trade) when people run teams, so nobody skips it by accident: then it returns 'deadline'.
+ */
+export async function advance(lg: League, target: Target, onProgress: () => void, shouldStop: () => boolean): Promise<'deadline' | void> {
   if (target === 'day') { stepOnce(lg); onProgress(); return; }
+  const guardDeadline = target !== 'deadline' && lg.phase === 'regular' && lg.day < deadlineDay(lg) && !lg.settings?.noDeadlineStop && !!(lg.userTid || lg.humans?.length);
+  let hitDeadline = false;
   const startSeason = lg.season;
   const startDay = lg.day;
   const startPhase = lg.phase;
   const startRound = currentRound(lg);
   const done = (): boolean => {
     if (lg.ended) return true;
+    if (guardDeadline && lg.phase === 'regular' && lg.day >= deadlineDay(lg) && !awaitingPlayoffs(lg)) return hitDeadline = true;
     switch (target) {
       // a week never runs past the end of the regular season (the awards screen) into the playoffs
       case 'week': return lg.day >= startDay + 7 || lg.phase !== startPhase || awaitingPlayoffs(lg);
@@ -78,6 +85,7 @@ export async function advance(lg: League, target: Target, onProgress: () => void
   }
   delete (lg as any)._auto;
   onProgress();
+  if (hitDeadline) return 'deadline';
 }
 
 // ------------------------------------------------------------ persistence
