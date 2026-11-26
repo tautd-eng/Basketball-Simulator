@@ -311,6 +311,8 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
   const [, bump] = useState(0);
   const status = p.retired ? `Retired in ${p.retired}` : p.tid ? lg.teams[p.tid].name : p.prospect ? `Draft prospect – ${p.draft?.year} class` : (p as any).stash ? `Overseas – rights: ${lg.teams[(p as any).rights]?.abbr ?? '–'}` : 'Free agent';
   const [recallMsg, setRecallMsg] = useState('');
+  const [blockMsg, setBlockMsg] = useState('');
+  useEffect(() => setBlockMsg(''), [pid]);
   return (
     <div className="overlay" onClick={close}>
       <aside className="drawer wide" role="dialog" aria-label={p.name} onClick={e => e.stopPropagation()}>
@@ -328,7 +330,15 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
             {p.draft?.tid && <p className="dim">Draft {p.draft.year}: No. {p.draft.pick} ({lg.teams[p.draft.tid]?.abbr ?? p.draft.tid})</p>}
             {(p as any).stash && <p className="dim">Playing overseas – expected to come over for {(p as any).stash - 1}–{String((p as any).stash).slice(2)}.{(p as any).rights === lg.userTid && <> <button className="small primary" onClick={() => { const r = run(lg, { t: 'recall', pid: p.id }); setRecallMsg(r.msg); onChange?.(); bump(x => x + 1); }}>Bring him over now</button></>}</p>}
             {recallMsg && <p className="hint">{recallMsg}</p>}
-            {findTrades && p.tid && lg.userTid && lg.teams[p.tid]?.active && lg.phase !== 'fantasy' && <p><button className="small" onClick={() => findTrades(p.id)} title={p.tid === lg.userTid ? 'Deals other teams would take for him' : 'What it would take to get him'}>{p.tid === lg.userTid ? 'Find trades for him' : 'Find a trade for him'}</button></p>}
+            {findTrades && p.tid && lg.userTid && lg.teams[p.tid]?.active && lg.phase !== 'fantasy' && <p className="def-row"><button className="small" onClick={() => findTrades(p.id)} title={p.tid === lg.userTid ? 'Deals other teams would take for him' : 'What it would take to get him'}>{p.tid === lg.userTid ? 'Find trades for him' : 'Find a trade for him'}</button>
+              {p.tid === lg.userTid && (() => {
+                const b = lg.tradeBlock?.[lg.userTid] ?? { pids: [], want: [], note: '' };
+                const on = (b.pids ?? []).includes(p.id);
+                return <button className={`small ${on ? 'ghost' : ''}`} title={on ? 'Take him off your trade block' : 'Put him on your trade block: other teams see he is available and computer teams may make offers for him'}
+                  onClick={() => { const pids = on ? b.pids.filter((x: string) => x !== p.id) : [...(b.pids ?? []), p.id]; const r = run(lg, { t: 'setBlock', pids, want: b.want ?? [], note: b.note ?? '' }); setBlockMsg(r.ok ? (on ? `${p.name} is off your trade block.` : `${p.name} is on your trade block.`) : r.msg); onChange?.(); bump(x => x + 1); }}>
+                  {on ? 'Remove from trade block' : 'Put on trade block'}</button>;
+              })()}
+              {blockMsg && <span className="dim small-t">{blockMsg}</span>}</p>}
           </div>
         </div>
         {editFace && <FaceEditor p={p} season={lg.season} onChange={() => bump(x => x + 1)} />}
