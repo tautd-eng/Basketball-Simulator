@@ -7,6 +7,7 @@
 // energy and the coach trims their minutes.
 import { League, Player, GameResult } from '../types';
 import { ageIn } from '../players';
+import { staCap } from '../athletic';
 
 export const FAT = {
   load: 0.6,          // per minute played
@@ -14,6 +15,7 @@ export const FAT = {
   decayAge: 0.015,    // slower recovery per year over 28
   decayMax: 0.7,
   free: 6,            // fatigue up to this level has no effect
+  heavy: 1.5,         // extra load per minute past his stamina's limit (src/athletic.ts staCap)
 };
 
 const lastRegDay = (lg: League) => (lg.schedule.length ? Math.max(...lg.schedule.map(g => g.day)) : 0);
@@ -50,7 +52,9 @@ export function addLoad(lg: League, res: GameResult) {
     const p = lg.players[pl.pid];
     const age = ageIn(p, lg.season);
     const before = p.fatNow ?? fatigueAt(lg, p, cal);
-    const load = FAT.load * pl.st.min * (1 - 0.1 * p.endur) * (1 + Math.max(0, age - 30) * 0.04);
+    // minutes past his stamina's limit weigh extra: a 42-minute night takes far more out of him than 36
+    const over = Math.max(0, pl.st.min - staCap(p.endur));
+    const load = FAT.load * (pl.st.min + FAT.heavy * over) * (1 - 0.1 * p.endur) * (1 + Math.max(0, age - 30) * 0.04);
     p.fat = before + load;
     p.fatDay = cal;
     p.fatNow = undefined;

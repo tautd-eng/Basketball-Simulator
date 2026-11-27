@@ -12,7 +12,7 @@ import { hiddenBoost } from '../hboost';
 import { shownFromBpm } from '../data';
 import { emptyLine, StatLine, Player, Box } from '../types';
 import { fitTraits, FitTraits, fit0, edgeTraits, ctr0 } from '../archetypes';
-import { mismatch } from '../athletic';
+import { mismatch, staCap } from '../athletic';
 
 /** Per-season calibration offsets, produced by test/eracal.ts. */
 export interface EraCal { pace: number; tpa: number; p2: number; p3: number; ft: number; tov: number; orb: number; ast: number; stl: number; blk: number; pf: number; ftr: number }
@@ -51,7 +51,17 @@ export const C = {
 export const ATHX = { rim: 0.12, mid: 0.05, fb: 0.15, fbFreq: 0.3, drw: 0.12, blk: 0.18, tov: 0.06, orb: 0.12, fat: 0.5,
   // the mismatches' net effect on the league's totals (a bigger gap counts more than a smaller one): taken back
   drwN: -0.075, blkN: -0.076, tovN: -0.041, p2N: 0.013 };
-const avgAth = (on: GP[]) => { let a = 0; for (const g of on) a += g.ath; return a / on.length; };
+/**
+ * Heavy legs: past his stamina's minutes in a game (37 for a typical player, ~34–40 from poor to great stamina) every
+ * further minute wears him down – he shoots and handles worse, defends and rebounds worse, fouls more and loses his
+ * burst. k: per minute over; the rest per unit of it (shot/tov in logit, def in the defence's z, foul and reb as
+ * shares, ath in athleticism z); carry: minutes of cap lost per unit of fatigue he brought into the game.
+ */
+export const STAX = { k: 0.04, shot: 1.0, def: 0.8, foul: 1.5, ath: 2.0, reb: 1.0, carry: 0.25 };
+const legs = (g: GP) => g.st.min > g.cap ? Math.min(0.6, STAX.k * (g.st.min - g.cap)) : 0;
+/** athleticism right now (heavy legs take the burst first) */
+const aN = (g: GP) => g.ath - STAX.ath * legs(g);
+const avgAth = (on: GP[]) => { let a = 0; for (const g of on) a += aN(g); return a / on.length; };
 /** Debug: running sums of lineup-fit measures over plays (to centre FIT0). */
 export const fitStats: Record<string, number> = { rm: 0, nr: 0, pa: 0, n: 0, sh: 0, hd: 0, rp: 0, ck: 0, cdrive: 0, cshoot: 0, cpost: 0, chandle: 0, e2: 0, e3: 0, et: 0 };
 
@@ -64,6 +74,7 @@ interface GP {
   ast: number; orb: number; drb: number; stl: number; blk: number; pf: number; def: number; per: number; rim: number; post: number; hb: number; stlZ: number; astZ: number;
   endurMul: number;
   ath: number;          // athleticism now (fatigue takes some of the burst)
+  cap: number;          // minutes in this game before heavy legs set in (his stamina, less if he came in tired)
   ft: FitTraits;        // lineup-fit traits (shooter, handler, rim protector, creator)
   ed: ReturnType<typeof edgeTraits>; // role matchups: what he attacks with and what he stops
   e: number;            // energy
@@ -137,6 +148,7 @@ function prep0(p: Player, season: number): GP {
     def: z[K.def], hb: C.hbOn ? hiddenBoost(p.id) : 0, per: perD(z, p.ht), rim: rimD(z, p.ht), post: postD(z, p.ht), stlZ: z[K.stl], astZ: z[K.ast],
     endurMul: 1 - 0.12 * p.endur,
     ath: (p.ath ?? 0) - ATH0 - ATHX.fat * fat,
+    cap: staCap(p.endur) - STAX.carry * fat,
     ft: fitTraits(z, posNum(p.pos)),
     ed: edgeTraits(p.z, p.pos),
     e: Math.max(0.7, 1 - FATIGUE.energy * fat), target: 0, on: false, fouls: 0, st: emptyLine(), starter: false,
@@ -837,7 +849,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     const callShift = offCall === 'quick' ? -0.12 : offCall === 'milk' ? -0.03 : offCall === 'inside' ? 0.04 : 0;
     const fb = fastBreak && !afterOrb, lc = lateClock && !afterOrb;
     const tag: Partial<PbpEv> = { ...(fb ? { fb: 1 as const } : {}), ...(offCall !== 'auto' && !afterOrb ? { call: offCall } : {}), ...(dsc !== 'man' && !fb ? { dsc } : {}) };
-    const fat = C.fatigue * Math.max(0, C.fatBase - actor.e);
+    const fat = C.fatigue * Math.max(0, C.fatBase - actor.e) + STAX.shot * legs(actor);
     const homeAdv = off.home ? C.home : -C.home;
     const md = guard(actor);
     const stlZ = dOn.reduce((a, g) => a + g.stlZ, 0) / 5;
@@ -871,7 +883,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
 
     // turnover
     // ball pressure: his own defender's hands count as much as the team's
-    const pTov = sigm(logit(actor.tov) + C.tov + E.tov + C.stlDef * (C.mmDef * md.stlZ + (1 - C.mmDef) * stlZ) + 0.8 * fat - 0.5 * homeAdv - 0.3 * usgShift + (defCall === 'pressure' ? 0.35 : 0) + 0.12 * def.tac.press + 0.08 * Math.max(0, -(off.tac.focus ?? 0)) + 0.05 * (off.tac.pnr ?? 0) + (def.tac.cover === 'blitz' ? 0.12 : 0) + dblTov + (offCall === 'milk' ? 0.1 : 0) + (lc ? 0.15 : 0) - C.fitHd * (fHd - F0.hd) - eT + ATHX.tov * mismatch(md.ath, actor.ath) + ATHX.tovN);
+    const pTov = sigm(logit(actor.tov) + C.tov + E.tov + C.stlDef * (C.mmDef * md.stlZ + (1 - C.mmDef) * stlZ) + 0.8 * fat - 0.5 * homeAdv - 0.3 * usgShift + (defCall === 'pressure' ? 0.35 : 0) + 0.12 * def.tac.press + 0.08 * Math.max(0, -(off.tac.focus ?? 0)) + 0.05 * (off.tac.pnr ?? 0) + (def.tac.cover === 'blitz' ? 0.12 : 0) + dblTov + (offCall === 'milk' ? 0.1 : 0) + (lc ? 0.15 : 0) - C.fitHd * (fHd - F0.hd) - eT + ATHX.tov * mismatch(aN(md), aN(actor)) + ATHX.tovN);
     if (rng.chance(pTov)) {
       inc(actor, 'tov');
       const sumStl = dOn.reduce((a, g) => a + g.stl, 0);
@@ -896,7 +908,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // free-throw trip without a field-goal attempt (shooting foul / bonus)
     const defPf = dOn.reduce((a, g) => a + g.pf, 0) / 5;
     const r = Math.max(0, actor.drw - C.andOne * 0.5);
-    const qTrip = Math.min(0.45, (r / (2 + r)) * C.foulTrip * E.ftr * Math.sqrt(defPf / leaguePf) * (offCall === 'inside' ? 1.35 : 1) * (fb ? 1.2 : 1) * (1 + 0.25 * def.tac.press + 0.32 * (def.tac.phys ?? 0)) * (1 + 0.07 * (off.tac.post ?? 0)) * Math.exp(ATHX.drw * mismatch(actor.ath, md.ath) + ATHX.drwN));
+    const qTrip = Math.min(0.45, (r / (2 + r)) * C.foulTrip * E.ftr * Math.sqrt(defPf / leaguePf) * (offCall === 'inside' ? 1.35 : 1) * (fb ? 1.2 : 1) * (1 + 0.25 * def.tac.press + 0.32 * (def.tac.phys ?? 0)) * (1 + 0.07 * (off.tac.post ?? 0)) * Math.exp(ATHX.drw * mismatch(aN(actor), aN(md)) + ATHX.drwN) * (1 + STAX.foul * legs(md)));
     if (rng.chance(qTrip)) {
       foulOn(def);
       return ftTrip(off, def, actor, 2);
@@ -928,6 +940,8 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
         defOn = C.rimK * ((1 - C.rimHelp) * mdPost(md.rim) + C.rimHelp * (rm - C.rim0));
       }
     }
+    // a defender on heavy legs is a step slow
+    defOn -= STAX.def * legs(md);
     const size = three ? 0 : C.mmHt * Math.max(-8, Math.min(8, actor.p.ht - md.p.ht));
     const shift = passQ + homeAdv - fat + usgShift - C.def * defOn * (three ? 0.7 : 1) + size + fitAll + (three ? e3 : fit2 + e2) + callShift + (defCall === 'pressure' ? 0.08 : 0) + (fb && !three ? C.fbMake : 0) - (lc ? C.lateClock : 0);
     // what decided the shot, for the viewer (read only: nothing here draws a random number or changes the game)
@@ -949,8 +963,8 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       const rimW = zone.mix[0][0], blkZ = zone.k === 'rim' ? 1.4 / (rimW * 1.4 + (1 - rimW) * 0.45) : zone.k === 'mid' ? 0.45 / (rimW * 1.4 + (1 - rimW) * 0.45) : 1;
       // athleticism: the shooter's burst against his man (on the break: against the men chasing him); the shot blocker's leap against the shooter's
       let rp = dOn[0]; for (const g of dOn) if (g.blk > rp.blk) rp = g;
-      const athSh = fb ? ATHX.fb * mismatch(actor.ath, avgAth(dOn)) : (zone.k === 'rim' || zone.k === 'putback' ? ATHX.rim : ATHX.mid) * mismatch(actor.ath, md.ath);
-      const pBlk = Math.min(0.3, dOn.reduce((a, g) => a + g.blk, 0) * C.blk * E.blk * blkZ * Math.exp(ATHX.blk * mismatch(rp.ath, actor.ath) + ATHX.blkN));
+      const athSh = fb ? ATHX.fb * mismatch(aN(actor), avgAth(dOn)) : (zone.k === 'rim' || zone.k === 'putback' ? ATHX.rim : ATHX.mid) * mismatch(aN(actor), aN(md));
+      const pBlk = Math.min(0.3, dOn.reduce((a, g) => a + g.blk, 0) * C.blk * E.blk * blkZ * Math.exp(ATHX.blk * mismatch(aN(rp), aN(actor)) + ATHX.blkN));
       const cov = DT.cover === 'drop' ? -0.03 : DT.cover === 'switch' ? (actor.posNum >= 4 ? 0.06 : -0.02) : 0;
       const pMake = zoneP(sigm(logit(actor.p2) + C.p2 + E.p2 + shift + (sch > 0 ? 0.08 : 0.08) * sch + (DT.cover === 'blitz' ? 0.04 : 0) + 0.04 * Math.max(0, DT.press) + 0.05 * mov + 0.04 * (OT.pnr ?? 0) - 0.05 * (DT.phys ?? 0) + cov + single + athSh + ATHX.p2N), zone);
       if (rng.chance(pBlk)) {
@@ -994,7 +1008,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       // between free throws the ball is dead: the table can wave subs in (the shooter stays)
       if (i === n - 1 && n >= 2) midSubs(actor);
       inc(actor, 'fta');
-      lastMade = rng.chance(sigm(logit(actor.pft) + C.ft + E.ft - 0.3 * C.fatigue * Math.max(0, C.fatBase - actor.e)));
+      lastMade = rng.chance(sigm(logit(actor.pft) + C.ft + E.ft - 0.3 * C.fatigue * Math.max(0, C.fatBase - actor.e) - 0.3 * STAX.shot * legs(actor)));
       if (lastMade) { inc(actor, 'ftm'); inc(actor, 'pts'); score(off, 1); }
       ev(lastMade ? 'ft' : 'ftm', off, `${log ? short(actor.p.name) : ''} free throw ${i + 1}/${n}: ${lastMade ? 'good' : 'missed'}`);
     }
@@ -1018,8 +1032,8 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
   }
 
   function rebound(off: Side, def: Side, ft: boolean): 'end' | 'orb' {
-    const O = off.on.reduce((a, g) => a + g.orb, 0) * C.orb * E.orb * (ft ? C.orbFt : 1) * (1 + (off.tac.crash > 0 ? 0.11 : 0.07) * off.tac.crash) * Math.exp(ATHX.orb * (avgAth(off.on) - avgAth(def.on)));
-    const D = def.on.reduce((a, g) => a + g.drb, 0) * (1 + 0.09 * (def.tac.dreb ?? 0));
+    const O = off.on.reduce((a, g) => a + g.orb * Math.max(0.4, 1 - STAX.reb * legs(g)), 0) * C.orb * E.orb * (ft ? C.orbFt : 1) * (1 + (off.tac.crash > 0 ? 0.11 : 0.07) * off.tac.crash) * Math.exp(ATHX.orb * (avgAth(off.on) - avgAth(def.on)));
+    const D = def.on.reduce((a, g) => a + g.drb * Math.max(0.4, 1 - STAX.reb * legs(g)), 0) * (1 + 0.09 * (def.tac.dreb ?? 0));
     if (rng.chance(O / (O + D))) {
       const g = off.on[rng.weighted(off.on.map(g => g.orb))];
       inc(g, 'orb'); orbBy = g;

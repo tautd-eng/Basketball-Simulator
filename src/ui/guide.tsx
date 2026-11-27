@@ -62,7 +62,7 @@ const DOES: Record<string, string> = {
 };
 
 const SECTIONS: [string, string][] = [
-  ['start', 'Getting around'], ['ovr', 'Overall and ratings'], ['roles', 'Roles'], ['ath', 'Athleticism'], ['pot', 'Potential and scouting'],
+  ['start', 'Getting around'], ['ovr', 'Overall and ratings'], ['roles', 'Roles'], ['ath', 'Athleticism'], ['sta', 'Stamina'], ['pot', 'Potential and scouting'],
   ['dev', 'How players develop'], ['engine', 'How games are played'], ['tactics', 'Tactics'], ['build', 'Team building'],
   ['money', 'Salaries and contracts'], ['draft', 'The draft'], ['fa', 'Free agency'], ['trades', 'Trades'],
   ['season', 'Season, awards and history'], ['multi', 'Playing with friends'],
@@ -124,6 +124,14 @@ export function Guide({ onBack }: any) {
           <li><b>In the games</b> it decides mismatches: an explosive slasher against a slow defender finishes and draws fouls more often, a quick defender bothers a slow ball-handler, a leaper blocks more shots, and the more athletic lineup gets out on the break and to the offensive glass more. Against the league on average it evens out – a player's season still matches his ratings.</li>
           <li><b>Over a career</b> it grows a little to about 22, stays to 26, then fades – faster past 30. The skills built on it (finishing, drawing fouls, rebounding, blocks, steals, defence) fade with it, more for those who leaned on it: a high flyer loses more than a craftsman. A torn ACL or Achilles takes some of it for good.</li>
           <li><b>In the draft</b> the scouts see it well. The Profile column sums them up: Elite athlete / Athletic / Below the rim, Raw (the tools without the skills yet), Polished, High ceiling / High floor, Boom or bust / Safe. A raw athlete is a wider bet – more upside, more risk.</li>
+        </ul>
+      </Sec>
+      <Sec id="sta" title="Stamina and heavy minutes" open={all}>
+        <p><b>Stamina</b> (Physical on the player card, “Sta” in the tables, “Legs” in your rotation) is how many minutes a player can carry. It comes from the real data: how many minutes he played compared with players of his quality – Iverson and DeRozan carried huge loads, load-managed stars did not.</p>
+        <ul>
+          <li>Each player has a limit – about 37 minutes in a game for a typical player, ~34 to ~40 from poor to great stamina, less when he comes in tired. Past it, every extra minute wears him down: worse shooting and ball security, a step slow on defence, fewer rebounds, more fouls, less burst.</li>
+          <li>Heavy nights also weigh extra afterwards: a 42-minute game leaves far more fatigue than 36, it carries into the next games (weaker legs, shorter minutes) and raises the injury risk.</li>
+          <li>Your rotation shows each player's limit (“Legs”) and marks a plan past it as <b>heavy</b>.</li>
         </ul>
       </Sec>
       <Sec id="pot" title="Potential and scouting" open={all}>

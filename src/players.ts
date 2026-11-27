@@ -1,4 +1,4 @@
-import { athOf, athPeak, athAge, AW } from './athletic';
+import { athOf, athPeak, athAge, AW, staOf } from './athletic';
 import { H, NK, K, ovrOf, bpmOf, RealSeason, RATING_LABELS, ratingOf, shownOvr, agingIndex, attrOf } from './data';
 import { Player, emptyLine } from './types';
 import { hash01, Rng } from './rng';
@@ -115,7 +115,7 @@ function makePlayer(pid: string, z: number[], tid: string | null, season: number
     tid,
     contract: { sal: 0.02, exp: season },
     injury: 0,
-    endur: (hash01(pid + 'e') - 0.5) * 3.2,
+    endur: staOf(pid),
     cur: emptyLine(),
     curPo: emptyLine(),
     career: [],

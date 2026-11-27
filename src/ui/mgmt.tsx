@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { staCap, staRating } from '../athletic';
 import { download } from './export';
 // Team management – only for the user's team: the rotation (automatic, with how deep and how much the young
 // play, or minutes by hand), the tactical set-up, and contract extensions.
@@ -92,13 +93,14 @@ function Rotation({ lg, openPlayer, onChange }: any) {
         </div>
       )}
       <div className="tbl-wrap"><table className="tbl compact">
-        <thead><tr><th className="l">Player</th><th>Pos</th><th>Age</th><th>OVR</th><th title="Minutes per game so far this season">MPG now</th><th>Plan</th>{m.mode === 'auto' && <th title="Pick players for more (or fewer) minutes – the coach still plays the rest by how good they are">Minutes</th>}{m.mode === 'manual' && <th>Your minutes</th>}</tr></thead>
+        <thead><tr><th className="l">Player</th><th>Pos</th><th>Age</th><th>OVR</th><th title="Minutes per game so far this season">MPG now</th><th title="Stamina: the minutes he can play in a game before heavy legs set in (less when he comes in tired). Past it he shoots, handles, defends and rebounds worse, fouls more, loses his burst – and carries much more fatigue into the next games (and injury risk)">Legs</th><th>Plan</th>{m.mode === 'auto' && <th title="Pick players for more (or fewer) minutes – the coach still plays the rest by how good they are">Minutes</th>}{m.mode === 'manual' && <th>Your minutes</th>}</tr></thead>
         <tbody>{rows.map((p: any) => {
           const v = plan[p.id];
           return <tr key={p.id} className={p.injury ? 'dim' : ''}>
             <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{(m.starters ?? []).includes(p.id) ? <span className="chip tiny on-clock" title="Named starter (Lineup & positions)">Starter · {SLOTS[(m.starters ?? []).indexOf(p.id)]}</span> : null}{p.injury ? <span className="inj"> out {p.injury}</span> : null}</td>
             <td className="dim">{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td>{ovrOf(p.z, p.id)}</td><td>{mpg(p) ? mpg(p).toFixed(1) : '–'}</td>
-            <td><span className="pr-bar" style={{ width: `${Math.round((v ?? 0) * 1.6)}px` }}></span>{v === undefined ? '–' : v.toFixed(0)}</td>
+            <td title={`Stamina ${staRating(p)} – heavy legs after ~${Math.round(staCap(p.endur))} minutes`}>{Math.round(staCap(p.endur))}</td>
+            <td><span className="pr-bar" style={{ width: `${Math.round((v ?? 0) * 1.6)}px` }}></span>{v === undefined ? '–' : v.toFixed(0)}{v !== undefined && v > staCap(p.endur) + 0.5 ? <span className="chip tiny prof-warn" title={`${(v - staCap(p.endur)).toFixed(0)} minutes past his stamina: he wears down late in games and carries extra fatigue into the next ones`}>heavy</span> : null}</td>
             {m.mode === 'auto' && <td><span className="seg mini" role="group" aria-label={`Minutes for ${p.name}`}>{[[-1, 'Less', 'Fewer minutes'], [0, '·', 'As the coach sees fit'], [1, '+', 'More minutes'], [2, '++', 'Much more minutes']].map(([v, l, tt]: any) =>
               <button key={v} title={tt} className={(m.more?.[p.id] ?? 0) === v ? 'on' : ''} onClick={() => upd(m => { m.more ??= {}; if (v) m.more[p.id] = v; else delete m.more[p.id]; })}>{l}</button>)}</span></td>}
             {m.mode === 'manual' && <td className="mg-min">

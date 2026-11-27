@@ -45,6 +45,7 @@ export interface HistPlayer {
   d?: [number, number, number, string]; // draft: year, pick, round, franchise
   c?: string;
   a?: number;   // athleticism at his peak (z, size-relative; prep/ath)
+  sta?: number; // stamina (z): minutes he carried against players of his quality (prep/stamina.py)
 }
 
 export interface SeasonTeam { abbr: string; name: string; conf: 'E' | 'W'; w: number; l: number; pace: number }

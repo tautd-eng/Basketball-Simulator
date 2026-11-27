@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Player card: ratings, progression year by year, and sortable career statistics.
 import { ProfileTags } from './profile';
-import { athRating, athPhase } from '../athletic';
+import { athRating, athPhase, staRating, staCap } from '../athletic';
 import { htStr, htCol, htDiff } from './units';
 import { posLabel, natural } from './positions';
 import { Linkify } from './nav';
@@ -353,6 +353,16 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
             <div key={g} className="rating-group">
               <h4>{g}</h4>
               {keys.map(k => {
+                if (k === 'sta') {
+                  const val = staRating(p), cap = Math.round(staCap(p.endur));
+                  return (
+                    <div key={k} className="rating" title={`How many minutes he can carry: heavy legs after ~${cap} minutes in a game. Past that he shoots, handles, defends and rebounds worse, fouls more and loses his burst – and takes much more fatigue into the next games.`}>
+                      <span className="rl">Stamina <span className="dim small-t">(~{cap} min)</span></span>
+                      <span className="bar"><span style={{ width: `${val}%` }}></span></span>
+                      <span className="rv">{val}</span>
+                    </div>
+                  );
+                }
                 if (k === 'ath') {
                   const val = athRating(p, lg.season);
                   return (
@@ -459,7 +469,7 @@ function OvrChart({ p }: any) {
 const SKILL_GROUPS: [string, string[]][] = [
   ['Offense', ATTR_ORDER.slice(0, ATTR_ORDER.indexOf('r6'))],
   ['Rebounding', ['r6', 'r7']],
-  ['Physical', ['ath']],
+  ['Physical', ['ath', 'sta']],
   ['Defense', ATTR_ORDER.slice(ATTR_ORDER.indexOf('r10'), ATTR_ORDER.indexOf('ath'))],
 ];
 

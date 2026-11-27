@@ -77,3 +77,19 @@ export function athRating(p: { id: string; ath?: number; born: number }, season?
 export function athPhase(age: number): string {
   return age <= 21 ? 'still filling out' : age <= 26 ? 'at his athletic peak' : age <= 29 ? 'starting to lose a step' : age <= 32 ? 'fading' : 'well past his athletic peak';
 }
+
+/**
+ * Stamina (z, the player's "endur"): from real minutes against players of the same quality (Iverson, DeRozan high;
+ * load-managed stars low), with a little of his own draw; a player outside the data gets a draw.
+ */
+export function staOf(pid: string): number {
+  const base = pid.split('~')[0];
+  const own = (hash01(pid + 'e') - 0.5) * 3.2;   // the old per-player draw (sd ~0.9)
+  const d = H.players[base]?.sta;
+  return d == null ? own : Math.round((0.75 * d + 0.3 * own) * 100) / 100;
+}
+/** Stamina on the 0–100 scale. */
+export const staRating = (p: { endur: number }) => ratingOf(p.endur / 1.0);
+/** The minutes he can play in a game before heavy legs set in. */
+export const STA = { cap: 37, capK: 1.5, minCap: 33, maxCap: 41 };
+export const staCap = (endur: number) => Math.max(STA.minCap, Math.min(STA.maxCap, STA.cap + STA.capK * endur));
