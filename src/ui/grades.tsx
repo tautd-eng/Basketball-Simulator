@@ -2,7 +2,7 @@
 // Ratings in the big tables as letter grades (A+ … F) or as numbers – a preference kept in this browser.
 // Player profiles always show the numbers.
 import { perD, postD, rimD, ratingOf } from '../data';
-import { athRating, staRating } from '../athletic';
+import { athRating, staRating, NOW } from '../athletic';
 
 let mode: 'letters' | 'numbers' = (() => { try { return localStorage.getItem('gradeMode') === 'numbers' ? 'numbers' : 'letters'; } catch { return 'letters'; } })();
 export const gradeMode = () => mode;
@@ -22,7 +22,7 @@ export const defCols = (pOf: (r: any) => any) => [
   { key: 'postd', label: 'PostD', title: 'Post defense', get: (r: any) => { const p = pOf(r); return ratingOf(postD(p.z, p.ht)); }, fmt: fmtAttr },
   { key: 'rimp', label: 'Rim', title: 'Rim protection', get: (r: any) => { const p = pOf(r); return ratingOf(rimD(p.z, p.ht)); }, fmt: fmtAttr },
   { key: 'ath', label: 'Ath', title: 'Athleticism: burst, speed, leaping and strength for his size', get: (r: any) => athRating(pOf(r)), fmt: fmtAttr },
-  { key: 'sta', label: 'Sta', title: 'Stamina: how many minutes he can carry before heavy legs set in', get: (r: any) => staRating(pOf(r)), fmt: fmtAttr },
+  { key: 'sta', label: 'Sta', title: 'Stamina: how many minutes he can carry before heavy legs set in', get: (r: any) => { const p = pOf(r); return staRating(p, NOW.season); }, fmt: fmtAttr },
 ];
 
 /**

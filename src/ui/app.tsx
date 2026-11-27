@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { NOW } from '../athletic';
 import { startVisits, visitStats, onVisitStats } from '../online/visits';
 import { GuardDialog, guardMove, setGuardRerender } from './guard';
 import { EditLog } from './editplayer';
@@ -170,6 +171,7 @@ function App() {
   usePanelFolding();
   useEffect(() => { installTableExport(); }, []);
   const [lg, setLg] = useState<any>(null);
+  if (lg) NOW.season = lg.season;
   useEffect(() => { try { (window as any).__lg = lg; } catch { /* debugging handle */ } }, [lg]);
   const [ready, setReady] = useState(false);
   const [rev, setRev] = useState(0);

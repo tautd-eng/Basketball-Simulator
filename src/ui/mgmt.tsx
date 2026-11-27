@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { staCap, staRating } from '../athletic';
+import { capNow, staRating } from '../athletic';
 import { download } from './export';
 // Team management – only for the user's team: the rotation (automatic, with how deep and how much the young
 // play, or minutes by hand), the tactical set-up, and contract extensions.
@@ -99,8 +99,8 @@ function Rotation({ lg, openPlayer, onChange }: any) {
           return <tr key={p.id} className={p.injury ? 'dim' : ''}>
             <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{(m.starters ?? []).includes(p.id) ? <span className="chip tiny on-clock" title="Named starter (Lineup & positions)">Starter · {SLOTS[(m.starters ?? []).indexOf(p.id)]}</span> : null}{p.injury ? <span className="inj"> out {p.injury}</span> : null}</td>
             <td className="dim">{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td>{ovrOf(p.z, p.id)}</td><td>{mpg(p) ? mpg(p).toFixed(1) : '–'}</td>
-            <td title={`Stamina ${staRating(p)} – heavy legs after ~${Math.round(staCap(p.endur))} minutes`}>{Math.round(staCap(p.endur))}</td>
-            <td><span className="pr-bar" style={{ width: `${Math.round((v ?? 0) * 1.6)}px` }}></span>{v === undefined ? '–' : v.toFixed(0)}{v !== undefined && v > staCap(p.endur) + 0.5 ? <span className="chip tiny prof-warn" title={`${(v - staCap(p.endur)).toFixed(0)} minutes past his stamina: he wears down late in games and carries extra fatigue into the next ones`}>heavy</span> : null}</td>
+            <td title={`Stamina ${staRating(p, lg.season)} – heavy legs after ~${Math.round(capNow(p, lg.season))} minutes${ageIn(p, lg.season) >= 30 ? ' (less than in his prime: it shrinks from 30)' : ''}`}>{Math.round(capNow(p, lg.season))}</td>
+            <td><span className="pr-bar" style={{ width: `${Math.round((v ?? 0) * 1.6)}px` }}></span>{v === undefined ? '–' : v.toFixed(0)}{v !== undefined && v > capNow(p, lg.season) + 0.5 ? <span className="chip tiny prof-warn" title={`${(v - capNow(p, lg.season)).toFixed(0)} minutes past his stamina: he wears down late in games and carries extra fatigue into the next ones`}>heavy</span> : null}</td>
             {m.mode === 'auto' && <td><span className="seg mini" role="group" aria-label={`Minutes for ${p.name}`}>{[[-1, 'Less', 'Fewer minutes'], [0, '·', 'As the coach sees fit'], [1, '+', 'More minutes'], [2, '++', 'Much more minutes']].map(([v, l, tt]: any) =>
               <button key={v} title={tt} className={(m.more?.[p.id] ?? 0) === v ? 'on' : ''} onClick={() => upd(m => { m.more ??= {}; if (v) m.more[p.id] = v; else delete m.more[p.id]; })}>{l}</button>)}</span></td>}
             {m.mode === 'manual' && <td className="mg-min">

@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Player card: ratings, progression year by year, and sortable career statistics.
 import { ProfileTags } from './profile';
-import { athRating, athPhase, staRating, staCap } from '../athletic';
+import { athRating, athPhase, staRating, staCap, capNow } from '../athletic';
 import { htStr, htCol, htDiff } from './units';
 import { posLabel, natural } from './positions';
 import { Linkify } from './nav';
@@ -354,9 +354,9 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
               <h4>{g}</h4>
               {keys.map(k => {
                 if (k === 'sta') {
-                  const val = staRating(p), cap = Math.round(staCap(p.endur));
+                  const val = staRating(p, lg.season), cap = Math.round(capNow(p, lg.season)), prime = Math.round(staCap(p.endur)), age = ageIn(p, lg.season);
                   return (
-                    <div key={k} className="rating" title={`How many minutes he can carry: heavy legs after ~${cap} minutes in a game. Past that he shoots, handles, defends and rebounds worse, fouls more and loses his burst – and takes much more fatigue into the next games.`}>
+                    <div key={k} className="rating" title={`How many minutes he can carry: heavy legs after ~${cap} minutes in a game${age >= 30 && prime > cap ? ` (~${prime} in his prime – it shrinks from 30, faster from 34)` : age <= 22 && prime > cap ? ` (~${prime} once he fills out)` : ''}. Past that he shoots, handles, defends and rebounds worse, fouls more and loses his burst – and takes much more fatigue into the next games.`}>
                       <span className="rl">Stamina <span className="dim small-t">(~{cap} min)</span></span>
                       <span className="bar"><span style={{ width: `${val}%` }}></span></span>
                       <span className="rv">{val}</span>

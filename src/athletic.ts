@@ -88,8 +88,24 @@ export function staOf(pid: string): number {
   const d = H.players[base]?.sta;
   return d == null ? own : Math.round((0.75 * d + 0.3 * own) * 100) / 100;
 }
-/** Stamina on the 0–100 scale. */
-export const staRating = (p: { endur: number }) => ratingOf(p.endur / 1.0);
+/**
+ * Stamina by age, relative to his prime (z): a teenager does not carry a starter's load yet; from 30 the minutes he
+ * can carry shrink – a little at first, faster from 34 (real minutes against players of the same quality, year to
+ * year: about 0.3–0.4 a game less each year past 30, 0.8+ past 34). p.endur is his prime level.
+ */
+export function staAge(age: number): number {
+  let v = age <= 20 ? -0.2 : age <= 22 ? -0.1 : 0;
+  for (let a = 30; a <= age; a++) v -= a <= 33 ? 0.12 : 0.25;
+  return v;
+}
+/** the season the UI is showing (for tables that have no league at hand; set by the app) */
+export const NOW = { season: 2026 };
+/** His stamina now (z): his prime level, aged. */
+export const staNow = (p: { endur: number; born: number }, season: number) => p.endur + staAge(Math.floor(season - p.born));
+/** Stamina on the 0–100 scale (now, for his age). */
+export const staRating = (p: { endur: number; born: number }, season: number) => ratingOf(staNow(p, season));
+/** The minutes he can play in a game now before heavy legs set in. */
+export const capNow = (p: { endur: number; born: number }, season: number) => staCap(staNow(p, season));
 /** The minutes he can play in a game before heavy legs set in. */
 export const STA = { cap: 37, capK: 1.5, minCap: 33, maxCap: 41 };
 export const staCap = (endur: number) => Math.max(STA.minCap, Math.min(STA.maxCap, STA.cap + STA.capK * endur));

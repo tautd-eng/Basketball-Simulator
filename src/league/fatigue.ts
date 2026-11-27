@@ -7,7 +7,7 @@
 // energy and the coach trims their minutes.
 import { League, Player, GameResult } from '../types';
 import { ageIn } from '../players';
-import { staCap } from '../athletic';
+import { capNow, staNow } from '../athletic';
 
 export const FAT = {
   load: 0.6,          // per minute played
@@ -53,8 +53,8 @@ export function addLoad(lg: League, res: GameResult) {
     const age = ageIn(p, lg.season);
     const before = p.fatNow ?? fatigueAt(lg, p, cal);
     // minutes past his stamina's limit weigh extra: a 42-minute night takes far more out of him than 36
-    const over = Math.max(0, pl.st.min - staCap(p.endur));
-    const load = FAT.load * (pl.st.min + FAT.heavy * over) * (1 - 0.1 * p.endur) * (1 + Math.max(0, age - 30) * 0.04);
+    const over = Math.max(0, pl.st.min - capNow(p, lg.season));
+    const load = FAT.load * (pl.st.min + FAT.heavy * over) * (1 - 0.1 * staNow(p, lg.season)) * (1 + Math.max(0, age - 30) * 0.04);
     p.fat = before + load;
     p.fatDay = cal;
     p.fatNow = undefined;

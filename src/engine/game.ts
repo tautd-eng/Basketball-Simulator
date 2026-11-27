@@ -12,7 +12,7 @@ import { hiddenBoost } from '../hboost';
 import { shownFromBpm } from '../data';
 import { emptyLine, StatLine, Player, Box } from '../types';
 import { fitTraits, FitTraits, fit0, edgeTraits, ctr0 } from '../archetypes';
-import { mismatch, staCap } from '../athletic';
+import { mismatch, staNow, capNow } from '../athletic';
 
 /** Per-season calibration offsets, produced by test/eracal.ts. */
 export interface EraCal { pace: number; tpa: number; p2: number; p3: number; ft: number; tov: number; orb: number; ast: number; stl: number; blk: number; pf: number; ftr: number }
@@ -146,9 +146,9 @@ function prep0(p: Player, season: number): GP {
     blk: rate(K.blk, z[K.blk], season),
     pf: rate(K.pf, z[K.pf], season),
     def: z[K.def], hb: C.hbOn ? hiddenBoost(p.id) : 0, per: perD(z, p.ht), rim: rimD(z, p.ht), post: postD(z, p.ht), stlZ: z[K.stl], astZ: z[K.ast],
-    endurMul: 1 - 0.12 * p.endur,
+    endurMul: 1 - 0.12 * staNow(p, season),
     ath: (p.ath ?? 0) - ATH0 - ATHX.fat * fat,
-    cap: staCap(p.endur) - STAX.carry * fat,
+    cap: capNow(p, season) - STAX.carry * fat,
     ft: fitTraits(z, posNum(p.pos)),
     ed: edgeTraits(p.z, p.pos),
     e: Math.max(0.7, 1 - FATIGUE.energy * fat), target: 0, on: false, fouls: 0, st: emptyLine(), starter: false,

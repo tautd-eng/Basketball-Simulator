@@ -130,6 +130,7 @@ export function Guide({ onBack }: any) {
         <p><b>Stamina</b> (Physical on the player card, “Sta” in the tables, “Legs” in your rotation) is how many minutes a player can carry. It comes from the real data: how many minutes he played compared with players of his quality – Iverson and DeRozan carried huge loads, load-managed stars did not.</p>
         <ul>
           <li>Each player has a limit – about 37 minutes in a game for a typical player, ~34 to ~40 from poor to great stamina, less when he comes in tired. Past it, every extra minute wears him down: worse shooting and ball security, a step slow on defence, fewer rebounds, more fouls, less burst.</li>
+          <li>Stamina changes with age: a 19–22-year-old cannot carry a full starter's load yet, and from 30 the limit shrinks – about half a minute a season at first, more than a minute a season from 34 (from real minutes of players the same quality, year to year). Veterans also recover more slowly between games.</li>
           <li>Heavy nights also weigh extra afterwards: a 42-minute game leaves far more fatigue than 36, it carries into the next games (weaker legs, shorter minutes) and raises the injury risk.</li>
           <li>Your rotation shows each player's limit (“Legs”) and marks a plan past it as <b>heavy</b>.</li>
         </ul>
