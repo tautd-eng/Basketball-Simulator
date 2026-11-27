@@ -14,6 +14,7 @@ import { H, NK, K, agingIndex, bpmOf, ovrOf, LAST_SEASON, FIRST_SEASON, era, sho
 import { Rng } from '../rng';
 import { League, Player, StatLine, emptyLine, addLine } from '../types';
 import { ageIn, realTarget, snapRatings } from '../players';
+import { athOf, athStep, AW } from '../athletic';
 import { zClamp } from '../ai/value';
 import { roleOf } from '../archetypes';
 import { posNum } from '../engine/game';
@@ -61,10 +62,15 @@ export const atAge = (t: number[], age: number) => t[Math.max(0, Math.min(t.leng
 
 export function ensureDev(p: Player, rng: Rng) {
   if (p.dev) return p.dev;
-  const vol = Math.exp(rng.normal() * 0.3);
-  p.dev = { pot: rng.normal(), peak: Math.round(rng.normal() * 1.3), vol, e: new Array(NK).fill(0) };
+  // a raw athlete (athletic, skills still behind) is a wider bet: more upside and more spread; a polished
+  // non-athlete a narrower one
+  const a = athOf(p), raw = Math.max(-1, Math.min(2, a - 0.35 * bpmOf(p.z)));
+  const vol = Math.exp(rng.normal() * 0.3 + ATH_DEV.rawVol * raw);
+  p.dev = { pot: rng.normal() + ATH_DEV.rawPot * Math.max(0, a), peak: Math.round(rng.normal() * 1.3), vol, e: new Array(NK).fill(0) };
   return p.dev;
 }
+/** athleticism in development: yearly luck (z), how much the fade hits those who lean on it, skill pass-through, raw-athlete spread and upside */
+export const ATH_DEV = { noise: 0.07, lean: 0.6, skill: 1.8, rawVol: 0.12, rawPot: 0.15 };
 
 const TENDENCY = new Set<number>([K.usg, K.tpr]);
 /** Usage (z) the real league reaches only in its most extreme seasons (99.9th percentile): above it, development pulls back. */
@@ -406,6 +412,17 @@ export function develop(lg: League, rng: Rng) {
       const minDrop = atAge(AGE.minDrop, effAge);
       const extra = Math.max(0, drift + minDrop);
       if (minDrop > 0 && extra > 0) for (let i = 0; i < NK; i++) nat[i] -= extra * OVR_DIR[i];
+    }
+    // athleticism: a year older is a step quicker (to 22) or slower (from 27, faster past 30). The league's average
+    // fade is already in the age curve above; what moves his skills here is his own part – the year's luck, and
+    // a fade (or growth) that is bigger the more he leaned on his athleticism (a high flyer loses more than a craftsman)
+    {
+      const a0 = athOf(p, Y);
+      const st = athStep(age + 1), luckA = rng.normal() * ATH_DEV.noise;
+      p.ath = Math.round((a0 + st + luckA) * 1000) / 1000;
+      const own = luckA + st * ATH_DEV.lean * a0;
+      for (let i = 0; i < NK; i++) nat[i] += ATH_DEV.skill * AW[i] * own;
+      why.athD = Math.round((st + luckA) * 100) / 100;
     }
     // no single off-season moves a player more than DEV.maxOvrStep overall points
     const trial = p.z.map((v, i) => v + nat[i]);

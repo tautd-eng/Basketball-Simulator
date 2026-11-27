@@ -62,7 +62,7 @@ const DOES: Record<string, string> = {
 };
 
 const SECTIONS: [string, string][] = [
-  ['start', 'Getting around'], ['ovr', 'Overall and ratings'], ['roles', 'Roles'], ['pot', 'Potential and scouting'],
+  ['start', 'Getting around'], ['ovr', 'Overall and ratings'], ['roles', 'Roles'], ['ath', 'Athleticism'], ['pot', 'Potential and scouting'],
   ['dev', 'How players develop'], ['engine', 'How games are played'], ['tactics', 'Tactics'], ['build', 'Team building'],
   ['money', 'Salaries and contracts'], ['draft', 'The draft'], ['fa', 'Free agency'], ['trades', 'Trades'],
   ['season', 'Season, awards and history'], ['multi', 'Playing with friends'],
@@ -118,6 +118,14 @@ export function Guide({ onBack }: any) {
         <table className="tbl guide-tbl"><tbody>{ARCHETYPES.map(a => <tr key={a.id}><td className="l"><b>{a.name}</b></td><td className="l">{a.blurb} <span className="pos">{a.plus}</span> <span className="neg">{a.minus}</span></td></tr>)}</tbody></table>
       </Sec>
 
+      <Sec id="ath" title="Athleticism" open={all}>
+        <p><b>Athleticism</b> (Physical on the player card, “Ath” in the tables) is burst, speed, leaping and strength <i>for his size</i> – 50 is a typical NBA player his size. It comes from the real data (dunks, shots at the rim, free throws, size and role), the NBA combine where measured, and a scout's review of the best players.</p>
+        <ul>
+          <li><b>In the games</b> it decides mismatches: an explosive slasher against a slow defender finishes and draws fouls more often, a quick defender bothers a slow ball-handler, a leaper blocks more shots, and the more athletic lineup gets out on the break and to the offensive glass more. Against the league on average it evens out – a player's season still matches his ratings.</li>
+          <li><b>Over a career</b> it grows a little to about 22, stays to 26, then fades – faster past 30. The skills built on it (finishing, drawing fouls, rebounding, blocks, steals, defence) fade with it, more for those who leaned on it: a high flyer loses more than a craftsman. A torn ACL or Achilles takes some of it for good.</li>
+          <li><b>In the draft</b> the scouts see it well. The Profile column sums them up: Elite athlete / Athletic / Below the rim, Raw (the tools without the skills yet), Polished, High ceiling / High floor, Boom or bust / Safe. A raw athlete is a wider bet – more upside, more risk.</li>
+        </ul>
+      </Sec>
       <Sec id="pot" title="Potential and scouting" open={all}>
         <p>A player's real potential is hidden. “Pot.” is what the scouts believe: the real potential plus their error. For a prospect the error is ~±5 OVR, and about one in twelve is badly misjudged – the Darko everybody loved, the Giannis nobody saw. As a player spends seasons in the league the scouts learn and the error shrinks. Overall stays hidden in the draft until a player is picked.</p>
         <p>In the draft, <b>Now</b> is the scouts' estimate of a prospect's overall today – it can be a few points off; the real one shows once he is drafted.</p>

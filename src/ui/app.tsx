@@ -1587,7 +1587,7 @@ function UpcomingClass({ lg, openPlayer, onChange }: any) {
     { key: 'pos', label: 'Pos', left: true, get: (r: any) => natural(r.p), fmt: (_: any, r: any) => posLabel(r.p) },
     { key: 'age', label: 'Age', get: (r: any) => Math.floor(c.year + 1 - r.p.born) },
     potCol((r: any) => r.p, c.year + 1),
-    ...scoutCols((r: any) => r.p),
+    ...scoutCols((r: any) => r.p, c.year + 1),
     ...attrCols((r: any) => r.p, c.year + 1, proj),
   ];
   return (

@@ -1338,3 +1338,10 @@ th.grp, td.grp { border-left: 2px solid var(--line, rgba(255,255,255,.18)); }
 .trade-pop .tp-main .pop-sides { grid-template-columns: 1fr; }
 tr.overpay > td { background: color-mix(in srgb, var(--bad, #c0392b) 7%, transparent); }
 .chip.warn { background: var(--bad, #c0392b); color: #fff; border-color: transparent; }
+
+/* prospect profile tags */
+.prof-tags { display: inline-flex; flex-wrap: wrap; gap: 3px; max-width: 260px; }
+.chip.prof-up { background: color-mix(in srgb, #2e9e5b 25%, transparent); }
+.chip.prof-dn { background: color-mix(in srgb, #888 25%, transparent); }
+.chip.prof-warn { background: color-mix(in srgb, #d08a1e 30%, transparent); }
+.chip.prof-ok { background: color-mix(in srgb, #3a7bd5 25%, transparent); }

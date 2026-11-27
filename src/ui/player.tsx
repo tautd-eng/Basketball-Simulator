@@ -1,5 +1,7 @@
 // @ts-nocheck
 // Player card: ratings, progression year by year, and sortable career statistics.
+import { ProfileTags } from './profile';
+import { athRating, athPhase } from '../athletic';
 import { htStr, htCol, htDiff } from './units';
 import { posLabel, natural } from './positions';
 import { Linkify } from './nav';
@@ -343,6 +345,7 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
         </div>
         {editFace && <FaceEditor p={p} season={lg.season} onChange={() => bump(x => x + 1)} />}
         {!p.prospect && <RoleCard p={p} />}
+        {p.prospect && <p className="prof-line"><span className="dim">Scouts' read: </span><ProfileTags p={p} S={(p.draft?.year ?? lg.season) + 1} /></p>}
         {p.awards.length > 0 && <AwardChips p={p} />}
         <h3>Current skills</h3>
         <div className="ratings grouped">
@@ -350,6 +353,16 @@ export function PlayerPanel({ lg, pid, close, openTeam, onChange, findTrades }: 
             <div key={g} className="rating-group">
               <h4>{g}</h4>
               {keys.map(k => {
+                if (k === 'ath') {
+                  const val = athRating(p, lg.season);
+                  return (
+                    <div key={k} className="rating" title={`Burst, speed, leaping and strength for his size – ${athPhase(ageIn(p, lg.season))}. Athletes win mismatches (at the rim, on the break, on the glass); it fades with age, and those who lean on it lose more.`}>
+                      <span className="rl">Athleticism</span>
+                      <span className="bar"><span style={{ width: `${val}%` }}></span></span>
+                      <span className="rv">{val}</span>
+                    </div>
+                  );
+                }
                 const L = k[0] === 'r' ? RATING_LABELS[+k.slice(1)] : null;
                 const face: any = { perd: ['Perimeter defense', perD], postd: ['Post defense', postD], rimp: ['Rim protection', rimD] }[k];
                 const val = L ? attrOf(p.z, L) : ratingOf(face[1](p.z, p.ht));
@@ -446,7 +459,8 @@ function OvrChart({ p }: any) {
 const SKILL_GROUPS: [string, string[]][] = [
   ['Offense', ATTR_ORDER.slice(0, ATTR_ORDER.indexOf('r6'))],
   ['Rebounding', ['r6', 'r7']],
-  ['Defense', ATTR_ORDER.slice(ATTR_ORDER.indexOf('r10'))],
+  ['Physical', ['ath']],
+  ['Defense', ATTR_ORDER.slice(ATTR_ORDER.indexOf('r10'), ATTR_ORDER.indexOf('ath'))],
 ];
 
 /** His contract: salary, how long it runs, options, rookie deal, an extension waiting to start. */

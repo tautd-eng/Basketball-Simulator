@@ -1,5 +1,6 @@
 // Thin control layer between the UI and the league: advancing time in chunks
 // (so the page stays responsive) and saving to the browser.
+import { athOf } from './athletic';
 import { League } from './types';
 import { bioOf } from './players';
 import { expireAiOffers } from './league/proposals';
@@ -188,6 +189,8 @@ const AWARD_EN: Record<string, string> = { 'čempionas': 'Champion', 'Finalo MVP
 function migrate(lg: League) {
   registerNew2027();
   registerClones(lg);
+  // older saves: athleticism for everyone (his peak, aged to now)
+  for (const p of Object.values(lg.players)) athOf(p, lg.season);
   for (const p of Object.values(lg.players) as any[]) {
     if (!p.awards?.length) continue;
     p.awards = p.awards.map((a: string) => { const m = /^(\d{4}) (.*)$/.exec(a); if (!m) return a; if (AWARD_EN[m[2]]) return `${m[1]} ${AWARD_EN[m[2]]}`; return /[ąčęėįšųūž]/i.test(m[2]) ? `${m[1]} ${awardLabel(m[2])}` : a; });

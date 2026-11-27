@@ -2,11 +2,14 @@
 // and compare each player's box-score rate with the real rate his rating encodes.
 import { boot } from './harness';
 import { newLeague, simDay } from '../src/league/league';
-import { setEraCal } from '../src/engine/game';
+import { setEraCal, ATHX, ATHB } from '../src/engine/game';
 import { rate, K, H } from '../src/data';
 import cal from '../src/engine/eracal.json';
 import { writeFileSync } from 'fs';
 boot(); setEraCal(cal as any);
+if (process.env.NOATH) { for (const k in ATHX) (ATHX as any)[k] = 0; for (const k in ATHB) (ATHB as any)[k] = 0; }
+if (process.env.ATHB0) { for (const k in ATHB) (ATHB as any)[k] = 0; for (const k of ['drwN', 'blkN', 'tovN', 'p2N']) (ATHX as any)[k] = 0; }
+const tag = process.env.NOATH ? '_noath' : process.env.ATHB0 ? '_raw' : '';
 const start = +(process.argv[2] ?? 1995), seed = +(process.argv[3] ?? 5);
 const lg: any = newLeague(0, seed, undefined, { start });
 const z0 = new Map<string, number[]>((Object.values(lg.players) as any[]).map(p => [p.id, p.z.slice()]));
@@ -33,7 +36,7 @@ for (const p of Object.values(lg.players) as any[]) {
   const L = p.career.filter((c: any) => c.s === S && !c.po).reduce((a: any, c: any) => { for (const k in c) if (typeof c[k] === 'number') a[k] = (a[k] ?? 0) + c[k]; return a; }, {} as any);
   const LL = L.min ? L : (p.cur ?? {});
   if (!LL.min || LL.min < 800 || !z0.has(p.id)) continue;
-  out.push({ id: p.id, name: p.name, pos: p.pos, min: LL.min, z: z0.get(p.id), obs: OBS.map(([n, k, num, den]) => [num(LL), den(LL), rate(k, z0.get(p.id)![k], S)]) });
+  out.push({ id: p.id, ath: p.ath ?? 0, name: p.name, pos: p.pos, min: LL.min, z: z0.get(p.id), obs: OBS.map(([n, k, num, den]) => [num(LL), den(LL), rate(k, z0.get(p.id)![k], S)]) });
 }
-writeFileSync(`/home/claude/work/prog2/statfit_${start}_${seed}.json`, JSON.stringify({ names: OBS.map(o => o[0]), tf: OBS.map(o => o[4]), rows: out }));
+writeFileSync(`/home/claude/work/prog2/statfit_${start}_${seed}${tag}.json`, JSON.stringify({ names: OBS.map(o => o[0]), tf: OBS.map(o => o[4]), rows: out }));
 console.log('players', out.length);

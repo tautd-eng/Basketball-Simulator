@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Off-season screens: draft day (one pick at a time), the free-agency hub
 // (three stages) and the free-agent list where the user makes offers.
+import { profileCol } from './profile';
 import { PosFilter } from './posfilter';
 import { guardMove } from './guard';
 import { hash01 } from '../rng';
@@ -42,7 +43,8 @@ export const athOf = (p: any) => {
   return ratingOf(c * 2.5); // the composite varies little, so it is spread out to the usual 0–99 scale
 };
 /** Columns for prospects: what the scouts think he is now. */
-export const scoutCols = (pOf: (r: any) => any) => [
+export const scoutCols = (pOf: (r: any) => any, S?: number) => [
+  ...(S ? [profileCol(pOf, S)] : []),
   { key: 'now', label: 'Now', title: 'His overall today as the scouts see it – an estimate, it can be a few points off (the real one shows once he is drafted)', get: (r: any) => scoutNow(pOf(r)), fmt: (v: number) => <span className="dim" title="Scouts' estimate">~{v}</span> },
 ];
 const R = (p: any, i: number) => attrOf(p.z, RATING_LABELS[i]);
@@ -142,7 +144,7 @@ export function DraftRoom({ lg, onChange, onTick = () => {}, openPlayer, openTea
     { key: 'age', label: 'Age', asc: true, get: (p: any) => ageIn(p, d.year + 1) },
     { key: 'cons', label: 'Rank', title: 'Consensus rank of the scouts (his overall stays hidden until he is picked)', asc: true, get: (p: any) => p.draft?.realPick ?? 99 },
     potCol((p: any) => p, d.year + 1),
-    ...scoutCols((p: any) => p),
+    ...scoutCols((p: any) => p, d.year + 1),
     ...(lg.userTid ? [{ key: 'my', label: 'My board', title: 'Your own board – + adds him, the number is his place on it', asc: true, get: (p: any) => { const i = boardOf(lg, d.year).indexOf(p.id); return i < 0 ? 999 : i; }, fmt: (_: any, p: any) => <BoardToggle lg={lg} year={d.year} pid={p.id} onChange={() => act(() => {})} /> }] : []),
     ...attrCols((p: any) => p, d.year + 1, proj),
     { key: 'act', label: '', get: () => 0, fmt: (_: any, p: any) => myTurn ? <button className={`small ${p.id === suggestion ? 'primary' : ''}`} onClick={() => act(() => run(lg, { t: 'draftPick', pid: p.id }))}>Pick</button> : null },

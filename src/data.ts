@@ -44,6 +44,7 @@ export interface HistPlayer {
   s: RealSeason[];
   d?: [number, number, number, string]; // draft: year, pick, round, franchise
   c?: string;
+  a?: number;   // athleticism at his peak (z, size-relative; prep/ath)
 }
 
 export interface SeasonTeam { abbr: string; name: string; conf: 'E' | 'W'; w: number; l: number; pace: number }

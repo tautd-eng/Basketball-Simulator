@@ -1,3 +1,4 @@
+import { athOf, athPeak, athAge, AW } from './athletic';
 import { H, NK, K, ovrOf, bpmOf, RealSeason, RATING_LABELS, ratingOf, shownOvr, agingIndex, attrOf } from './data';
 import { Player, emptyLine } from './types';
 import { hash01, Rng } from './rng';
@@ -100,6 +101,7 @@ export function bioOf(pid: string, hp: any, season: number) {
 
 export function newPlayer(pid: string, z: number[], tid: string | null, season: number): Player {
   const p = makePlayer(pid, z, tid, season);
+  athOf(p, season);
   snapRatings(p, season);
   return p;
 }
@@ -156,7 +158,9 @@ export function prospectZ(pid: string, draftYear: number, destiny: number, rng: 
   const prior = H.draftPrior[bucket(pick)].z;
   // the slot's average prospect, shaped by his height (a big rebounds and blocks, a small guard handles and shoots), plus noise
   const hb = (hp as any)?.h ? heightBetas() : null, dh = hb ? (hp as any).h - hb.m : 0;
-  const base = prior.map((v, i) => v + (hb ? hb.b[i] * dh : 0) + rng.normal() * 0.55);
+  // a real athlete shows it in the skills built on it (finishing, drawing fouls, the glass, blocks, defence)
+  const ap = athPeak(pid) + athAge(19);
+  const base = prior.map((v, i) => v + (hb ? hb.b[i] * dh : 0) + AW[i] * ap + rng.normal() * 0.55);
   const tgt = realTarget(pid, draftYear + 1) ?? (hp?.s.length ? { z: hp.s[0][7], mp: hp.s[0][3], interp: true } : undefined);
   if (tgt) return base.map((v, i) => v + destiny * (tgt.z[i] - v));
   // never played in the NBA: in the destiny world he was below his slot

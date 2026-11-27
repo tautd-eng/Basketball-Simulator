@@ -12,6 +12,7 @@ import { hiddenBoost } from '../hboost';
 import { shownFromBpm } from '../data';
 import { emptyLine, StatLine, Player, Box } from '../types';
 import { fitTraits, FitTraits, fit0, edgeTraits, ctr0 } from '../archetypes';
+import { mismatch } from '../athletic';
 
 /** Per-season calibration offsets, produced by test/eracal.ts. */
 export interface EraCal { pace: number; tpa: number; p2: number; p3: number; ft: number; tov: number; orb: number; ast: number; stl: number; blk: number; pf: number; ftr: number }
@@ -40,6 +41,17 @@ export const C = {
   pass: 0.15, pass0: 0.11, hb: 0.022, hbOn: 1, split: 1, rimHelp: 0.65, rim0: 1.3, rimK: 0.7, postK: 0.5, // defence split into perimeter / rim protection (0 = the single rating)
    fitSp: 0.12, fitHd: 0.08, fitRim: 0, fitCk: 0.07, edge: 0.09, edgeMass: 0.3, // lineup fit: spacing (twos), a ball-handler (turnovers), rim protection (opponent twos), too many ball-dominant scorers
 };
+/**
+ * Athleticism in the games (src/athletic.ts): mismatches, centred so nobody's season moves on average. rim / mid:
+ * a shot inside against his man (logit per unit of mismatch); fb: a shot on the break against the chasers; fbFreq:
+ * how often a team gets out on the break against a slower one (per unit of the lineups' average gap); drw: shooting
+ * fouls drawn; blk: the rim protector's leap against the shooter's; tov: a quick defender on a slow ball-handler;
+ * orb: the offensive glass (lineups' gap); fat: athleticism lost per unit of fatigue.
+ */
+export const ATHX = { rim: 0.12, mid: 0.05, fb: 0.15, fbFreq: 0.3, drw: 0.12, blk: 0.18, tov: 0.06, orb: 0.12, fat: 0.5,
+  // the mismatches' net effect on the league's totals (a bigger gap counts more than a smaller one): taken back
+  drwN: -0.075, blkN: -0.076, tovN: -0.041, p2N: 0.013 };
+const avgAth = (on: GP[]) => { let a = 0; for (const g of on) a += g.ath; return a / on.length; };
 /** Debug: running sums of lineup-fit measures over plays (to centre FIT0). */
 export const fitStats: Record<string, number> = { rm: 0, nr: 0, pa: 0, n: 0, sh: 0, hd: 0, rp: 0, ck: 0, cdrive: 0, cshoot: 0, cpost: 0, chandle: 0, e2: 0, e3: 0, et: 0 };
 
@@ -51,6 +63,7 @@ interface GP {
   usg: number; tov: number; drw: number; tpr: number; p2: number; p3: number; pft: number;
   ast: number; orb: number; drb: number; stl: number; blk: number; pf: number; def: number; per: number; rim: number; post: number; hb: number; stlZ: number; astZ: number;
   endurMul: number;
+  ath: number;          // athleticism now (fatigue takes some of the burst)
   ft: FitTraits;        // lineup-fit traits (shooter, handler, rim protector, creator)
   ed: ReturnType<typeof edgeTraits>; // role matchups: what he attacks with and what he stops
   e: number;            // energy
@@ -84,7 +97,24 @@ function tired(z: number[], f: number): number[] {
   return o;
 }
 
+/**
+ * The athletic mismatches favour athletes a little on average (they meet the league's average, run with athletic
+ * teammates, finish more breaks): his base rates give that back, so his season keeps to his ratings (measured with
+ * test/statfit.ts + work/prog2/athbias.py; per unit of athleticism, in the rate's logit / log).
+ */
+/** the league's average athleticism on the floor (minutes-weighted; players are a little past their peak) */
+export const ATH0 = -0.09;
+export const ATHB = { p2: 0.061, drw: 0.086, tov: -0.072, blk: 0.013, orb: 0.021, drb: 0.009, stl: 0.019, pf: -0.032 };
 export function prep(p: Player, season: number): GP {
+  const g = prep0(p, season), a = (p.ath ?? 0) - ATH0;
+  if (a) {
+    g.p2 = sigm(logit(g.p2) - ATHB.p2 * a); g.tov = sigm(logit(g.tov) - ATHB.tov * a);
+    g.drw *= Math.exp(-ATHB.drw * a); g.blk *= Math.exp(-ATHB.blk * a); g.orb *= Math.exp(-ATHB.orb * a);
+    g.drb *= Math.exp(-ATHB.drb * a); g.stl *= Math.exp(-ATHB.stl * a); g.pf *= Math.exp(-ATHB.pf * a);
+  }
+  return g;
+}
+function prep0(p: Player, season: number): GP {
   const fat = Math.max(0, ((p as any).fatNow ?? 0) - FATIGUE.free);
   const z = tired(p.z, (p as any).fatNow ?? 0);
   const bpm = bpmOf(p.z);
@@ -106,6 +136,7 @@ export function prep(p: Player, season: number): GP {
     pf: rate(K.pf, z[K.pf], season),
     def: z[K.def], hb: C.hbOn ? hiddenBoost(p.id) : 0, per: perD(z, p.ht), rim: rimD(z, p.ht), post: postD(z, p.ht), stlZ: z[K.stl], astZ: z[K.ast],
     endurMul: 1 - 0.12 * p.endur,
+    ath: (p.ath ?? 0) - ATH0 - ATHX.fat * fat,
     ft: fitTraits(z, posNum(p.pos)),
     ed: edgeTraits(p.z, p.pos),
     e: Math.max(0.7, 1 - FATIGUE.energy * fat), target: 0, on: false, fouls: 0, st: emptyLine(), starter: false,
@@ -604,7 +635,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
       // transition: a steal or a long rebound starts a break before the defence is set
       const pushes = offCall === 'quick' || offCall === 'two4one' ? 1.5 : offCall === 'milk' || offCall === 'hold' ? 0 : 1;
       // a team that crashes the offensive glass gives up more breaks after its misses
-      fastBreak = defCall !== 'foul' && rem > 4 && rng.chance((ended === 'stl' ? C.fbStl : ended === 'drb' ? C.fbDrb * (1 + 1.1 * def.tac.crash) * (1 - ((off.tac.dreb ?? 0) < 0 ? 0.9 : 0.6) * (off.tac.dreb ?? 0)) : 0) * pushes * (1 + 0.15 * off.paceZ + 0.15 * off.tac.pace));
+      fastBreak = defCall !== 'foul' && rem > 4 && rng.chance((ended === 'stl' ? C.fbStl : ended === 'drb' ? C.fbDrb * (1 + 1.1 * def.tac.crash) * (1 - ((off.tac.dreb ?? 0) < 0 ? 0.9 : 0.6) * (off.tac.dreb ?? 0)) : 0) * pushes * (1 + 0.15 * off.paceZ + 0.15 * off.tac.pace) * Math.exp(ATHX.fbFreq * (avgAth(off.on) - avgAth(def.on))));
       ended = 'dead';
       // --- one possession (may contain several plays through offensive rebounds)
       let first = true;
@@ -840,7 +871,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
 
     // turnover
     // ball pressure: his own defender's hands count as much as the team's
-    const pTov = sigm(logit(actor.tov) + C.tov + E.tov + C.stlDef * (C.mmDef * md.stlZ + (1 - C.mmDef) * stlZ) + 0.8 * fat - 0.5 * homeAdv - 0.3 * usgShift + (defCall === 'pressure' ? 0.35 : 0) + 0.12 * def.tac.press + 0.08 * Math.max(0, -(off.tac.focus ?? 0)) + 0.05 * (off.tac.pnr ?? 0) + (def.tac.cover === 'blitz' ? 0.12 : 0) + dblTov + (offCall === 'milk' ? 0.1 : 0) + (lc ? 0.15 : 0) - C.fitHd * (fHd - F0.hd) - eT);
+    const pTov = sigm(logit(actor.tov) + C.tov + E.tov + C.stlDef * (C.mmDef * md.stlZ + (1 - C.mmDef) * stlZ) + 0.8 * fat - 0.5 * homeAdv - 0.3 * usgShift + (defCall === 'pressure' ? 0.35 : 0) + 0.12 * def.tac.press + 0.08 * Math.max(0, -(off.tac.focus ?? 0)) + 0.05 * (off.tac.pnr ?? 0) + (def.tac.cover === 'blitz' ? 0.12 : 0) + dblTov + (offCall === 'milk' ? 0.1 : 0) + (lc ? 0.15 : 0) - C.fitHd * (fHd - F0.hd) - eT + ATHX.tov * mismatch(md.ath, actor.ath) + ATHX.tovN);
     if (rng.chance(pTov)) {
       inc(actor, 'tov');
       const sumStl = dOn.reduce((a, g) => a + g.stl, 0);
@@ -865,7 +896,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // free-throw trip without a field-goal attempt (shooting foul / bonus)
     const defPf = dOn.reduce((a, g) => a + g.pf, 0) / 5;
     const r = Math.max(0, actor.drw - C.andOne * 0.5);
-    const qTrip = Math.min(0.45, (r / (2 + r)) * C.foulTrip * E.ftr * Math.sqrt(defPf / leaguePf) * (offCall === 'inside' ? 1.35 : 1) * (fb ? 1.2 : 1) * (1 + 0.25 * def.tac.press + 0.32 * (def.tac.phys ?? 0)) * (1 + 0.07 * (off.tac.post ?? 0)));
+    const qTrip = Math.min(0.45, (r / (2 + r)) * C.foulTrip * E.ftr * Math.sqrt(defPf / leaguePf) * (offCall === 'inside' ? 1.35 : 1) * (fb ? 1.2 : 1) * (1 + 0.25 * def.tac.press + 0.32 * (def.tac.phys ?? 0)) * (1 + 0.07 * (off.tac.post ?? 0)) * Math.exp(ATHX.drw * mismatch(actor.ath, md.ath) + ATHX.drwN));
     if (rng.chance(qTrip)) {
       foulOn(def);
       return ftTrip(off, def, actor, 2);
@@ -916,9 +947,12 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     } else {
       // shots at the rim get blocked far more often than jumpers (same total)
       const rimW = zone.mix[0][0], blkZ = zone.k === 'rim' ? 1.4 / (rimW * 1.4 + (1 - rimW) * 0.45) : zone.k === 'mid' ? 0.45 / (rimW * 1.4 + (1 - rimW) * 0.45) : 1;
-      const pBlk = Math.min(0.3, dOn.reduce((a, g) => a + g.blk, 0) * C.blk * E.blk * blkZ);
+      // athleticism: the shooter's burst against his man (on the break: against the men chasing him); the shot blocker's leap against the shooter's
+      let rp = dOn[0]; for (const g of dOn) if (g.blk > rp.blk) rp = g;
+      const athSh = fb ? ATHX.fb * mismatch(actor.ath, avgAth(dOn)) : (zone.k === 'rim' || zone.k === 'putback' ? ATHX.rim : ATHX.mid) * mismatch(actor.ath, md.ath);
+      const pBlk = Math.min(0.3, dOn.reduce((a, g) => a + g.blk, 0) * C.blk * E.blk * blkZ * Math.exp(ATHX.blk * mismatch(rp.ath, actor.ath) + ATHX.blkN));
       const cov = DT.cover === 'drop' ? -0.03 : DT.cover === 'switch' ? (actor.posNum >= 4 ? 0.06 : -0.02) : 0;
-      const pMake = zoneP(sigm(logit(actor.p2) + C.p2 + E.p2 + shift + (sch > 0 ? 0.08 : 0.08) * sch + (DT.cover === 'blitz' ? 0.04 : 0) + 0.04 * Math.max(0, DT.press) + 0.05 * mov + 0.04 * (OT.pnr ?? 0) - 0.05 * (DT.phys ?? 0) + cov + single), zone);
+      const pMake = zoneP(sigm(logit(actor.p2) + C.p2 + E.p2 + shift + (sch > 0 ? 0.08 : 0.08) * sch + (DT.cover === 'blitz' ? 0.04 : 0) + 0.04 * Math.max(0, DT.press) + 0.05 * mov + 0.04 * (OT.pnr ?? 0) - 0.05 * (DT.phys ?? 0) + cov + single + athSh + ATHX.p2N), zone);
       if (rng.chance(pBlk)) {
         lastBlocked = true;
         blocker = dOn[rng.weighted(dOn.map(g => g.blk * (g === md ? 2.5 : 1)))];
@@ -984,7 +1018,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
   }
 
   function rebound(off: Side, def: Side, ft: boolean): 'end' | 'orb' {
-    const O = off.on.reduce((a, g) => a + g.orb, 0) * C.orb * E.orb * (ft ? C.orbFt : 1) * (1 + (off.tac.crash > 0 ? 0.11 : 0.07) * off.tac.crash);
+    const O = off.on.reduce((a, g) => a + g.orb, 0) * C.orb * E.orb * (ft ? C.orbFt : 1) * (1 + (off.tac.crash > 0 ? 0.11 : 0.07) * off.tac.crash) * Math.exp(ATHX.orb * (avgAth(off.on) - avgAth(def.on)));
     const D = def.on.reduce((a, g) => a + g.drb, 0) * (1 + 0.09 * (def.tac.dreb ?? 0));
     if (rng.chance(O / (O + D))) {
       const g = off.on[rng.weighted(off.on.map(g => g.orb))];

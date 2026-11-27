@@ -374,6 +374,9 @@ export function devReason(lg: any, p: any, S: number): string {
   add(w.destiny, 'pulled toward his real career');
   add(w.league ?? 0, 'league-wide recalibration');
   parts.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+  // athleticism: a noticeable step lost (or gained) this summer
+  const ad = w.athD ?? 0, athNote = ad <= -0.15 ? (inj.length ? 'lost some of his burst' : 'lost a step athletically') : ad >= 0.1 ? 'got quicker and more explosive' : '';
+  if (athNote) parts.push({ v: 0, t: athNote });
   let txt = parts.map(x => x.t).join('; ');
   if (!txt) txt = w.dz && age <= 25 ? 'played about at his level – no penalty for a young player' : 'little changed';
   else if (w.dz && age <= 25 && Math.abs(w.perf) < 1) txt += '; played about at his level (no penalty at his age)';

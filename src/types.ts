@@ -35,6 +35,7 @@ export interface Player {
   draft?: { year: number; pick: number; round: number; tid: string; realPick: number; realTid: string };
   injury: number;        // games out
   endur: number;         // endurance z
+  ath?: number;          // athleticism now (z for his size; src/athletic.ts)
   cur: StatLine;         // current regular season
   curPo: StatLine;       // current playoffs
   /** this season's lines split by team (for advanced stats; cur/curPo stay the full-season totals) */
@@ -201,7 +202,7 @@ export interface FreeAgency {
 /** A player who retired this summer: team, age, rating and why; `back` = he would come back if asked. */
 export interface RetRow { pid: string; tid: string | null; age: number; ovr: number; why: string; back: boolean; undone?: boolean; rk?: number }
 /** Why a player's rating changed this summer, in displayed OVR points by cause. */
-export interface DevWhy { s: number; inj: number; perf: number; trend: number; luck: number; cap: number; destiny: number; league?: number; total: number; flop?: boolean; dz?: boolean }
+export interface DevWhy { s: number; inj: number; perf: number; trend: number; luck: number; cap: number; destiny: number; league?: number; total: number; flop?: boolean; dz?: boolean; athD?: number }
 export interface FantasyDraft {
   /** third-round reversal: from this round on the snake turns the other way (3 = classic 3RR) */
   rr?: number | null; order: string[]; rounds: number; picks: { round: number; pick: number; tid: string; pid: string }[]; done: boolean }

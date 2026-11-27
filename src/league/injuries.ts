@@ -9,6 +9,7 @@
 // rest days heal and long injuries can run into next season. Severe injuries
 // (ACL, Achilles, meniscus, fractures) leave a mark on the physical skills,
 // and every player has a hidden injury proneness that grows with serious injuries.
+import { athOf } from '../athletic';
 import { K } from '../data';
 import { Rng, hash01 } from '../rng';
 import { League, Player } from '../types';
@@ -102,6 +103,8 @@ export function injure(lg: League, p: Player, cal: number, rng: Rng, where: 'gam
     const f = t.lasting * (age <= 24 ? 0.6 : age <= 29 ? 1 : 1.4);
     for (const k of [K.orb, K.drb, K.stl, K.blk, K.def, K.drw]) p.z[k] -= f;
     p.z[K.ins] -= f * 0.4;
+    // …and on his legs: some of his burst is gone for good
+    p.ath = athOf(p, lg.season) - f * 1.3;
     p.injHist[p.injHist.length - 1].lasting = true;
   }
   // news for notable players and anything serious on the user's team

@@ -1,6 +1,7 @@
 import { isHuman, handTo, humans } from './humans';
 // Off-season: expansion, lottery and draft, retirements, development, contracts,
 // arrivals and free agency.
+import { athOf } from '../athletic';
 import { gmBaseline } from './gms';
 import { nextPayroll } from './extensions';
 import { H, seasonInfo, LAST_SEASON, bpmOf, ovrOf, agingIndex, NK, shownOvr, shownFromRaw, histShown } from '../data';
@@ -69,7 +70,7 @@ function makeClass(lg: League, Y: number, rng: Rng): string[] {
   for (const pid of classIds) {
     const shift = shiftFor(pid, Y);
     const p = newPlayer(pid, prospectZ(pid, Y - shift, lg.destiny, rng), null, Y + 1);
-    if (shift) { p.shift = shift; p.born += shift; }
+    if (shift) { p.shift = shift; p.born += shift; p.ath = undefined; athOf(p, Y + 1); }
     p.entered = Y + 1;
     const d = H.players[pid].d!;
     p.draft = { year: Y, pick: 0, round: 0, tid: '', realPick: d[1], realTid: d[3] };
