@@ -43,11 +43,11 @@ export const VET_TREND = 0.5;
 export const YOUNG_TREND = [0.8, 0.8, 0.65, 0.35, 0.25, 0.25, 0.3];
 export const AGE = {
   //         19    20    21    22    23    24    25    26    27    28    29    30    31    32    33    34    35    36    37    38    39
-  grow:   [0.14, 0.13, 0.11, 0.16, 0.11, 0.04, 0.03, 0.02, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  grow:   [0.12, 0.11, 0.095, 0.15, 0.11, 0.04, 0.03, 0.02, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   minDrop:[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.15, 0.13, 0.17, 0.21, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.86],
   neg:    [0, 0, 0, 0, 0.20, 0.55, 0.75, 0.85, 0.90, 1.05, 1.05, 1.00, 1.05, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10, 1.10],
   pos:    [1.20, 1.20, 1.20, 1.25, 1.30, 1.45, 1.45, 1.40, 1.15, 0.95, 0.90, 0.85, 0.75, 0.65, 0.60, 0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
-  lgDown: [0.50, 0.50, 0.50, 0.50, 0.45, 0.40, 0.35, 0.35, 0.40, 0.70, 1.35, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 1.15],
+  lgDown: [0.60, 0.60, 0.60, 0.60, 0.55, 0.50, 0.45, 0.45, 0.50, 0.75, 1.00, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80],
   lgUp:   [1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.00, 0.80, 0.65, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50],
   young:  [0, 0, 0, 0, 0.5, 1, 2],
   //         19    20    21    22    23    24
@@ -201,6 +201,19 @@ export function performanceShift(lg: League, Y: number) {
     return res.map((r, i) => r - b * (ctx.get(who[i].id)! - mx));
   };
   const ROLE = new Set<number>([K.usg, K.ast, K.tpr, K.drw, K.orb, K.drb]);
+  const USG_DETREND = new Set<number>([K.ins, K.tp, K.drw, K.tov]);
+  /** residuals less their weighted linear trend on the usage rating (a piecewise one: only above-average usage) */
+  const deUsg = (res: number[], who: Player[], ws: number[]) => {
+    const u = who.map(p => Math.max(0, p.z[K.usg]));
+    let W = 0, mx = 0, my = 0;
+    u.forEach((x, i) => { W += ws[i]; mx += ws[i] * x; my += ws[i] * res[i]; });
+    if (W <= 0) return res;
+    mx /= W; my /= W;
+    let cov = 0, vx = 0;
+    u.forEach((x, i) => { cov += ws[i] * (x - mx) * (res[i] - my); vx += ws[i] * (x - mx) ** 2; });
+    const b = vx > 1e-9 ? cov / vx : 0;
+    return res.map((r, i) => r - 0.3 * b * (u[i] - mx));   // a third of it: the positional ranking takes out the rest
+  };
   // 1) skill by skill
   for (const o of OBS) {
     // tendencies (how many shots he takes, how many of them threes) are handed out by the game engine itself:
@@ -218,6 +231,10 @@ export function performanceShift(lg: League, Y: number) {
     if (!f) continue;
     let res = ys.map((y, i) => y - f.fit(xs[i]));
     if (ROLE.has(o.k)) res = deCtx(res, who.map(x => x.p), ws);
+    // the go-to man meets the stopper, the double team and the late-clock shot: the engine takes a little off his
+    // twos and free throws and adds to his turnovers for every point of usage (test/statfit.ts by usage band). That is
+    // the job, not a slump – take out what usage explains, or every high-usage star "declines" each season
+    if (USG_DETREND.has(o.k)) res = deUsg(res, who.map(x => x.p), ws);
     if (o.k === K.def) {
       // bigs contest shots at the rim, guards jumpers: compare each with his own position group
       const grp = (p: Player) => { const n = posNum(p.pos); return n <= 2.5 ? 0 : n >= 4.5 ? 2 : 1; };
@@ -287,6 +304,23 @@ export function performanceShift(lg: League, Y: number) {
     }
   }
   for (const { p } of lines) { const d = out.get(p.id)!; d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - ovrOf(p.z); }
+  // Age is not a skill. A veteran's legs, stamina and athleticism already fall in his ratings, and the engine plays
+  // them – so as a group the 30+ underperform the line every season, and charging that again on top of the aging
+  // curve made every veteran decline twice (−2.2 a summer at 33+ against −1.55 in the data). Each age group's mean
+  // signal is taken out; who beat or missed his group still counts in full.
+  const grpA = (p: Player) => { const a = Y - (p.born ?? Y); return a >= 33 ? 2 : a >= 30 ? 1 : -1; };
+  const gm = [[0, 0], [0, 0], [0, 0]];
+  for (const { p, l } of lines) { const g = grpA(p); if (g < 0) continue; gm[g][0] += l.min * out.get(p.id)!.ovrGain; gm[g][1] += l.min; }
+  for (const { p } of lines) {
+    const g = grpA(p); if (g < 0 || gm[g][1] < 5000) continue;
+    const m = gm[g][0] / gm[g][1]; if (m >= 0) continue;
+    const d = out.get(p.id)!, z0 = ovrOf(p.z);
+    // shift along the OVR direction until his gain is up by −m
+    let lo = 0, hi = 3 * Math.abs(m) + 1;
+    for (let it = 0; it < 20; it++) { const mid = (lo + hi) / 2; const g1 = ovrOf(p.z.map((v, i) => v + d.dz[i] + mid * OVR_DIR[i])) - z0; if (g1 - d.ovrGain < -m) lo = mid; else hi = mid; }
+    for (let k = 0; k < NK; k++) d.dz[k] += lo * OVR_DIR[k];
+    d.ovrGain = ovrOf(p.z.map((v, i) => v + d.dz[i])) - z0;
+  }
   return out;
 }
 /** How much a season's signal counts by minutes per game: a step up only from ~15 mpg (in full from ~30),
