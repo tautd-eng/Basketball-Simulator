@@ -10,7 +10,7 @@
 // in any skill, or a talent spread that is too wide or too flat, is pulled back
 // part of the way. With the destiny slider at 100% the sim already follows the
 // real careers, so the guard does almost nothing there.
-import { H, NK, K, agingIndex, bpmOf, ovrOf, LAST_SEASON, FIRST_SEASON, era, shownOvr, shownFromRaw, histShown } from '../data';
+import { H, NK, K, agingIndex, bpmOf, LAST_SEASON, FIRST_SEASON, era, shownOvr, shownFromRaw, histShown } from '../data';
 import { Rng } from '../rng';
 import { League, Player, StatLine, emptyLine, addLine } from '../types';
 import { ageIn, realTarget, snapRatings } from '../players';
@@ -107,6 +107,9 @@ const OBS: Obs[] = [
   { k: K.def, log: false, num: l => (l.dfga ?? 0) - (l.dfgm ?? 0), den: l => l.dfga ?? 0, prior: 600, w: 1 },
 ];
 export const PERF = { alpha: 1, skill: 0.32, overall: 0.9, maxStep: 12, vetNeg: 1.1, youngPos: 1.2, spread: [0.5, 0.3, 0.2] };
+/** The overall rating unrounded and uncapped: the displayed one stops at 99, and every change measured on it came out
+ *  zero for a player above that – no decline, no signal, nothing (a 99 at 39 who shot 20 %). */
+const ovrOf = (z: number[]) => 48 + 5.5 * bpmOf(z);
 const lgt = (p: number) => Math.log(Math.min(0.995, Math.max(0.005, p)) / (1 - Math.min(0.995, Math.max(0.005, p))));
 
 /** Season line (regular season + playoffs) the player produced in season Y. */
@@ -336,6 +339,7 @@ export const minutesTrust = (mpg: number, up: boolean) => up
  *  hidden potential (per sd, exponent), a season above his rating, a jump the summer before. */
 export const BREAK = { p: [0, 0, 0, 0, 0.075, 0.04, 0.07, 0.06, 0.04, 0.008, 0.008, 0], min: 2.5, max: 4.5, pot: 0.35, elite: 86, played: 1.4, momentum: 1.5,
   skills: ['tp', 'ins', 'ast', 'def', 'ft', 'drb', 'tov'] };
+export const BASE = { n: 3, near: 2, k: 0.6 };
 export const PCUM = { span: 8, floor: 0.15, fade: 0.8 };
 export const ROT = { min: 1200, bench: 300, benchCap: 15, benchW: 0.6, k: 0.85 };
 export const MPG = { upFrom: 15, upMin: 0.35, upFull: 30, downFrom: 10, downMin: 0.25, downFull: 26 };
@@ -360,6 +364,20 @@ export function develop(lg: League, rng: Rng) {
     const why: any = { s: Y + 1, inj: pre ? s0 - histShown(pre) : 0, perf: 0, trend: 0, luck: 0, cap: 0, destiny: 0, total: 0 };
     // 1) what he showed on the court
     const pf = perf.get(p.id);
+    // his own baseline: what the engine usually makes of him. A profile the engine keeps over- (or under-) playing
+    // shows the same signal every season; only how this season differs from his last ones (at about the same
+    // rating – a real step up or down resets it) is news. Raw signals of the last BASE.n seasons are kept
+    if (pf) {
+      const o = ovrOf(p.z), hist: { o: number; dz: number[] }[] = (dev as any).pb ?? [];
+      const near = hist.filter(h => Math.abs(h.o - o) <= BASE.near);
+      const raw = pf.dz.map(v => Math.round(v * 1000) / 1000);
+      if (near.length) {
+        const w = BASE.k * Math.min(1, near.length / 2);
+        for (let k = 0; k < NK; k++) pf.dz[k] -= w * near.reduce((a, h) => a + h.dz[k], 0) / near.length;
+        pf.ovrGain = ovrOf(p.z.map((v, i) => v + pf.dz[i])) - o;
+      }
+      (dev as any).pb = [{ o: Math.round(o * 100) / 100, dz: raw }, ...hist].slice(0, BASE.n);
+    }
     // a player named to an All-League or All-Defensive team (or MVP / DPOY) had a good season by definition:
     // no penalty for not matching an already sky-high rating
     const honored = (p.awards ?? []).some(a => a.startsWith(`${Y} `) && /All-League|All-Defensive|MVP$|DPOY$/.test(a) && !/Finals/.test(a));

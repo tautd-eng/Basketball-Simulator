@@ -27,7 +27,8 @@ for (let y = 0; y < years; y++) {
     const min = reg.reduce((a: number, c: any) => a + c.min, 0), gp = reg.reduce((a: number, c: any) => a + c.gp, 0);
     const po = p.career.filter((c: any) => c.s === S && c.po).reduce((a: number, c: any) => a + c.min, 0);
     const pf = perf.get(p.id);
-    before.set(p.id, { id: p.id, name: p.name, pos: p.pos, S, age: ageIn(p, S), ovr0: shownOvr(p.z, p.id), min, gp, po, tid: p.tid, pot: p.dev?.pot ?? null, inj: p.injury ?? 0, z: p.z.map((v: number) => Math.round(v * 1000) / 1000), pg: pf ? Math.round(pf.ovrGain * 100) / 100 : null, pdz: pf ? pf.dz.map((v: number) => Math.round(v * 1000) / 1000) : null });
+    before.set(p.id, { id: p.id, name: p.name, pos: p.pos, S, age: ageIn(p, S), ovr0: shownOvr(p.z, p.id), min, gp, po, tid: p.tid, pot: p.dev?.pot ?? null, inj: p.injury ?? 0, z: p.z.map((v: number) => Math.round(v * 1000) / 1000), pg: pf ? Math.round(pf.ovrGain * 100) / 100 : null, pdz: pf ? pf.dz.map((v: number) => Math.round(v * 1000) / 1000) : null,
+      st: ['pts','fgm','fga','tpm','tpa','ftm','fta','ast','orb','drb','stl','blk','tov'].map(k => reg.reduce((a: number, c: any) => a + (c[k] ?? 0), 0)) });
   }
   runDraftPhase(lg);
   startNewSeason(lg);
