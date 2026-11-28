@@ -30,6 +30,8 @@ export function getEraCal(season: number): EraCal {
 export const C = {
   tov: -0.06, p2: -0.025, p3: -0.01, ft: -0.012,
   orb: 1.033, orbFt: 0.45, ast: 0.953, blk: 0.952, stlShare: 0.81,
+  usgExp: 1.6,   // how strongly the ball goes to the high-usage players (statfit: top usage players' share vs real)
+  pfTrouble: 0.45, pf5: 0.5, foulSit: 12,   // a player in foul trouble fouls this much less (on five, less still); and sits (lineup score)
   foulTrip: 0.976, andOne: 0.055, silentPf: 0.075,
   home: 0.045, def: 0.22, stlDef: 0.22, usgEff: 0.35, insAmp: 1.4, tovAmp: 1.45, drwAmp: 1, orbAmp: 1, // amps: how far a player's own finishing / ball security spreads from the era norm
   fatigue: 0.55, fatBase: 0.8, tpa: 0.104, drain: 0.00062, recover: 0.0011,
@@ -220,6 +222,27 @@ const short = (n: string) => {
  * players, protects players in foul trouble, plays his best five in crunch time
  * and empties the bench in blowouts.
  */
+/**
+ * The most a coach plays anyone in the regular season, by era: stars carried 40 minutes into the 2000s; since then
+ * coaches rest them (34–36 for most stars today). Real minutes of each season's top-minute players.
+ */
+const MAXMIN: [number, number][] = [[1980, 40], [1995, 40.5], [2002, 41], [2008, 39.5], [2013, 38]];
+export function maxMinOf(season: number) {
+  if (season <= MAXMIN[0][0]) return MAXMIN[0][1];
+  for (let i = 1; i < MAXMIN.length; i++) if (season <= MAXMIN[i][0]) { const [a, x] = MAXMIN[i - 1], [b, y] = MAXMIN[i]; return x + (y - x) * (season - a) / (b - a); }
+  return MAXMIN[MAXMIN.length - 1][1];
+}
+let planSeason = 2000;
+/**
+ * Home court by era, as a share of C.home: the home team won ~64 % in the mid-80s, ~60 % around 2000, ~57 % in the
+ * mid-2010s and ~54–55 % now (travel, rest and officiating evened it out).
+ */
+const HOMEK: [number, number][] = [[1985, 1.45], [2000, 1.05], [2015, 0.82], [2024, 0.5]];
+export function homeKOf(season: number) {
+  if (season <= HOMEK[0][0]) return HOMEK[0][1];
+  for (let i = 1; i < HOMEK.length; i++) if (season <= HOMEK[i][0]) { const [a, x] = HOMEK[i - 1], [b, y] = HOMEK[i]; return x + (y - x) * (season - a) / (b - a); }
+  return HOMEK[HOMEK.length - 1][1];
+}
 function planMinutes(side: Side, po = false) {
   planMinutes0(side, po);
   starRule(side, po);
@@ -253,7 +276,7 @@ function planMinutes0(side: Side, po = false) {
       return;
     }
   }
-  const depth = side.depth ?? (po ? C.poDepth : C.depth), alpha = po ? C.poAlpha : C.minAlpha, maxMin = po ? C.poMax : C.maxMin;
+  const depth = side.depth ?? (po ? C.poDepth : C.depth), alpha = po ? C.poAlpha : C.minAlpha, maxMin = po ? C.poMax : maxMinOf(planSeason);
   // a coach plays the men the offence runs through: his rating, and how much of the game goes through him
   // (and his defence, which a box-score rating undersells: a stopper starts)
   const mq = (g: GP) => { const b = Math.max(0.5, g.bpm + 6); return g.q * Math.pow(Math.max(0.5, b + MQD * Math.max(-1.5, Math.min(3, g.def)) + MQU * (g.usg - 0.2)) / b, C.star); };
@@ -298,6 +321,7 @@ function planMinutes0(side: Side, po = false) {
 /** The minutes a coach would plan for these players (the same plan the game starts from). */
 export function planPreview(players: Player[], season: number, o: { minutes?: Record<string, number>; depth?: number; po?: boolean; starters?: string[] } = {}) {
   const side = { tid: '', gps: players.map(p => prep(p, season)), on: [], pts: 0, q: [], home: true, paceZ: 0, tac: NO_TAC, minutes: o.minutes, depth: o.depth, starters: o.starters } as Side;
+  planSeason = season;
   planMinutes(side, o.po);
   return Object.fromEntries(side.gps.map(g => [g.p.id, g.target]));
 }
@@ -341,7 +365,9 @@ function chooseLineup(side: Side, period: number, rem: number, margin: number, s
       if (!start && !g.on && g.outAt !== undefined && elapsed - g.outAt < 90) s -= 20;
     }
     if (g.e < (crunch ? 0.08 : 0.3)) s -= 50; // at winning time only true exhaustion keeps a star on the bench
-    if (!crunch && g.fouls >= allowed) s -= 6;
+    // foul trouble: two in the first quarter, three in the first half, four in the third, five in the fourth – he sits
+    // (until the closing minutes, when the best play anyway)
+    if (!crunch && g.fouls >= allowed) s -= C.foulSit;
     return s;
   };
   const ranked = [...avail].sort((a, b) => score(b) - score(a));
@@ -396,6 +422,8 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
   const pace = seasonPace(season) * (1 + 0.03 * (H.paceZ + A.paceZ) / 2) * (1 + 0.04 * (H.tac.pace + A.tac.pace) / 2);
   const T0 = (2880 / (2 * pace)) * 0.86 * C.possSec * E.pace;
 
+  planSeason = season;
+  const homeK = homeKOf(season);
   planMinutes(H, o.po); planMinutes(A, o.po);
   // starters: best five by quality with positional balance
   for (const s of [H, A]) {
@@ -603,9 +631,14 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
   };
   /** how likely a finish at the rim is a dunk: size, finishing and era */
   const dunkP = (g: GP) => Math.max(0.03, Math.min(0.8, (0.12 + 0.05 * (g.p.ht - 77) + 1.4 * (g.p2 - 0.5)) * (seasonOf < 1978 ? 0.5 : 1)));
+  // who commits a foul: his foul rate – softer when he is in foul trouble (he plays off, stops reaching), and never
+  // a man who has already fouled out (his sixth whistle and his replacement can fall within one trip)
+  const trouble = () => (curPeriod <= 1 ? 2 : curPeriod === 2 ? 3 : curPeriod === 3 ? 4 : 5);
+  const pfW = (g: GP) => g.fouls >= 6 ? 0 : g.pf * (g.fouls >= trouble() ? C.pfTrouble : 1) * (g.fouls === 5 ? C.pf5 : 1);
   const foulOn = (s: Side, weights?: number[]) => {
     const on = s.on;
-    const i = rng.weighted(weights ?? on.map(g => g.pf));
+    const w = (weights ?? on.map(g => g.pf)).map((x, k) => on[k].fouls >= 6 ? 0 : x * (on[k].fouls >= trouble() ? C.pfTrouble : 1) * (on[k].fouls === 5 ? C.pf5 : 1));
+    const i = rng.weighted(w.some(x => x > 0) ? w : on.map(() => 1));
     const g = on[i];
     g.fouls++; inc(g, 'pf');
     ev('foul', s, `Foul: ${short(g.p.name)} (${g.fouls})`);
@@ -790,7 +823,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // in the last two minutes a foul away from the ball is a free throw and the ball: they foul whoever catches it,
     // and the offence gets it to its best free-throw shooters; earlier they can hack the worst one off the ball
     const target = off.on[rng.weighted(off.on.map(g => curRem < 120 && curPeriod >= 4 ? Math.pow(g.pft, 4) * (0.15 + g.usg) : Math.pow(1.05 - g.pft, 3)))];
-    const f = def.on[rng.weighted(def.on.map(g => g.pf))];
+    const fw = def.on.map(pfW), f = def.on[rng.weighted(fw.some(x => x > 0) ? fw : def.on.map(() => 1))];
     f.fouls++; inc(f, 'pf');
     ev('foul', def, `Intentional foul: ${short(f.p.name)} (${f.fouls}) on ${short(target.p.name)}`);
     return ftTrip(off, def, target, 2);
@@ -831,7 +864,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     // winning time: the ball goes to the stars (a close game in the last five minutes, overtime) – the role players
     // spot up and the go-to men take the shots
     const winTime = (curPeriod >= 4 && curRem < 300 && Math.abs(off.pts - def.pts) <= 10) || curPeriod > 4;
-    let actor = on[rng.weighted(on.map(g => Math.pow(g.usg / 0.2, 1.6 + 0.6 * fo + (winTime ? 1.7 : 0)) * postW(g) * pnrW(g) * (0.6 + 0.4 * g.e) * Math.exp(edge(g)) * (offCall === 'three' ? Math.max(0.03, g.tpr) ** 1.5 * 6 : 1)))];
+    let actor = on[rng.weighted(on.map(g => Math.pow(g.usg / 0.2, C.usgExp + 0.6 * fo + (winTime ? 1.7 : 0)) * postW(g) * pnrW(g) * (0.6 + 0.4 * g.e) * Math.exp(edge(g)) * (offCall === 'three' ? Math.max(0.03, g.tpr) ** 1.5 * 6 : 1)))];
     // doubling their star: the ball either stays with him in traffic (turnovers) or goes out to an open shooter
     const star = on.reduce((a, g) => (g.usg > a.usg ? g : a), on[0]);
     let kick = false, dblTov = 0;
@@ -850,7 +883,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
     const fb = fastBreak && !afterOrb, lc = lateClock && !afterOrb;
     const tag: Partial<PbpEv> = { ...(fb ? { fb: 1 as const } : {}), ...(offCall !== 'auto' && !afterOrb ? { call: offCall } : {}), ...(dsc !== 'man' && !fb ? { dsc } : {}) };
     const fat = C.fatigue * Math.max(0, C.fatBase - actor.e) + STAX.shot * legs(actor);
-    const homeAdv = off.home ? C.home : -C.home;
+    const homeAdv = (off.home ? C.home : -C.home) * homeK;
     const md = guard(actor);
     const stlZ = dOn.reduce((a, g) => a + g.stlZ, 0) / 5;
     const usgShift = C.usgEff * (usgSum - 1);
@@ -893,7 +926,7 @@ export function* gameGen(home: TeamIn, away: TeamIn, o: GameOpts): Generator<Gam
         // his own man strips him; anyone else jumps a passing lane
         ended = 'stl';
         if (log) ev('tov', off, st === md ? `${short(st.p.name)} strips ${an}` : `${an}'s pass is picked off by ${short(st.p.name)}`, { m: md.p.id, v: st === md ? 'strip' : 'pick', ...tag });
-      } else if (cr.chance(C.charge * (actor.drw > 0.3 ? 1.3 : 1) * (actor.posNum >= 4 ? 0.8 : 1))) {
+      } else if (actor.fouls < 6 && cr.chance(C.charge * (actor.drw > 0.3 ? 1.3 : 1) * (actor.posNum >= 4 ? 0.8 : 1))) {
         // an offensive foul: the defender beat him to the spot and took the charge – a turnover and a foul on him
         const drawer = cr.chance(0.6) ? md : dOn[Math.floor(cr.next() * dOn.length)];
         actor.fouls++; inc(actor, 'pf');
