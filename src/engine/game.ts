@@ -33,7 +33,7 @@ export const C = {
   usgExp: 1.6,   // how strongly the ball goes to the high-usage players (statfit: top usage players' share vs real)
   pfTrouble: 0.45, pf5: 0.5, foulSit: 12,   // a player in foul trouble fouls this much less (on five, less still); and sits (lineup score)
   foulTrip: 0.976, andOne: 0.055, silentPf: 0.075,
-  home: 0.045, def: 0.22, stlDef: 0.22, usgEff: 0.35, insAmp: 1.4, tovAmp: 1.45, drwAmp: 1, orbAmp: 1, // amps: how far a player's own finishing / ball security spreads from the era norm
+  home: 0.045, def: 0.22, stlDef: 0.22, usgEff: 0.35, insAmp: 1.4, tovAmp: 1.38, drwAmp: 1.12, orbAmp: 1, drbAmp: 1.13, blkAmp: 1.07, tprAmp: 1.12, stlAmp: 0.95, // amps: how far a player's own finishing / ball security spreads from the era norm
   fatigue: 0.55, fatBase: 0.8, tpa: 0.104, drain: 0.00062, recover: 0.0011,
   possSec: 1.09, putback3: 0.45, zoneGap: 1.0, charge: 0.11,
   fbStl: 0.55, fbDrb: 0.15, fbMake: 0.45, fbThree: 0.6, lateClock: 0.2, // transition and shot-clock pressure
@@ -137,15 +137,15 @@ function prep0(p: Player, season: number): GP {
     // the rating is turnovers per action with the ball (assists included); as the man with the ball he loses it at that rate times (1 + his passes per own possession)
     tov: Math.min(0.5, rate(K.tov, C.tovAmp * z[K.tov], season) * (1 + 0.35 * rate(K.ast, z[K.ast], season) / Math.max(0.08, rate(K.usg, z[K.usg], season)))),
     drw: rate(K.drw, C.drwAmp * z[K.drw], season),
-    tpr: rate(K.tpr, z[K.tpr], season),
+    tpr: rate(K.tpr, C.tprAmp * z[K.tpr], season),
     p2: rate(K.ins, C.insAmp * z[K.ins], season),
     p3: rate(K.tp, z[K.tp], season),
     pft: rate(K.ft, z[K.ft], season),
     ast: rate(K.ast, z[K.ast], season),
     orb: rate(K.orb, C.orbAmp * z[K.orb], season),
-    drb: rate(K.drb, z[K.drb], season),
-    stl: rate(K.stl, z[K.stl], season),
-    blk: rate(K.blk, z[K.blk], season),
+    drb: rate(K.drb, C.drbAmp * z[K.drb], season),
+    stl: rate(K.stl, C.stlAmp * z[K.stl], season),
+    blk: rate(K.blk, C.blkAmp * z[K.blk], season),
     pf: rate(K.pf, z[K.pf], season),
     def: z[K.def], hb: C.hbOn ? hiddenBoost(p.id) : 0, per: perD(z, p.ht), rim: rimD(z, p.ht), post: postD(z, p.ht), stlZ: z[K.stl], astZ: z[K.ast],
     endurMul: 1 - 0.12 * staNow(p, season),
@@ -262,7 +262,7 @@ function starRule(side: Side, po: boolean) {
   if (tot > 0) for (const g of rest) g.target = Math.max(0, g.target - need * g.target / tot);
 }
 
-const MQD = 0.4, MQU = 8;   // minutes plan: how much a man's defence and his share of the offence add to his rating (test/calibrate: best fit across eras)
+const MQD = 0.4, MQU = 20;   // minutes plan: how much a man's defence and his share of the offence add to his rating (coaches play their scorers: best fit of real minutes, test/accuracy.ts across eras)
 function planMinutes0(side: Side, po = false) {
   // the user's own minutes: his plan, scaled to the 240 there are (those who are out lose theirs)
   if (side.minutes) {
