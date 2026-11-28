@@ -556,8 +556,9 @@ function Controls({ lg, busy, run, stop, saved }: any) {
     <div className="controls host-only">
       {awaitingPlayoffs(lg) && b('day', 'Start the playoffs', true)}
       {(lg.phase === 'regular' || lg.phase === 'playoffs') && !awaitingPlayoffs(lg) && <>
-        {b('day', 'Day')}
-        {b('week', 'Week', true)}
+        {/* the main step: a week in the regular season, a day in the playoffs (every game matters) */}
+        {b('day', 'Day', lg.phase === 'playoffs')}
+        {b('week', 'Week', lg.phase === 'regular')}
         {lg.phase === 'playoffs' && b('round', 'Sim round')}
         {lg.phase === 'regular' && lg.day < deadlineDay(lg) && b('deadline', 'To trade deadline')}
         {lg.phase === 'regular' && b('playoffs', 'To end of regular season')}
