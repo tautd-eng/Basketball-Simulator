@@ -1377,11 +1377,15 @@ export function startSeason(lg: League) {
   const aiFill: string[] = [];
   for (const t of activeTeams(lg)) {
     const filled: string[] = [];
+    const human = isHuman(lg, t.tid);
     while (t.roster.length < ROSTER_MIN) {
-      const best = Object.values(lg.players).filter(p => isFreeAgent(lg, p) && !(p.cut?.tid === t.tid && p.cut.s === N)).sort((a, b) => playerValue(b, N, t.strategy) - playerValue(a, N, t.strategy))[0];
+      // a person's team is only topped up to the minimum roster, with the best free agent who takes the minimum –
+      // the game never spends a person's money for him
+      const pool = Object.values(lg.players).filter(p => isFreeAgent(lg, p) && !(p.cut?.tid === t.tid && p.cut.s === N) && (!human || askingSalary(p, N) <= MIN_SAL * 1.5)).sort((a, b) => playerValue(b, N, t.strategy) - playerValue(a, N, t.strategy));
+      const best = pool[0];
       if (!best) break;
       best.tid = t.tid; t.roster.push(best.id);
-      const fair = fillSalary(lg, best, t.tid, N);
+      const fair = human ? MIN_SAL : fillSalary(lg, best, t.tid, N);
       best.contract = { sal: fair, exp: N };
       lockTrade(lg, best);
       filled.push(tagOf(best, N));
@@ -1390,7 +1394,8 @@ export function startSeason(lg: League) {
       if (!lg.fa) addTx(best, N, fair > MIN_SAL + 1e-9 ? `Signed with ${t.name}: 1 yr, ${Math.round(fair * 1000) / 10}% of the cap` : `Signed with ${t.name}: minimum deal (1 yr)`, -1);
     }
     const cut: string[] = [];
-    while (t.roster.length > ROSTER_MAX) {
+    // a person's team over the limit is not trimmed for him: the season waits until he does it (rosterProblems)
+    while (t.roster.length > ROSTER_MAX && !human) {
       const worst = t.roster.map(pid => lg.players[pid]).sort((a, b) => playerValue(a, N, t.strategy) - playerValue(b, N, t.strategy))[0];
       t.roster = t.roster.filter(pid => pid !== worst.id);
       releaseDead(lg, t.tid, worst);
@@ -1791,6 +1796,22 @@ export function aiRecallStash(lg: League, rng: Rng, chance = 1) {
 }
 
 /** A late signing to fill a roster: a good player still costs most of his market value (within the hard cap). */
+/**
+ * What keeps a person's team from playing: more than 15 players, or a payroll over the hard cap. The game does not
+ * release his players for him – the sim stops and he decides (release, trade).
+ */
+export function rosterProblems(lg: League): { tid: string; msg: string }[] {
+  const out: { tid: string; msg: string }[] = [];
+  const hc = hardCap(lg);
+  for (const tid of humans(lg)) {
+    const t = lg.teams[tid];
+    if (!t?.active) continue;
+    if (t.roster.length > ROSTER_MAX) out.push({ tid, msg: `${t.name} have ${t.roster.length} players – the limit is ${ROSTER_MAX}: release or trade ${t.roster.length - ROSTER_MAX}.` });
+    if (hc !== Infinity && lg.capGrace !== lg.season && payroll(lg, tid) > hc + 1e-9) out.push({ tid, msg: `${t.name} are over the hard cap: payroll ${Math.round(payroll(lg, tid) * 1000) / 10}% of the cap, the limit is ${Math.round(hc * 1000) / 10}% – trade or release salary.` });
+  }
+  return out;
+}
+
 export function fillSalary(lg: League, p: Player, tid: string, N: number) {
   const room = hardCap(lg) - payroll(lg, tid);
   return Math.max(MIN_SAL, Math.min(askingSalary(p, N) * 0.7, room));

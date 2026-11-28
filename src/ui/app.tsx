@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NOW } from '../athletic';
+import { rosterProblems } from '../league/offseason';
 import { startVisits, visitStats, onVisitStats } from '../online/visits';
 import { GuardDialog, guardMove, setGuardRerender } from './guard';
 import { EditLog } from './editplayer';
@@ -268,6 +269,7 @@ function App() {
   setGuardRerender(bump);   // a hand-over to another of your teams shows its screen at once
 
   const [dlStop, setDlStop] = useState<{ target: Target; label: string } | null>(null);
+  const [rosterStop, setRosterStop] = useState(false);
   function run(target: Target, label: string) {
     if (!lg || busy) return;
     guardMove(lg, () => doRun(target, label), lg.phase === 'draft' ? 'draft' : 'step');
@@ -279,6 +281,7 @@ function App() {
     const why = await advance(lg, target, bump, () => stop.current);
     setBusy(null);
     if (why === 'deadline') setDlStop({ target, label });
+    if (why === 'roster') setRosterStop(true);
     bump();
     setSaved((await saveLeague(lg)) ? 'ok' : 'fail');
   }
@@ -452,6 +455,18 @@ function App() {
       {live && <LiveGame lg={lg} data={live} close={closeLive} hold={!!player} openPlayer={(pid: string) => setPlayer(pid)} />}
       <GuardDialog />
       {lg.phase !== 'fantasy' && <TradePopups lg={lg} busy={!!busy || !!live || !!clutch || !!gameView} openPlayer={openPlayer} goTrades={() => go('trades')} onChange={async () => { bump(); setSaved((await saveLeague(lg)) ? 'ok' : 'fail'); }} />}
+      {rosterStop && lg && <div className="overlay center guard-bg" onClick={() => setRosterStop(false)}>
+        <div className="dialog" role="alertdialog" aria-label="Roster rules" onClick={e => e.stopPropagation()}>
+          <h2>Your roster breaks the rules</h2>
+          {rosterProblems(lg).map((x: any, i: number) => <p key={i}>{x.msg}</p>)}
+          <p className="dim">The game does not release or trade your players for you – the season waits until you do. Release in Team management (or a player's card), or trade.</p>
+          <div className="dialog-actions">
+            <button className="primary" onClick={() => { setRosterStop(false); go('management'); }}>Team management</button>
+            <button onClick={() => { setRosterStop(false); go('trades'); }}>Trades</button>
+            <button className="ghost" onClick={() => setRosterStop(false)}>Close</button>
+          </div>
+        </div>
+      </div>}
       {dlStop && lg && <div className="overlay center guard-bg" onClick={() => setDlStop(null)}>
         <div className="dialog" role="alertdialog" aria-label="Trade deadline" onClick={e => e.stopPropagation()}>
           <h2>Trade deadline day</h2>

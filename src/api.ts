@@ -6,7 +6,7 @@ import { bioOf } from './players';
 import { expireAiOffers } from './league/proposals';
 import { H } from './data';
 import { simDay, awaitingPlayoffs, currentRound, checkRosters } from './league/league';
-import { initDraft, draftAdvance, enterFreeAgency, faStage, startSeason, offStep, offRetire, offDevelop } from './league/offseason';
+import { initDraft, draftAdvance, enterFreeAgency, faStage, startSeason, offStep, offRetire, offDevelop, rosterProblems } from './league/offseason';
 import { fantasyAdvance } from './league/fantasy';
 import { registerClones } from './league/classes';
 import { registerNew2027 } from './rosters2027';
@@ -50,10 +50,12 @@ export function waveUnseen(lg: League): boolean {
  * Moves the league on. A long sim that would run past the trade deadline stops on deadline day (the last day
  * to trade) when people run teams, so nobody skips it by accident: then it returns 'deadline'.
  */
-export async function advance(lg: League, target: Target, onProgress: () => void, shouldStop: () => boolean): Promise<'deadline' | void> {
-  if (target === 'day') { stepOnce(lg); onProgress(); return; }
+export async function advance(lg: League, target: Target, onProgress: () => void, shouldStop: () => boolean): Promise<'deadline' | 'roster' | void> {
+  // a person's team that breaks the roster rules (over 15, over the hard cap) does not play until he fixes it
+  if (lg.phase === 'regular' && rosterProblems(lg).length) return 'roster';
+  if (target === 'day') { stepOnce(lg); onProgress(); return lg.phase === 'regular' && rosterProblems(lg).length ? 'roster' : undefined; }
   const guardDeadline = target !== 'deadline' && lg.phase === 'regular' && lg.day < deadlineDay(lg) && !lg.settings?.noDeadlineStop && !!(lg.userTid || lg.humans?.length);
-  let hitDeadline = false;
+  let hitDeadline = false, hitRoster = false;
   const startSeason = lg.season;
   const startDay = lg.day;
   const startPhase = lg.phase;
@@ -61,6 +63,7 @@ export async function advance(lg: League, target: Target, onProgress: () => void
   const done = (): boolean => {
     if (lg.ended) return true;
     if (guardDeadline && lg.phase === 'regular' && lg.day >= deadlineDay(lg) && !awaitingPlayoffs(lg)) return hitDeadline = true;
+    if (lg.phase === 'regular' && rosterProblems(lg).length) return hitRoster = true;
     switch (target) {
       // a week never runs past the end of the regular season (the awards screen) into the playoffs
       // …nor through a checkpoint: the trade deadline (above), the end of the regular season, the end of a playoff round
@@ -87,6 +90,7 @@ export async function advance(lg: League, target: Target, onProgress: () => void
   }
   delete (lg as any)._auto;
   onProgress();
+  if (hitRoster) return 'roster';
   if (hitDeadline) return 'deadline';
 }
 

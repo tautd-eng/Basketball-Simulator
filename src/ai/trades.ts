@@ -642,10 +642,12 @@ export function fillRoster(lg: League, tid: string) {
     const pool = Object.values(lg.players).filter(p => isFreeAgent(lg, p) && !(p.cut?.tid === tid && p.cut.s === lg.season))
       .sort((x, y) => playerValue(y, lg.season, t.strategy) - playerValue(x, lg.season, t.strategy));
     // the best one who would sign for what the team can pay (a good player waits for a real offer)
-    const fa = pool.find(p => askingSalary(p, lg.season) <= MIN_SAL * 2.5 || askingSalary(p, lg.season) * 0.5 <= room) ?? pool[0];
+    // a person's team is only topped up with someone who takes the minimum (the game does not spend his money)
+    const human = isHuman(lg, tid);
+    const fa = human ? pool.find(p => askingSalary(p, lg.season) <= MIN_SAL * 1.5) : pool.find(p => askingSalary(p, lg.season) <= MIN_SAL * 2.5 || askingSalary(p, lg.season) * 0.5 <= room) ?? pool[0];
     if (!fa) break;
     // a good player signed late still costs most of his market value (within the hard cap)
-    const sal = Math.max(MIN_SAL, Math.min(askingSalary(fa, lg.season) * 0.7, hardCap(lg) - payroll(lg, tid)));
+    const sal = human ? MIN_SAL : Math.max(MIN_SAL, Math.min(askingSalary(fa, lg.season) * 0.7, hardCap(lg) - payroll(lg, tid)));
     let from = fa.bird ?? fa.rfa ?? '';
     for (let i = fa.career.length - 1; i >= 0 && !from; i--) from = fa.career[i].tid ?? '';
     fa.tid = tid; t.roster.push(fa.id);
@@ -1054,7 +1056,8 @@ export function complyHardCap(lg: League, rng: Rng, buyouts = false) {
       fillRoster(lg, A.tid); fillRoster(lg, deal.b);
     }
     // last resort: the worst contract for the money is released (half of it stays on the books)
-    while (buyouts && payroll(lg, A.tid) > hc + 1e-9) {
+    // (never for a person's team: the season waits until he gets under the cap himself)
+    while (buyouts && !isHuman(lg, A.tid) && payroll(lg, A.tid) > hc + 1e-9) {
       const h = horizonOf(A);
       // the worst contracts go first; the core only if nothing else is left
       const p = A.roster.map(pid => lg.players[pid]).filter(x => x.contract.sal > MIN_SAL * 1.5)
