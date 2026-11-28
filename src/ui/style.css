@@ -1345,3 +1345,23 @@ tr.overpay > td { background: color-mix(in srgb, var(--bad, #c0392b) 7%, transpa
 .chip.prof-dn { background: color-mix(in srgb, #888 25%, transparent); }
 .chip.prof-warn { background: color-mix(in srgb, #d08a1e 30%, transparent); }
 .chip.prof-ok { background: color-mix(in srgb, #3a7bd5 25%, transparent); }
+
+/* trade offer on a phone: one column that fits, packages scroll sideways if they must, rosters folded */
+.tp-side-toggle { display: none; }
+@media (max-width: 820px) {
+  .tp-grid { grid-template-columns: minmax(0, 1fr); }
+  .tp-main { min-width: 0; }
+}
+@media (max-width: 600px) {
+  .dialog.trade-pop.wide { padding: 14px 12px; max-height: 94vh; }
+  .trade-pop h2 { font-size: 1.2rem; }
+  .trade-pop .pkg { overflow-x: auto; }
+  .trade-pop .pkg-tbl { font-size: 11px; }
+  .trade-pop .pkg-tbl th, .trade-pop .pkg-tbl td { padding: 2px 3px; }
+  .trade-pop .pkg-tbl th:nth-child(2), .trade-pop .pkg-tbl td:nth-child(2) { display: none; }
+  .trade-pop .pkg-tbl .pkg-pick td { display: table-cell; }
+  .trade-pop .dialog-actions { flex-wrap: wrap; gap: 6px; }
+  .trade-pop .dialog-actions button { flex: 1 1 40%; }
+  .tp-side-toggle { display: inline-block; align-self: flex-start; }
+  .tp-side:not(.open) > :not(.tp-side-toggle) { display: none; }
+}

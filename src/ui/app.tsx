@@ -557,11 +557,11 @@ function Controls({ lg, busy, run, stop, saved }: any) {
       {awaitingPlayoffs(lg) && b('day', 'Start the playoffs', true)}
       {(lg.phase === 'regular' || lg.phase === 'playoffs') && !awaitingPlayoffs(lg) && <>
         {b('day', 'Day')}
-        {b('week', 'Week')}
+        {b('week', 'Week', true)}
         {lg.phase === 'playoffs' && b('round', 'Sim round')}
         {lg.phase === 'regular' && lg.day < deadlineDay(lg) && b('deadline', 'To trade deadline')}
         {lg.phase === 'regular' && b('playoffs', 'To end of regular season')}
-        {b('seasonEnd', 'To season end', true)}
+        {b('seasonEnd', 'To season end')}
       </>}
       {lg.phase === 'draft' && offStep(lg) === 'recap' && b('day', 'Start the offseason', true)}
       {lg.phase === 'draft' && offStep(lg) === 'retire' && b('day', 'To player development', true)}

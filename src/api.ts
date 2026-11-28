@@ -63,7 +63,8 @@ export async function advance(lg: League, target: Target, onProgress: () => void
     if (guardDeadline && lg.phase === 'regular' && lg.day >= deadlineDay(lg) && !awaitingPlayoffs(lg)) return hitDeadline = true;
     switch (target) {
       // a week never runs past the end of the regular season (the awards screen) into the playoffs
-      case 'week': return lg.day >= startDay + 7 || lg.phase !== startPhase || awaitingPlayoffs(lg);
+      // …nor through a checkpoint: the trade deadline (above), the end of the regular season, the end of a playoff round
+      case 'week': return lg.day >= startDay + 7 || lg.phase !== startPhase || awaitingPlayoffs(lg) || (lg.phase === 'playoffs' && currentRound(lg) !== startRound);
       case 'deadline': return lg.phase !== 'regular' || lg.day >= deadlineDay(lg) || awaitingPlayoffs(lg);
       case 'playoffs': return lg.phase !== 'regular' || awaitingPlayoffs(lg);
       case 'round': return lg.phase !== 'playoffs' || currentRound(lg) !== startRound;

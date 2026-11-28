@@ -171,8 +171,11 @@ export function CommitteePanel({ lg, openPlayer, onDone }: any) {
 /** Your team or theirs, as the deal would leave them. */
 function GlanceTabs({ lg, pr, openPlayer }: any) {
   const [who, setWho] = useState<'you' | 'them'>('you');
+  // on a phone the teams' rosters fold away under one button (on a computer they always show beside the offer)
+  const [open, setOpen] = useState(false);
   return (
-    <div className="tp-side">
+    <div className={`tp-side ${open ? 'open' : ''}`}>
+      <button className="small ghost tp-side-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide rosters ▴' : 'Rosters and payroll ▾'}</button>
       <div className="seg" role="group" aria-label="Team">
         <button className={who === 'you' ? 'on' : ''} onClick={() => setWho('you')}>{lg.teams[pr.to].abbr} <span className="dim">(yours)</span></button>
         <button className={who === 'them' ? 'on' : ''} onClick={() => setWho('them')}>{lg.teams[pr.from].abbr}</button>

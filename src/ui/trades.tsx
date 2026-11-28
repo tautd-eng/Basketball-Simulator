@@ -62,6 +62,10 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
   const toHuman = isHuman(lg, b) && b !== a && a === lg.userTid;
   const rule = (aGives.length || bGives.length) && toHuman ? tradeRules(lg, a, b, bGives, aGives) : null;
   const commish = !!lg.commish;
+  // your side: your own team (a team you run, if you run several); any team only in commissioner mode
+  const own = humans(lg).filter((t: string) => lg.teams[t]?.active);
+  const sideA = commish ? teams : teams.filter((t: any) => own.includes(t.tid));
+  useEffect(() => { if (!commish && !own.includes(a) && own.length) { setA(own.includes(me0) ? me0 : own[0]); setSelA(new Set()); } }, [commish, me0, own.join()]);
   const ruleAny = (aGives.length || bGives.length) ? tradeRules(lg, a, b, bGives, aGives) : 'Select something first.';
   const [found, setFound] = useState<any[] | null>(null);
   const [scope, setScope] = useState<'all' | 'partner'>('all');
@@ -199,10 +203,10 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         <h2>Trade proposal</h2>
         <p className="note">{closed ? (lg.phase === 'playoffs' ? 'Trading is closed during the playoffs.' : 'This season\'s trade deadline has passed. Trading reopens on draft day.') : lg.phase === 'regular' ? `Trade deadline: day ${deadlineDay(lg) + 1} of the season (today is day ${lg.day + 1}).` : lg.phase === 'draft' ? 'Draft day: picks can be traded until they are used – move up or down the board.' : 'Offseason: trading is open.'} AI teams trade among themselves; with your team they only trade when you propose.{lg.humans?.length > 1 ? ' Offers to another person\'s team wait for their answer.' : ''}</p>
         <div className="trade-pick">
-          <label htmlFor="trade-a" className="host-only">Your side
-            <select id="trade-a" value={a} onChange={e => { setA(e.target.value); setSelA(new Set()); if (e.target.value === b) setB(teams.find((t: any) => t.tid !== e.target.value).tid); }}>
-              {teams.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}</option>)}
-            </select>
+          <label htmlFor="trade-a" className="host-only">Your side{!commish && <span className="lock" title="Your own team. Commissioner mode (below) lets you set up a trade between any two teams."> 🔒</span>}
+            {sideA.length > 1 ? <select id="trade-a" value={a} onChange={e => { setA(e.target.value); setSelA(new Set()); if (e.target.value === b) setB(teams.find((t: any) => t.tid !== e.target.value).tid); }}>
+              {sideA.map((t: any) => <option key={t.tid} value={t.tid}>{t.name}</option>)}
+            </select> : <span id="trade-a" className="locked-team">{lg.teams[a].name}</span>}
           </label>
           <label htmlFor="trade-b">Partner
             <select id="trade-b" value={b} onChange={e => { setB(e.target.value); setSelB(new Set()); }}>
@@ -258,6 +262,7 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
         </div>
         {msg && <p className="ok-msg">{msg}</p>}
       </div>
+      {lg.phase !== 'fantasy' && <AskedOut lg={lg} openPlayer={openPlayer} mine={own} offer={(tid: string, pid: string) => { setB(tid); setSelA(new Set()); setSelB(new Set(['p:' + pid])); setMsg(null); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* */ } }} />}
       {lg.phase !== 'fantasy' && <TradeBlock lg={lg} openPlayer={openPlayer} onDone={onDone} offer={(tid: string, pid: string) => { setA(me0); setB(tid); setSelA(new Set()); setSelB(new Set(['p:' + pid])); setMsg(null); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* */ } }} />}
       <div className="panel">
         <h2>Trade history</h2>
@@ -269,4 +274,25 @@ export function Trades({ lg, openPlayer, onDone, seed }: any) {
       </div>
     </div>
   );
+}
+
+/** Players who have asked their team for a trade: they will not extend or re-sign there, so their teams listen. */
+function AskedOut({ lg, openPlayer, offer, mine }: any) {
+  const [pos, setPos] = useState('all');
+  const rows = Object.values(lg.players).filter((p: any) => p.tid && !p.retired && p.treq && p.treq.tid === p.tid && lg.teams[p.tid]?.active && posOk(p, pos))
+    .sort((x: any, y: any) => ovrOf(y.z, y.id) - ovrOf(x.z, x.id)) as any[];
+  const all = Object.values(lg.players).filter((p: any) => p.tid && !p.retired && p.treq && p.treq.tid === p.tid).length;
+  return <div className="panel">
+    <div className="team-head"><h2>Asked for a trade</h2>{all > 0 && <PosFilter value={pos} onChange={setPos} />}</div>
+    <p className="note">Players who have told their team they want out. They will not extend or re-sign there, so their teams are more willing to move them – often for less than they are worth.</p>
+    {rows.length ? <div className="tbl-wrap"><table className="tbl">
+      <thead><tr><th className="l">Player</th><th className="l">Team</th><th>Pos</th><th>Age</th><th>OVR</th><th>Pot.</th><th>Salary</th><th className="l">Contract</th><th title="Season he asked">Asked</th><th></th></tr></thead>
+      <tbody>{rows.map((p: any) => <tr key={p.id}>
+        <td className="l"><button className="link" onClick={() => openPlayer(p.id)}>{p.name}</button>{p.injury > 0 && <span className="inj"> out {p.injury}</span>}</td>
+        <td className="l"><TL tid={p.tid} abbr /></td><td className="dim">{posLabel(p)}</td><td>{ageIn(p, lg.season)}</td><td><b>{ovrOf(p.z, p.id)}</b></td><td><PotOf p={p} s={lg.season} /></td>
+        <td>{money(p.contract?.sal ?? 0, lg.season)}</td><td className="l dim">{p.contract ? `${yrsTxt(lg, p.contract)} (’${String(p.contract.exp).slice(2)})` : '–'}</td><td className="dim">{p.treq.s}</td>
+        <td>{mine.includes(p.tid) ? <span className="chip tiny">yours</span> : <button className="small" onClick={() => offer(p.tid, p.id)}>Make an offer</button>}</td>
+      </tr>)}</tbody>
+    </table></div> : <p className="note">{all ? 'Nobody at that position.' : 'Nobody has asked for a trade right now.'}</p>}
+  </div>;
 }
